@@ -62,7 +62,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchProducts => 'Search products by name or category...';
 
   @override
-  String get allCategories => 'All';
+  String get allCategories => 'All Categories';
 
   @override
   String get cartTitle => 'Current Order';
@@ -124,4 +124,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logout => 'Log Out';
+
+  @override
+  String get newProduct => 'New Product';
+
+  @override
+  String get editProduct => 'Edit Product';
+
+  @override
+  String get deleteProduct => 'Delete Product';
+
+  @override
+  String get productName => 'Product Name';
+
+  @override
+  String get productCode => 'Product Code';
+
+  @override
+  String get barcode => 'Barcode';
+
+  @override
+  String get sku => 'SKU';
+
+  @override
+  String get category => 'Category';
+
+  @override
+  String get costPrice => 'Cost Price';
+
+  @override
+  String get salePrice => 'Sale Price';
+
+  @override
+  String get stockQty => 'Stock Quantity';
+
+  @override
+  String get unit => 'Unit';
+
+  @override
+  String get lowStockThreshold => 'Low Stock Alert';
+
+  @override
+  String get taxRate => 'Tax Rate';
+
+  @override
+  String get status => 'Status';
+
+  @override
+  String get active => 'Active';
+
+  @override
+  String get inactive => 'Inactive';
+
+  @override
+  String get categories => 'Categories';
+
+  @override
+  String get manageCategories => 'Manage Categories';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get codeAlreadyUsed => 'Product code already used';
+
+  @override
+  String get categoryInUse => 'Cannot delete category in use by products';
+
+  @override
+  String get deleteProductConfirm =>
+      'Are you sure you want to delete this product?';
+
+  @override
+  String get actions => 'Actions';
 }

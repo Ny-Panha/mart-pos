@@ -35,4 +35,18 @@ class CategoryModel {
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
+
+  CategoryModel copyWith({
+    String? id,
+    String? name,
+    int? sortOrder,
+    DateTime? createdAt,
+  }) {
+    return CategoryModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }
