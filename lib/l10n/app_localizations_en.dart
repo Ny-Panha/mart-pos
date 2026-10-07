@@ -203,4 +203,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actions => 'Actions';
+
+  @override
+  String get stockIn => 'Stock In';
+
+  @override
+  String get stockOut => 'Stock Out';
+
+  @override
+  String get adjustStock => 'Adjust Stock';
+
+  @override
+  String get stockHistory => 'Stock Movement History';
+
+  @override
+  String get lowStockAlert => 'Low Stock Alert';
 }
