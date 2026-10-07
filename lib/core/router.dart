@@ -25,19 +25,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return null;
 
       final user = authState.value;
-      final isLoggingIn = state.uri.toString() == '/login';
+      final isLoggingIn = state.uri.toString().startsWith('/login');
 
       // 1. Unauthenticated -> force login
       if (user == null) {
         return isLoggingIn ? null : '/login';
       }
 
-      // 2. Authenticated user accessing login page
+      // 2. Deactivated user -> force login with error message
+      if (!user.active) {
+        return isLoggingIn ? null : '/login?error=deactivated';
+      }
+
+      // 3. Authenticated user accessing login page
       if (isLoggingIn) {
         return '/pos';
       }
 
-      // 3. Role-based Guard: Cashiers cannot access /admin routes
+      // 4. Role-based Guard: Cashiers cannot access /admin routes
       final isGoingToAdmin = state.uri.toString().startsWith('/admin');
       if (isGoingToAdmin && !user.isAdmin) {
         return '/pos';

@@ -70,7 +70,7 @@ class FirestoreCollections {
       );
 
   static CollectionReference<DailyCloseModel> dailyCloses = db
-      .collection('dailyCloses')
+      .collection('daily_closes')
       .withConverter<DailyCloseModel>(
         fromFirestore: DailyCloseModel.fromFirestore,
         toFirestore: (model, _) => model.toFirestore(),

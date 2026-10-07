@@ -3,9 +3,12 @@ import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
 import 'package:mart_pos/data/firestore/models/product_model.dart';
 import 'package:mart_pos/data/firestore/models/sale_model.dart';
+import 'package:mart_pos/data/firestore/models/user_model.dart';
 import 'package:mart_pos/data/repositories/inventory_repository.dart';
 import 'package:mart_pos/data/repositories/product_repository.dart';
 import 'package:mart_pos/data/repositories/report_repository.dart';
+import 'package:mart_pos/data/repositories/shift_repository.dart';
+import 'package:mart_pos/data/repositories/user_repository.dart';
 import 'package:mart_pos/features/customers/providers/customer_provider.dart';
 
 void main() {
@@ -193,6 +196,99 @@ void main() {
     test('Allows customer deletion when customer has zero sales', () {
       final canDelete = CustomerRepository.canDeleteCustomer(hasSales: false);
       expect(canDelete, true);
+    });
+  });
+
+  group('ShiftRepository Close-Shift Math Tests', () {
+    test('Calculates expected cash correctly as opening cash plus total sales', () {
+      final expected = ShiftRepository.calculateExpectedCash(
+        openingCash: 100000,
+        totalSales: 250000,
+      );
+      expect(expected, 350000);
+    });
+
+    test('Difference is 0 when drawer actual cash matches expected cash', () {
+      final diff = ShiftRepository.calculateDifference(
+        openingCash: 100000,
+        totalSales: 250000,
+        actualCash: 350000,
+      );
+      expect(diff, 0);
+    });
+
+    test('Difference is negative (shortage) when actual cash is less than opening + sales', () {
+      final diff = ShiftRepository.calculateDifference(
+        openingCash: 100000,
+        totalSales: 250000,
+        actualCash: 340000,
+      );
+      expect(diff, -10000);
+    });
+
+    test('Difference is positive (surplus) when actual cash is greater than opening + sales', () {
+      final diff = ShiftRepository.calculateDifference(
+        openingCash: 100000,
+        totalSales: 250000,
+        actualCash: 360000,
+      );
+      expect(diff, 10000);
+    });
+  });
+
+  group('UserRepository Last Admin Deactivate Blocker Tests', () {
+    test('Blocks deactivating the only active admin in the system', () {
+      final users = [
+        UserModel(id: 'admin_1', name: 'Panha', role: 'admin', active: true),
+        UserModel(id: 'cashier_1', name: 'Pkay', role: 'cashier', active: true),
+      ];
+
+      final canDeactivate = UserRepository.canDeactivateUser(
+        allUsers: users,
+        targetUid: 'admin_1',
+      );
+      expect(canDeactivate, false);
+    });
+
+    test('Allows deactivating an admin when another active admin exists', () {
+      final users = [
+        UserModel(id: 'admin_1', name: 'Panha', role: 'admin', active: true),
+        UserModel(id: 'admin_2', name: 'Sokha', role: 'admin', active: true),
+        UserModel(id: 'cashier_1', name: 'Pkay', role: 'cashier', active: true),
+      ];
+
+      final canDeactivate = UserRepository.canDeactivateUser(
+        allUsers: users,
+        targetUid: 'admin_1',
+      );
+      expect(canDeactivate, true);
+    });
+
+    test('Blocks deactivating an admin when other admins are already inactive', () {
+      final users = [
+        UserModel(id: 'admin_1', name: 'Panha', role: 'admin', active: true),
+        UserModel(id: 'admin_2', name: 'Sokha', role: 'admin', active: false),
+        UserModel(id: 'cashier_1', name: 'Pkay', role: 'cashier', active: true),
+      ];
+
+      final canDeactivate = UserRepository.canDeactivateUser(
+        allUsers: users,
+        targetUid: 'admin_1',
+      );
+      expect(canDeactivate, false);
+    });
+
+    test('Always allows deactivating a cashier', () {
+      final users = [
+        UserModel(id: 'admin_1', name: 'Panha', role: 'admin', active: true),
+        UserModel(id: 'cashier_1', name: 'Pkay', role: 'cashier', active: true),
+      ];
+
+      final canDeactivate = UserRepository.canDeactivateUser(
+        allUsers: users,
+        targetUid: 'cashier_1',
+      );
+      expect(canDeactivate, true);
     });
   });
 }

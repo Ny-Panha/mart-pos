@@ -10,7 +10,11 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
   @override
   Future<UserModel?> build() async {
     final repo = ref.watch(authRepositoryProvider);
-    return repo.getCurrentUserProfile();
+    try {
+      return await repo.getCurrentUserProfile();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> signIn({required String email, required String password}) async {

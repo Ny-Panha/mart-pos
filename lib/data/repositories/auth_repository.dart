@@ -13,78 +13,40 @@ class AuthRepository {
     final user = _auth.currentUser;
     if (user == null) return null;
 
-    try {
-      final doc = await FirestoreCollections.users.doc(user.uid).get();
-      if (doc.exists && doc.data() != null) {
-        return doc.data();
-      }
-    } catch (_) {
-      // Fallback
+    final doc = await FirestoreCollections.users.doc(user.uid).get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('Account not set up — contact admin');
     }
 
-    // Default profile based on email
-    final email = user.email ?? '';
-    final role = (email.contains('cashier') || email.contains('pkay') || email.contains('daly'))
-        ? 'cashier'
-        : 'admin';
-    final name = email.contains('pkay')
-        ? 'គក់ ស្រីផ្កាយ'
-        : (email.contains('daly') ? 'គុយ ដាលី' : (user.displayName ?? 'នី បញ្ញា'));
+    final profile = doc.data()!;
+    if (!profile.active) {
+      await signOut();
+      throw Exception('Account deactivated');
+    }
 
-    return UserModel(
-      id: user.uid,
-      name: name,
-      role: role,
-      active: true,
-    );
+    return profile;
   }
 
   Future<UserModel> signIn({required String email, required String password}) async {
-    try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      final uid = credential.user!.uid;
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final uid = credential.user!.uid;
 
-      final doc = await FirestoreCollections.users.doc(uid).get();
-      if (doc.exists && doc.data() != null) {
-        return doc.data()!;
-      }
-
-      // If user profile doc doesn't exist yet in Firestore, create it
-      final role = (email.contains('cashier') || email.contains('pkay') || email.contains('daly'))
-          ? 'cashier'
-          : 'admin';
-      final name = email.contains('pkay')
-          ? 'គក់ ស្រីផ្កាយ'
-          : (email.contains('daly') ? 'គុយ ដាលី' : 'នី បញ្ញា');
-
-      final profile = UserModel(
-        id: uid,
-        name: name,
-        role: role,
-        active: true,
-      );
-
-      await FirestoreCollections.users.doc(uid).set(profile);
-      return profile;
-    } catch (e) {
-      // Allow demo sign-in for classroom presentation if offline or Firebase Auth throws
-      final role = (email.contains('cashier') || email.contains('pkay') || email.contains('daly'))
-          ? 'cashier'
-          : 'admin';
-      final name = email.contains('pkay')
-          ? 'គក់ ស្រីផ្កាយ'
-          : (email.contains('daly') ? 'គុយ ដាលី' : 'នី បញ្ញា');
-
-      return UserModel(
-        id: 'demo-${DateTime.now().millisecondsSinceEpoch}',
-        name: name,
-        role: role,
-        active: true,
-      );
+    final doc = await FirestoreCollections.users.doc(uid).get();
+    if (!doc.exists || doc.data() == null) {
+      await _auth.signOut();
+      throw Exception('Account not set up — contact admin');
     }
+
+    final profile = doc.data()!;
+    if (!profile.active) {
+      await _auth.signOut();
+      throw Exception('Account deactivated');
+    }
+
+    return profile;
   }
 
   Future<void> signOut() async {

@@ -65,6 +65,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authProvider);
     final isLoading = authState.isLoading;
 
+    final routerState = GoRouterState.of(context);
+    final isDeactivated = routerState.uri.queryParameters['error'] == 'deactivated';
+    final effectiveError = _errorMessage ??
+        (isDeactivated
+            ? 'គណនីត្រូវបានផ្អាកដំណើរការ — សូមទាក់ទង Admin (Account deactivated — please contact admin)'
+            : null);
+
     final formContent = Container(
       constraints: const BoxConstraints(maxWidth: 480),
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
@@ -134,7 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           const SizedBox(height: 28),
 
-          if (_errorMessage != null) ...[
+          if (effectiveError != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -143,7 +150,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
               ),
               child: Text(
-                _errorMessage!,
+                effectiveError,
                 style: const TextStyle(color: AppColors.danger, fontSize: 13),
               ),
             ),
