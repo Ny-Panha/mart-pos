@@ -50,8 +50,13 @@ lib/
 
 ## Quality & Tests
 - `flutter test`: **All 4 tests passed** (`widget_test.dart`).
-- `flutter analyze`: **0 Errors, 0 Warnings** (100% clean).
+- `flutter analyze`: **No issues found!** (0 Errors, 0 Warnings, 0 Infos).
 - Dev Server: Running on `http://localhost:35641`.
+
+## Cleanup Done
+- Removed legacy dead folders: `lib/models`, `lib/providers`, `lib/screens`, `lib/services`, `lib/theme`, `lib/widgets`.
+- Cleaned dependencies: Removed `provider: ^6.1.5+1` (pure `flutter_riverpod` architecture).
+- Directory structure: strictly `lib/core`, `lib/data`, `lib/features`, `lib/l10n`.
 
 ## GitHub Repository
 - **URL**: `https://github.com/Ny-Panha/mart-pos`
