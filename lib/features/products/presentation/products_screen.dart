@@ -6,23 +6,98 @@ import '../../../core/utils/money.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../data/firestore/models/product_model.dart';
+import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
+import 'category_manager_dialog.dart';
+import 'product_form_dialog.dart';
 
 class ProductsScreen extends ConsumerWidget {
   const ProductsScreen({super.key});
+
+  Future<void> _handleDeleteProduct(
+    BuildContext context,
+    WidgetRef ref,
+    ProductModel product,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 24),
+            SizedBox(width: 8),
+            Text('លុបទំនិញ? (Delete Product)'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'តើអ្នកពិតជាចង់លុបទំនិញ "${product.name}" មែនទេ?',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text('លេខកូដ (Code): ${product.code}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('បារកូដ (Barcode): ${product.barcode.isNotEmpty ? product.barcode : "-"}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 12),
+            const Text(
+              'ទិន្នន័យទំនិញ និងលេខកូដក្នុង Firestore នឹងត្រូវបានលុបជាអចិន្ត្រៃយ៍។ សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+              style: TextStyle(fontSize: 12, color: AppColors.danger),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('បោះបង់ (Cancel)'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('លុបចេញ (DELETE)', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await ref.read(productRepositoryProvider).deleteProduct(product.id, product.code);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('បានលុបទំនិញ "${product.name}" រួចរាល់!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Delete failed: $e'), backgroundColor: AppColors.danger),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDesktop = Responsive.isDesktop(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final products = ref.watch(filteredProductsProvider);
+    final categories = ref.watch(categoriesStreamProvider).value ?? [];
+    final selectedCategory = ref.watch(selectedCategoryProvider);
 
     return Scaffold(
       floatingActionButton: !isDesktop
           ? FloatingActionButton(
-              onPressed: () {},
+              onPressed: () => ProductFormDialog.show(context),
               backgroundColor: AppColors.primary,
               child: const Icon(Icons.add, color: Colors.white),
             )
@@ -38,19 +113,29 @@ class ProductsScreen extends ConsumerWidget {
               title: 'គ្រប់គ្រងទំនិញ (Products & Categories)',
               description: 'Create, update, organize categories, and track retail pricing in Riel',
               actions: [
-                if (isDesktop)
+                OutlinedButton.icon(
+                  onPressed: () => CategoryManagerDialog.show(context),
+                  icon: const Icon(Icons.category_outlined, size: 16),
+                  label: const Text('ប្រភេទ (Categories)'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                if (isDesktop) ...[
+                  const SizedBox(width: 10),
                   SizedBox(
                     width: 170,
                     child: AppButton(
                       text: '+ NEW PRODUCT',
-                      onPressed: () {},
+                      onPressed: () => ProductFormDialog.show(context),
                       icon: Icons.add,
                     ),
                   ),
+                ],
               ],
             ),
 
-            // Toolbar (Search + Category Filter + Page Size)
+            // Toolbar (Search + Category Filter + Total Count)
             AppCard(
               padding: const EdgeInsets.all(16),
               child: Wrap(
@@ -71,14 +156,18 @@ class ProductsScreen extends ConsumerWidget {
                     ),
                   ),
                   DropdownButton<String>(
-                    value: ref.watch(selectedCategoryProvider),
+                    value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
+                        ? selectedCategory
+                        : 'all',
                     underline: const SizedBox(),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
-                      DropdownMenuItem(value: 'cat_drinks', child: Text('ភេសជ្ជៈ (Drinks)')),
-                      DropdownMenuItem(value: 'cat_food', child: Text('អាហារ និងមី (Food)')),
-                      DropdownMenuItem(value: 'cat_snacks', child: Text('នំចំណី (Snacks)')),
-                      DropdownMenuItem(value: 'cat_daily', child: Text('សម្ភារៈប្រើប្រាស់ (Daily)')),
+                    items: [
+                      const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
+                      ...categories.map((cat) {
+                        return DropdownMenuItem(
+                          value: cat.id,
+                          child: Text(cat.name),
+                        );
+                      }),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -100,17 +189,28 @@ class ProductsScreen extends ConsumerWidget {
             const SizedBox(height: 20),
 
             // Responsive Presentation: Desktop Data Table vs Mobile Card List
-            if (isDesktop)
-              _buildDesktopTable(products, isDark)
+            if (products.isEmpty)
+              const EmptyState(
+                icon: Icons.inventory_2_outlined,
+                title: 'គ្មានទំនិញទេ (No Products Found)',
+                subtitle: 'សាកល្បងស្វែងរកឈ្មោះផ្សេង ឬចុច "+ NEW PRODUCT" ដើម្បីបញ្ចូលទំនិញថ្មី',
+              )
+            else if (isDesktop)
+              _buildDesktopTable(context, ref, products, isDark)
             else
-              _buildMobileCards(products, isDark),
+              _buildMobileCards(context, ref, products, isDark),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDesktopTable(List<ProductModel> products, bool isDark) {
+  Widget _buildDesktopTable(
+    BuildContext context,
+    WidgetRef ref,
+    List<ProductModel> products,
+    bool isDark,
+  ) {
     return AppCard(
       padding: EdgeInsets.zero,
       child: ClipRRect(
@@ -136,7 +236,7 @@ class ProductsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(p.code, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    Text(p.barcode, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(p.barcode.isNotEmpty ? p.barcode : '-', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -172,15 +272,27 @@ class ProductsScreen extends ConsumerWidget {
               DataCell(
                 Text(
                   p.status.toUpperCase(),
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: p.isActive ? AppColors.success : Colors.grey,
+                  ),
                 ),
               ),
               DataCell(
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(icon: const Icon(Icons.edit_outlined, size: 18), onPressed: () {}),
-                    IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger), onPressed: () {}),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      tooltip: 'កែប្រែ (Edit)',
+                      onPressed: () => ProductFormDialog.show(context, product: p),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
+                      tooltip: 'លុប (Delete)',
+                      onPressed: () => _handleDeleteProduct(context, ref, p),
+                    ),
                   ],
                 ),
               ),
@@ -191,7 +303,12 @@ class ProductsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMobileCards(List<ProductModel> products, bool isDark) {
+  Widget _buildMobileCards(
+    BuildContext context,
+    WidgetRef ref,
+    List<ProductModel> products,
+    bool isDark,
+  ) {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -219,13 +336,57 @@ class ProductsScreen extends ConsumerWidget {
                   children: [
                     Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('${p.barcode} • ${p.stockQty} ${p.unit}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(
+                      '${p.code} • ${p.barcode.isNotEmpty ? p.barcode : "-"}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      MoneyUtils.formatRiel(p.salePrice),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14),
+                    ),
                   ],
                 ),
               ),
-              Text(
-                MoneyUtils.formatRiel(p.salePrice),
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 15),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: p.isOutOfStock
+                          ? AppColors.danger.withValues(alpha: 0.1)
+                          : (p.isLowStock
+                              ? AppColors.warning.withValues(alpha: 0.1)
+                              : AppColors.success.withValues(alpha: 0.1)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${p.stockQty} ${p.unit}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: p.isOutOfStock
+                            ? AppColors.danger
+                            : (p.isLowStock ? AppColors.warning : AppColors.success),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        onPressed: () => ProductFormDialog.show(context, product: p),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
+                        onPressed: () => _handleDeleteProduct(context, ref, p),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

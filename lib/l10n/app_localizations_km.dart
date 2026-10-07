@@ -63,7 +63,7 @@ class AppLocalizationsKm extends AppLocalizations {
   String get searchProducts => 'ស្វែងរកឈ្មោះ ឬប្រភេទទំនិញ...';
 
   @override
-  String get allCategories => 'ទាំងអស់';
+  String get allCategories => 'ប្រភេទទំនិញទាំងអស់';
 
   @override
   String get cartTitle => 'កន្ត្រកទំនិញបច្ចុប្បន្ន';
@@ -125,4 +125,82 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get logout => 'ចាកចេញ';
+
+  @override
+  String get newProduct => 'បន្ថែមទំនិញថ្មី';
+
+  @override
+  String get editProduct => 'កែប្រែទំនិញ';
+
+  @override
+  String get deleteProduct => 'លុបទំនិញ';
+
+  @override
+  String get productName => 'ឈ្មោះទំនិញ';
+
+  @override
+  String get productCode => 'កូដទំនិញ';
+
+  @override
+  String get barcode => 'បារកូដ';
+
+  @override
+  String get sku => 'SKU';
+
+  @override
+  String get category => 'ប្រភេទទំនិញ';
+
+  @override
+  String get costPrice => 'តម្លៃដើម (៛)';
+
+  @override
+  String get salePrice => 'តម្លៃលក់ (៛)';
+
+  @override
+  String get stockQty => 'ចំនួនស្តុក';
+
+  @override
+  String get unit => 'ខ្នាត';
+
+  @override
+  String get lowStockThreshold => 'កម្រិតប្រកាសអាសន្នស្តុក';
+
+  @override
+  String get taxRate => 'អត្រាពន្ធ (%)';
+
+  @override
+  String get status => 'ស្ថានភាព';
+
+  @override
+  String get active => 'សកម្ម';
+
+  @override
+  String get inactive => 'អសកម្ម';
+
+  @override
+  String get categories => 'ប្រភេទទំនិញ';
+
+  @override
+  String get manageCategories => 'គ្រប់គ្រងប្រភេទទំនិញ';
+
+  @override
+  String get save => 'រក្សាទុក';
+
+  @override
+  String get cancel => 'បោះបង់';
+
+  @override
+  String get delete => 'លុប';
+
+  @override
+  String get codeAlreadyUsed => 'លេខកូដទំនិញត្រូវបានប្រើប្រាស់រួចហើយ';
+
+  @override
+  String get categoryInUse => 'មិនអាចលុបប្រភេទដែលកំពុងមានទំនិញប្រើប្រាស់ទេ';
+
+  @override
+  String get deleteProductConfirm => 'តើអ្នកពិតជាចង់លុបទំនិញនេះមែនទេ?';
+
+  @override
+  String get actions => 'សកម្មភាព';
 }

@@ -144,25 +144,77 @@ class ProductRepository {
     }
   }
 
-  Future<void> createProduct(ProductModel product) async {
-    final batch = _db.batch();
-    final docRef = FirestoreCollections.products.doc(product.id);
-    batch.set(docRef, product);
+  static bool validateCodeUniqueness(String code, Iterable<String> existingCodes, {String? currentCode}) {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return false;
+    for (final c in existingCodes) {
+      final normC = c.trim().toUpperCase();
+      if (normC == normalized) {
+        if (currentCode != null && currentCode.trim().toUpperCase() == normalized) {
+          continue;
+        }
+        return false;
+      }
+    }
+    return true;
+  }
 
-    final codeRef = FirestoreCollections.productCodes.doc(product.code);
-    batch.set(codeRef, ProductCodeModel(code: product.code, productId: product.id));
+  Future<bool> isProductCodeTaken(String code, {String? excludeProductId}) async {
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return false;
+    final doc = await FirestoreCollections.productCodes.doc(cleanCode).get();
+    if (!doc.exists) return false;
+    final data = doc.data();
+    if (excludeProductId != null && data?.productId == excludeProductId) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> createProduct(ProductModel product) async {
+    final cleanCode = product.code.trim().toUpperCase();
+    final taken = await isProductCodeTaken(cleanCode);
+    if (taken) {
+      throw Exception('Product code "$cleanCode" is already in use.');
+    }
+
+    final batch = _db.batch();
+    final normalized = product.copyWith(code: cleanCode);
+    final docRef = FirestoreCollections.products.doc(normalized.id);
+    batch.set(docRef, normalized);
+
+    final codeRef = FirestoreCollections.productCodes.doc(cleanCode);
+    batch.set(codeRef, ProductCodeModel(code: cleanCode, productId: normalized.id));
 
     await batch.commit();
   }
 
-  Future<void> updateProduct(ProductModel product) async {
-    await FirestoreCollections.products.doc(product.id).set(product, SetOptions(merge: true));
+  Future<void> updateProduct(ProductModel product, {String? oldCode}) async {
+    final cleanCode = product.code.trim().toUpperCase();
+    final normalizedOldCode = oldCode?.trim().toUpperCase();
+
+    if (normalizedOldCode != null && normalizedOldCode != cleanCode) {
+      final taken = await isProductCodeTaken(cleanCode, excludeProductId: product.id);
+      if (taken) {
+        throw Exception('Product code "$cleanCode" is already in use.');
+      }
+
+      final batch = _db.batch();
+      final normalized = product.copyWith(code: cleanCode);
+      batch.set(FirestoreCollections.products.doc(normalized.id), normalized, SetOptions(merge: true));
+      batch.delete(FirestoreCollections.productCodes.doc(normalizedOldCode));
+      batch.set(FirestoreCollections.productCodes.doc(cleanCode), ProductCodeModel(code: cleanCode, productId: normalized.id));
+      await batch.commit();
+    } else {
+      final normalized = product.copyWith(code: cleanCode);
+      await FirestoreCollections.products.doc(normalized.id).set(normalized, SetOptions(merge: true));
+    }
   }
 
   Future<void> deleteProduct(String id, String code) async {
     final batch = _db.batch();
     batch.delete(FirestoreCollections.products.doc(id));
-    batch.delete(FirestoreCollections.productCodes.doc(code));
+    batch.delete(FirestoreCollections.productCodes.doc(code.trim().toUpperCase()));
     await batch.commit();
   }
 }
