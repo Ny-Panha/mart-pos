@@ -33,13 +33,13 @@
 
 ## Active Branch & Git
 - **Branch**: `feat/w5-users-shifts`
-- **PR Target**: `main`
+- **Pull Request**: [#4](https://github.com/Ny-Panha/mart-pos/pull/4) (feat(w5): Users/Roles management and Daily Close shifts)
+- **Status**: Open, ready for review & merge into `main`
 
 ## Active Environment
 - Local dev server: idle
 - Tests & Analyzer: 0 issues, 23/23 tests passing
 
 ## Next Steps
-1. Push branch `feat/w5-users-shifts` to GitHub.
-2. Open Pull Request to `main`.
-3. Review and merge PR.
+1. Review and merge PR #4 on GitHub (`gh pr merge 4 --merge`).
+2. Switch to `main` branch and pull latest changes (`git checkout main && git pull`).
