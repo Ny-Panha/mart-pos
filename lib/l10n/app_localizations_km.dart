@@ -203,4 +203,19 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get actions => 'សកម្មភាព';
+
+  @override
+  String get stockIn => 'បញ្ចូលស្តុក';
+
+  @override
+  String get stockOut => 'ដកទំនិញចេញ';
+
+  @override
+  String get adjustStock => 'កែតម្រូវស្តុក';
+
+  @override
+  String get stockHistory => 'ប្រវត្តិចលនាស្តុក';
+
+  @override
+  String get lowStockAlert => 'ការប្រកាសអាសន្នស្តុក';
 }

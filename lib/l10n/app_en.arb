@@ -63,5 +63,10 @@
   "codeAlreadyUsed": "Product code already used",
   "categoryInUse": "Cannot delete category in use by products",
   "deleteProductConfirm": "Are you sure you want to delete this product?",
-  "actions": "Actions"
+  "actions": "Actions",
+  "stockIn": "Stock In",
+  "stockOut": "Stock Out",
+  "adjustStock": "Adjust Stock",
+  "stockHistory": "Stock Movement History",
+  "lowStockAlert": "Low Stock Alert"
 }

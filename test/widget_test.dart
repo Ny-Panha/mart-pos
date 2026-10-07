@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
 import 'package:mart_pos/data/firestore/models/product_model.dart';
+import 'package:mart_pos/data/repositories/inventory_repository.dart';
 import 'package:mart_pos/data/repositories/product_repository.dart';
 
 void main() {
@@ -90,4 +91,39 @@ void main() {
       expect(updated.sortOrder, 5);
     });
   });
+
+  group('InventoryRepository Stock Adjustment Diff Tests', () {
+    test('current 10 -> new 15 equals movement qty +5 (positive stock increase)', () {
+      final diff = InventoryRepository.calculateAdjustmentDiff(
+        currentQty: 10,
+        newQty: 15,
+      );
+      expect(diff, 5);
+    });
+
+    test('current 10 -> new 7 equals movement qty -3 (stock decrease discrepancy)', () {
+      final diff = InventoryRepository.calculateAdjustmentDiff(
+        currentQty: 10,
+        newQty: 7,
+      );
+      expect(diff, -3);
+    });
+
+    test('current 10 -> new 10 equals movement qty 0 (no count change)', () {
+      final diff = InventoryRepository.calculateAdjustmentDiff(
+        currentQty: 10,
+        newQty: 10,
+      );
+      expect(diff, 0);
+    });
+
+    test('current 0 -> new 20 equals movement qty +20 (found stock)', () {
+      final diff = InventoryRepository.calculateAdjustmentDiff(
+        currentQty: 0,
+        newQty: 20,
+      );
+      expect(diff, 20);
+    });
+  });
 }
+
