@@ -68,5 +68,14 @@
   "stockOut": "ដកទំនិញចេញ",
   "adjustStock": "កែតម្រូវស្តុក",
   "stockHistory": "ប្រវត្តិចលនាស្តុក",
-  "lowStockAlert": "ការប្រកាសអាសន្នស្តុក"
+  "lowStockAlert": "ការប្រកាសអាសន្នស្តុក",
+  "clientDirectory": "បញ្ជីឈ្មោះអតិថិជន",
+  "newCustomer": "បន្ថែមអតិថិជនថ្មី",
+  "editCustomer": "កែប្រែព័ត៌មានអតិថិជន",
+  "deleteCustomer": "លុបអតិថិជន",
+  "salesReports": "របាយការណ៍លក់",
+  "revenue": "ចំណូលសរុប",
+  "profit": "ប្រាក់ចំណេញ",
+  "transactions": "ចំនួនវិក្កយបត្រ",
+  "avgTicket": "មធ្យមភាគ / វិក្កយបត្រ"
 }

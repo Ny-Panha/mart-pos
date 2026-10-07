@@ -218,4 +218,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lowStockAlert => 'Low Stock Alert';
+
+  @override
+  String get clientDirectory => 'Customer Directory';
+
+  @override
+  String get newCustomer => 'New Customer';
+
+  @override
+  String get editCustomer => 'Edit Customer';
+
+  @override
+  String get deleteCustomer => 'Delete Customer';
+
+  @override
+  String get salesReports => 'Sales Reports';
+
+  @override
+  String get revenue => 'Revenue';
+
+  @override
+  String get profit => 'Profit';
+
+  @override
+  String get transactions => 'Transactions';
+
+  @override
+  String get avgTicket => 'Average Ticket';
 }

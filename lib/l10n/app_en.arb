@@ -68,5 +68,14 @@
   "stockOut": "Stock Out",
   "adjustStock": "Adjust Stock",
   "stockHistory": "Stock Movement History",
-  "lowStockAlert": "Low Stock Alert"
+  "lowStockAlert": "Low Stock Alert",
+  "clientDirectory": "Customer Directory",
+  "newCustomer": "New Customer",
+  "editCustomer": "Edit Customer",
+  "deleteCustomer": "Delete Customer",
+  "salesReports": "Sales Reports",
+  "revenue": "Revenue",
+  "profit": "Profit",
+  "transactions": "Transactions",
+  "avgTicket": "Average Ticket"
 }
