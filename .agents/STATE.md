@@ -26,5 +26,15 @@
    - `flutter test`: **All 15 tests passed** (including profit math test and customer delete blocker test).
 
 ## Active Branch & Git
-- **Branch**: `feat/w4` (created from `main` after merging PR #2)
-- **PR Target**: `main`
+- **Branch**: `feat/w4`
+- **Pull Request**: [#3](https://github.com/Ny-Panha/mart-pos/pull/3) (feat(w4): Customers + Reports + Dashboard analytics)
+- **Status**: Open, ready for review & merge into `main`
+
+## Active Environment
+- Local dev server: idle
+- Tests & Analyzer: 0 issues, 15/15 tests passing
+
+## Next Steps
+1. Review and merge PR #3 on GitHub (`gh pr merge 3 --merge`).
+2. Switch to `main` branch and pull latest changes (`git checkout main && git pull`).
+3. Next milestone (e.g., Staff & Users management `UsersScreen`, Auth guards, or deployment).
