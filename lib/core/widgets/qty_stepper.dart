@@ -1,0 +1,81 @@
+import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+
+class QtyStepper extends StatelessWidget {
+  final int qty;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+  final int maxQty;
+
+  const QtyStepper({
+    super.key,
+    required this.qty,
+    required this.onDecrease,
+    required this.onIncrease,
+    this.maxQty = 9999,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildButton(
+            icon: Icons.remove,
+            onTap: onDecrease,
+            isDark: isDark,
+          ),
+          Container(
+            constraints: const BoxConstraints(minWidth: 32),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              '$qty',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+            ),
+          ),
+          _buildButton(
+            icon: Icons.add,
+            onTap: qty < maxQty ? onIncrease : null,
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButton({
+    required IconData icon,
+    required VoidCallback? onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        child: Icon(
+          icon,
+          size: 16,
+          color: onTap == null
+              ? (isDark ? AppColors.darkBorder : Colors.grey.shade400)
+              : (isDark ? AppColors.darkText : AppColors.lightText),
+        ),
+      ),
+    );
+  }
+}
