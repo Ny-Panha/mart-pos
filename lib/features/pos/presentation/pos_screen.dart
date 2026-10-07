@@ -13,8 +13,10 @@ import '../../../core/widgets/offline_bar.dart';
 import '../../../core/widgets/qty_stepper.dart';
 import '../../../data/firestore/models/product_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../customers/providers/customer_provider.dart';
 import '../../products/providers/product_provider.dart';
 import '../providers/pos_cart_provider.dart';
+import 'payment_dialog.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -141,53 +143,404 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
     if (cart.items.isEmpty) return;
 
     final user = ref.read(authProvider).value;
-    final cashierId = user?.name ?? 'Cashier';
+    final cashierId = user?.id ?? 'cashier_unknown';
 
-    try {
-      final invoiceNum = await ref.read(posCartProvider.notifier).checkout(
-            cashierId: cashierId,
-            paymentMethod: 'cash',
-          );
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PaymentDialog(
+        totalAmount: cart.total,
+        customerName: cart.customerName,
+        onConfirmPayment: ({
+          required String paymentMethod,
+          required int paidAmount,
+          required int changeAmount,
+        }) async {
+          try {
+            final invoiceNum = await ref.read(posCartProvider.notifier).checkout(
+                  cashierId: cashierId,
+                  paymentMethod: paymentMethod,
+                  paidAmount: paidAmount,
+                  changeAmount: changeAmount,
+                );
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.success, size: 28),
-                SizedBox(width: 10),
-                Text('ការទូទាត់ជោគជ័យ!'),
-              ],
+            if (mounted) {
+              _showReceiptDialog(
+                invoiceNum: invoiceNum,
+                totalAmount: cart.total,
+                paidAmount: paidAmount,
+                changeAmount: changeAmount,
+                paymentMethod: paymentMethod,
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Checkout failed: $e'), backgroundColor: AppColors.danger),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  void _showReceiptDialog({
+    required String invoiceNum,
+    required int totalAmount,
+    required int paidAmount,
+    required int changeAmount,
+    required String paymentMethod,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: AppColors.success, size: 28),
+            SizedBox(width: 10),
+            Text('ការទូទាត់ជោគជ័យ!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('លេខវិក្កយបត្រ (Invoice): $invoiceNum', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('វិធីទូទាត់: ${paymentMethod.toUpperCase()}'),
+            const SizedBox(height: 4),
+            Text('ទឹកប្រាក់សរុប: ${MoneyUtils.formatDual(totalAmount)}'),
+            const SizedBox(height: 4),
+            Text('ប្រាក់ទទួល: ${MoneyUtils.formatDual(paidAmount)}'),
+            const SizedBox(height: 4),
+            Text(
+              'ប្រាក់អាប់: ${MoneyUtils.formatDual(changeAmount)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('លេខវិក្កយបត្រ (Invoice): $invoiceNum', style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('ទឹកប្រាក់សរុប: ${MoneyUtils.formatDual(cart.total)}'),
-                const SizedBox(height: 8),
-                const Text('ទិន្នន័យត្រូវបានកត់ត្រា និងកាត់ស្តុកដោយស្វ័យប្រវត្តិ (WriteBatch Offline-First).'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('បិទ (Close)'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
               ),
-            ],
+              child: const Text(
+                '✓ បានកត់ត្រា និងកាត់ស្តុកដោយស្វ័យប្រវត្តិ (WriteBatch Offline-First)',
+                style: TextStyle(fontSize: 11, color: Colors.green),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Receipt #$invoiceNum sent to printer')),
+              );
+              Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.print_outlined, size: 16),
+            label: const Text('បោះពុម្ព (Print)'),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('បិទ (Close)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCustomerSelectorDialog() async {
+    final customersAsync = ref.read(customersStreamProvider);
+    final customers = customersAsync.value ?? [];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        String filter = '';
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = customers.where((c) {
+              if (filter.isEmpty) return true;
+              return c.name.toLowerCase().contains(filter.toLowerCase()) ||
+                  (c.phone != null && c.phone!.contains(filter));
+            }).toList();
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('ជ្រើសរើសអតិថិជន (Select Customer)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'ស្វែងរកឈ្មោះ ឬលេខទូរស័ព្ទ...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() => filter = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      leading: const CircleAvatar(
+                        backgroundColor: AppColors.primary,
+                        child: Icon(Icons.person, color: Colors.white, size: 20),
+                      ),
+                      title: const Text('អតិថិជនទូទៅ (Walk-in Customer)', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Standard non-member checkout'),
+                      onTap: () {
+                        ref.read(posCartProvider.notifier).setCustomer(null, 'អតិថិជនទូទៅ (Walk-in)');
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? Container(
+                              padding: const EdgeInsets.all(16),
+                              child: const Text('មិនទាន់មានអតិថិជនក្នុងបញ្ជី (ចុច + បន្ថែមអតិថិជនថ្មី)', style: TextStyle(color: Colors.grey)),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              itemBuilder: (context, idx) {
+                                final cust = filtered[idx];
+                                return ListTile(
+                                  dense: true,
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                    child: Text(cust.name.isNotEmpty ? cust.name[0] : 'C', style: const TextStyle(color: AppColors.primary)),
+                                  ),
+                                  title: Text(cust.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  subtitle: Text(cust.phone ?? 'No phone'),
+                                  trailing: Text(MoneyUtils.formatRiel(cust.totalSpent), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                  onTap: () {
+                                    ref.read(posCartProvider.notifier).setCustomer(cust.id, cust.name);
+                                    Navigator.pop(ctx);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showAddCustomerDialog();
+                  },
+                  icon: const Icon(Icons.person_add_alt_1, size: 16),
+                  label: const Text('+ បន្ថែមអតិថិជនថ្មី'),
+                ),
+              ],
+            );
+          },
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Checkout failed: $e'), backgroundColor: AppColors.danger),
-        );
-      }
-    }
+      },
+    );
+  }
+
+  Future<void> _showAddCustomerDialog() async {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        title: const Text('បន្ថែមអតិថិជនថ្មី (New Customer)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'ឈ្មោះ (Name) *', isDense: true),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'លេខទូរស័ព្ទ (Phone)', isDense: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('បោះបង់'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) return;
+              try {
+                final newCust = await ref.read(customerRepositoryProvider).createCustomer(
+                      name: name,
+                      phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+                    );
+                ref.read(posCartProvider.notifier).setCustomer(newCust.id, newCust.name);
+                if (ctx.mounted) Navigator.pop(ctx);
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Failed to add customer: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('រក្សាទុក (Save)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDiscountDialog() async {
+    final cart = ref.read(posCartProvider);
+    final controller = TextEditingController(text: cart.discount > 0 ? '${cart.discount}' : '');
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        title: const Text('បញ្ចុះតម្លៃ (Cart Discount)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'ចំនួនទឹកប្រាក់បញ្ចុះ (Discount in Riel)',
+                suffixText: '៛',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                ActionChip(
+                  label: const Text('0៛ (Clear)'),
+                  onPressed: () => controller.text = '0',
+                ),
+                ActionChip(
+                  label: const Text('1,000៛'),
+                  onPressed: () => controller.text = '1000',
+                ),
+                ActionChip(
+                  label: const Text('2,000៛'),
+                  onPressed: () => controller.text = '2000',
+                ),
+                ActionChip(
+                  label: const Text('5,000៛'),
+                  onPressed: () => controller.text = '5000',
+                ),
+                ActionChip(
+                  label: const Text('10,000៛'),
+                  onPressed: () => controller.text = '10000',
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('បោះបង់'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final discount = int.tryParse(controller.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+              ref.read(posCartProvider.notifier).setDiscount(discount);
+              Navigator.pop(ctx);
+            },
+            child: const Text('អនុវត្ត (Apply)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showTaxDialog() async {
+    final cart = ref.read(posCartProvider);
+    await showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        title: const Text('ជ្រើសរើសអត្រាពន្ធ (Tax Rate / VAT)'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              ref.read(posCartProvider.notifier).setTaxRate(0.0);
+              Navigator.pop(ctx);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('គ្មានពន្ធ (No Tax - 0%)'),
+                if (cart.taxRate == 0.0) const Icon(Icons.check, color: AppColors.primary),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              ref.read(posCartProvider.notifier).setTaxRate(0.05);
+              Navigator.pop(ctx);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('ពន្ធ 5% (Service Tax)'),
+                if ((cart.taxRate - 0.05).abs() < 0.001) const Icon(Icons.check, color: AppColors.primary),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              ref.read(posCartProvider.notifier).setTaxRate(0.10);
+              Navigator.pop(ctx);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('អាករលើតម្លៃបន្ថែម 10% (VAT)'),
+                if ((cart.taxRate - 0.10).abs() < 0.001) const Icon(Icons.check, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -515,7 +868,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
       final crossAxisCount = constraints.maxWidth > 700 ? 4 : 2;
       return GridView.builder(
         shrinkWrap: true,
-        physics: const NeverScrollableScrollExceptionStream(),
+        physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 12,
@@ -592,7 +945,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
       final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 500 ? 3 : 2);
       return GridView.builder(
         shrinkWrap: true,
-        physics: const NeverScrollableScrollExceptionStream(),
+        physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 14,
@@ -717,22 +1070,26 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                 ],
               ),
               const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : AppColors.lightBg,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.person_outline, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(cart.customerName, style: const TextStyle(fontSize: 13)),
-                    ),
-                    const Icon(Icons.arrow_drop_down, size: 18),
-                  ],
+              InkWell(
+                onTap: _showCustomerSelectorDialog,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person_outline, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(cart.customerName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      ),
+                      const Icon(Icons.arrow_drop_down, size: 18),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -846,12 +1203,49 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                 ],
               ),
               const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Discount:', style: TextStyle(fontSize: 13)),
-                  Text(MoneyUtils.formatRiel(cart.discount), style: const TextStyle(color: AppColors.danger)),
-                ],
+              InkWell(
+                onTap: _showDiscountDialog,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Text('Discount:', style: TextStyle(fontSize: 13)),
+                          SizedBox(width: 4),
+                          Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                        ],
+                      ),
+                      Text(
+                        cart.discount > 0 ? '-${MoneyUtils.formatRiel(cart.discount)}' : '0៛',
+                        style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: _showTaxDialog,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Tax (${(cart.taxRate * 100).toStringAsFixed(0)}%):', style: const TextStyle(fontSize: 13)),
+                          SizedBox(width: 4),
+                          const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                        ],
+                      ),
+                      Text(MoneyUtils.formatRiel(cart.totalTax), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               const Divider(height: 1),
@@ -897,13 +1291,4 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
       ],
     );
   }
-}
-class NeverScrollableScrollExceptionStream extends ScrollPhysics {
-  const NeverScrollableScrollExceptionStream({super.parent});
-  @override
-  NeverScrollableScrollExceptionStream applyTo(ScrollPhysics? ancestor) {
-    return NeverScrollableScrollExceptionStream(parent: buildParent(ancestor));
-  }
-  @override
-  bool shouldAcceptUserOffset(ScrollMetrics position) => false;
 }

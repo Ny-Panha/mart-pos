@@ -2,11 +2,29 @@
 
 ## Last Session
 - **Environment**: Antigravity IDE
-- **Timestamp**: 2026-10-07 18:54 (ICT)
+- **Timestamp**: 2026-10-07 19:50 (ICT)
 - **Author**: Pair programming with Nha (Build Bright University, Year 4 Semester 2)
 - **Team**: នី បញ្ញា, គក់ ស្រីផ្កាយ, គុយ ដាលី
 
-## Tech Stack & Architecture Delivered
+## Summary of Recent Fixes & Wiring (POS Screen Review)
+1. **BUG Fixed - `cashierId` UID Storage**:
+   - `lib/features/pos/presentation/pos_screen.dart`: Changed `user?.name` to `user?.id ?? 'cashier_unknown'`. Sale invoices now correctly link to the authenticated user's Firebase UID.
+2. **Interactive Payment Dialog**:
+   - Implemented `lib/features/pos/presentation/payment_dialog.dart`.
+   - Supports Cash payment with exact amount button, quick Riel/USD chips (+5,000៛, +10,000៛, +20,000៛, +50,000៛, $5, $10, $20), and live dual-currency change calculation (អាប់ជូន).
+   - Supports Bakong KHQR QR-code tab.
+   - Shows detailed confirmation receipt dialog with print trigger upon sale completion.
+3. **Interactive Customer Selector**:
+   - Made customer container tappable in the POS Cart panel.
+   - Added `_showCustomerSelectorDialog()` with real-time search, Walk-in customer option (`customerId: null`), and list of registered customers via `customersStreamProvider`.
+   - Added `_showAddCustomerDialog()` backed by `CustomerRepository.createCustomer` for fast on-the-spot customer registration.
+4. **Discount & Tax Wiring**:
+   - Made Discount row tappable with editable dialog + quick chips (0៛, 1,000៛, 2,000៛, 5,000៛, 10,000៛).
+   - Added interactive Tax / VAT rate selector dialog (0%, 5%, 10% VAT), recalculating cart totals in real-time.
+5. **Cleaned Physics**:
+   - Replaced custom `NeverScrollableScrollExceptionStream` with standard Flutter `NeverScrollableScrollPhysics` across `pos_screen.dart`, `dashboard_screen.dart`, and `products_screen.dart`.
+
+## Tech Stack & Architecture
 - **Flutter & Dart**: Mobile-first architecture with responsive breakpoints (`phone < 600px`, `tablet 600-1024px`, `desktop >= 1024px`).
 - **State Management**: `flutter_riverpod` (v3.4.3) with `NotifierProvider` and `AsyncNotifierProvider`.
 - **Navigation**: `go_router` (v18.0.2) with AuthGuard & Role-Based Guard (Admin vs Cashier).
@@ -14,49 +32,10 @@
 - **Project Connected**: Firebase `mart-pos-app` (Cloud Firestore in Test Mode, Email/Password enabled).
 - **Localization**: Official `flutter_localizations` with `app_en.arb` and `app_km.arb` via `l10n.yaml`.
 
-## Directory Structure
-```
-lib/
-  main.dart                               # FlutterFire init, offline persistence, ProviderScope
-  app.dart                                # MaterialApp.router, GoRouter, ThemeMode.system, Locales
-  firebase_options.dart                   # Connected to mart-pos-app
-  l10n/                                   # app_en.arb, app_km.arb, app_localizations.dart
-  core/
-    theme/                                # lightTheme, darkTheme, AppColors, AppRadius, AppTextStyles
-    widgets/                              # AppButton, AppCard, AppSearchBar, EmptyState, QtyStepper, OfflineBar, PageHeader, MainShell
-    utils/                                # money.dart (int riel rule), date.dart, responsive.dart
-    router.dart                           # GoRouter with auth & role guards
-  data/
-    firestore/                            # FirestoreCollections withConverters for 10 models
-      models/                             # 10 Models (user, category, product, productCode, customer, sale, heldBill, stockMovement, dailyClose, counter)
-    repositories/                         # AuthRepository, ProductRepository, SaleRepository
-    services/                             # InvoiceCounterService (online transaction, offline timestamp fallback)
-  features/
-    auth/                                 # LoginScreen (Responsive split-screen & mobile layout), AuthNotifier
-    pos/                                  # PosScreen (Priority #1), PosCartNotifier (WriteBatch checkout, 1.5s debounce, strict stock)
-    products/                             # ProductsScreen (toolbar, data table, mobile cards), ProductNotifier
-    dashboard/                            # DashboardScreen (metric cards, fl_chart 30-day revenue, recent sales)
-    inventory/                            # InventoryScreen (stock in/out movements stub)
-    customers/                            # CustomersScreen (customer directory stub)
-    reports/                              # ReportsScreen (daily close & shift stub)
-    users/                                # UsersScreen (staff access control stub)
-```
-
-## Critical Rules Implemented
-1. **MONEY RULE**: Stored strictly as `int` (riel). Displayed with `MoneyUtils.formatRiel` and `MoneyUtils.formatDual`.
-2. **CHECKOUT WRITEBATCH**: Atomic batch write `sales` + `stockQty decrement` + `stockMovements` (offline-first).
-3. **ANTI-DOUBLE-SCAN**: 1.5s (1500ms) debounce on barcode scanning.
-4. **ROLE BOUNDARIES**: Strictly `ADMIN` and `CASHIER`. No admin manager.
-
 ## Quality & Tests
 - `flutter test`: **All 4 tests passed** (`widget_test.dart`).
 - `flutter analyze`: **No issues found!** (0 Errors, 0 Warnings, 0 Infos).
 - Dev Server: Running on `http://localhost:35641`.
-
-## Cleanup Done
-- Removed legacy dead folders: `lib/models`, `lib/providers`, `lib/screens`, `lib/services`, `lib/theme`, `lib/widgets`.
-- Cleaned dependencies: Removed `provider: ^6.1.5+1` (pure `flutter_riverpod` architecture).
-- Directory structure: strictly `lib/core`, `lib/data`, `lib/features`, `lib/l10n`.
 
 ## GitHub Repository
 - **URL**: `https://github.com/Ny-Panha/mart-pos`

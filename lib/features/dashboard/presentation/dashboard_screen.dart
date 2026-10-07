@@ -53,7 +53,7 @@ class DashboardScreen extends ConsumerWidget {
                 mainAxisSpacing: 16,
                 childAspectRatio: constraints.maxWidth > 900 ? 2.1 : 2.4,
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollExceptionStream(),
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildMetricCard(
                     title: 'Total Revenue (ចំណូលសរុប)',
@@ -224,7 +224,7 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           ListView.separated(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollExceptionStream(),
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: 4,
             separatorBuilder: (_, _) => const Divider(height: 16),
             itemBuilder: (context, index) {
@@ -254,14 +254,4 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-class NeverScrollableScrollExceptionStream extends ScrollPhysics {
-  const NeverScrollableScrollExceptionStream({super.parent});
-  @override
-  NeverScrollableScrollExceptionStream applyTo(ScrollPhysics? ancestor) {
-    return NeverScrollableScrollExceptionStream(parent: buildParent(ancestor));
-  }
-  @override
-  bool shouldAcceptUserOffset(ScrollMetrics position) => false;
 }

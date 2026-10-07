@@ -194,7 +194,7 @@ class ProductsScreen extends ConsumerWidget {
   Widget _buildMobileCards(List<ProductModel> products, bool isDark) {
     return ListView.separated(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollExceptionStream(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: products.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
@@ -233,13 +233,4 @@ class ProductsScreen extends ConsumerWidget {
       },
     );
   }
-}
-class NeverScrollableScrollExceptionStream extends ScrollPhysics {
-  const NeverScrollableScrollExceptionStream({super.parent});
-  @override
-  NeverScrollableScrollExceptionStream applyTo(ScrollPhysics? ancestor) {
-    return NeverScrollableScrollExceptionStream(parent: buildParent(ancestor));
-  }
-  @override
-  bool shouldAcceptUserOffset(ScrollMetrics position) => false;
 }

@@ -173,6 +173,13 @@ class PosCartNotifier extends Notifier<PosCartState> {
     state = state.copyWith(items: updatedList);
   }
 
+  void setCustomer(String? id, String name) {
+    state = state.copyWith(
+      customerId: id,
+      customerName: name,
+    );
+  }
+
   void setDiscount(int discountRiel) {
     state = state.copyWith(discount: discountRiel);
   }
@@ -187,6 +194,8 @@ class PosCartNotifier extends Notifier<PosCartState> {
       discount: 0,
       taxRate: 0.0,
       clearLastScan: true,
+      customerId: null,
+      customerName: 'អតិថិជនទូទៅ (Walk-in)',
     );
   }
 
@@ -194,6 +203,8 @@ class PosCartNotifier extends Notifier<PosCartState> {
   Future<String> checkout({
     required String cashierId,
     String paymentMethod = 'cash',
+    int? paidAmount,
+    int? changeAmount,
   }) async {
     if (state.items.isEmpty) {
       throw Exception('Cart is empty');
@@ -216,6 +227,9 @@ class PosCartNotifier extends Notifier<PosCartState> {
         );
       }).toList();
 
+      final actualPaid = paidAmount ?? state.total;
+      final actualChange = changeAmount ?? (actualPaid > state.total ? actualPaid - state.total : 0);
+
       final sale = SaleModel(
         id: saleId,
         invoiceNumber: invoiceNum,
@@ -226,8 +240,8 @@ class PosCartNotifier extends Notifier<PosCartState> {
         discount: state.discount,
         totalTax: state.totalTax,
         total: state.total,
-        paidAmount: state.total,
-        changeAmount: 0,
+        paidAmount: actualPaid,
+        changeAmount: actualChange,
         paymentMethod: paymentMethod,
         paymentStatus: 'paid',
         createdAt: DateTime.now(),
