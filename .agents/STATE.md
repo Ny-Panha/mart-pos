@@ -52,3 +52,8 @@ lib/
 - `flutter test`: **All 4 tests passed** (`widget_test.dart`).
 - `flutter analyze`: **0 Errors, 0 Warnings** (100% clean).
 - Dev Server: Running on `http://localhost:35641`.
+
+## GitHub Repository
+- **URL**: `https://github.com/Ny-Panha/mart-pos`
+- **Visibility**: Private
+- **Branch**: `main`
