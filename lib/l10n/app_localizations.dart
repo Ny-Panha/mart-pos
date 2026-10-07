@@ -511,6 +511,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Low Stock Alert'**
   String get lowStockAlert;
+
+  /// No description provided for @clientDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer Directory'**
+  String get clientDirectory;
+
+  /// No description provided for @newCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'New Customer'**
+  String get newCustomer;
+
+  /// No description provided for @editCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Customer'**
+  String get editCustomer;
+
+  /// No description provided for @deleteCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Customer'**
+  String get deleteCustomer;
+
+  /// No description provided for @salesReports.
+  ///
+  /// In en, this message translates to:
+  /// **'Sales Reports'**
+  String get salesReports;
+
+  /// No description provided for @revenue.
+  ///
+  /// In en, this message translates to:
+  /// **'Revenue'**
+  String get revenue;
+
+  /// No description provided for @profit.
+  ///
+  /// In en, this message translates to:
+  /// **'Profit'**
+  String get profit;
+
+  /// No description provided for @transactions.
+  ///
+  /// In en, this message translates to:
+  /// **'Transactions'**
+  String get transactions;
+
+  /// No description provided for @avgTicket.
+  ///
+  /// In en, this message translates to:
+  /// **'Average Ticket'**
+  String get avgTicket;
 }
 
 class _AppLocalizationsDelegate

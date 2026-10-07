@@ -54,6 +54,14 @@ class SaleRepository {
       batch.set(movementRef, movement);
     }
 
+    // 4. Update customer totalSpent in the same batch if customerId exists
+    if (sale.customerId != null && sale.customerId!.isNotEmpty) {
+      final customerDocRef = _db.collection('customers').doc(sale.customerId);
+      batch.update(customerDocRef, {
+        'totalSpent': FieldValue.increment(sale.total),
+      });
+    }
+
     // Commit atomic batch
     await batch.commit();
   }

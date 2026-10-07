@@ -218,4 +218,31 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get lowStockAlert => 'ការប្រកាសអាសន្នស្តុក';
+
+  @override
+  String get clientDirectory => 'បញ្ជីឈ្មោះអតិថិជន';
+
+  @override
+  String get newCustomer => 'បន្ថែមអតិថិជនថ្មី';
+
+  @override
+  String get editCustomer => 'កែប្រែព័ត៌មានអតិថិជន';
+
+  @override
+  String get deleteCustomer => 'លុបអតិថិជន';
+
+  @override
+  String get salesReports => 'របាយការណ៍លក់';
+
+  @override
+  String get revenue => 'ចំណូលសរុប';
+
+  @override
+  String get profit => 'ប្រាក់ចំណេញ';
+
+  @override
+  String get transactions => 'ចំនួនវិក្កយបត្រ';
+
+  @override
+  String get avgTicket => 'មធ្យមភាគ / វិក្កយបត្រ';
 }

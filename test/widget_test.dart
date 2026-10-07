@@ -2,8 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
 import 'package:mart_pos/data/firestore/models/product_model.dart';
+import 'package:mart_pos/data/firestore/models/sale_model.dart';
 import 'package:mart_pos/data/repositories/inventory_repository.dart';
 import 'package:mart_pos/data/repositories/product_repository.dart';
+import 'package:mart_pos/data/repositories/report_repository.dart';
+import 'package:mart_pos/features/customers/providers/customer_provider.dart';
 
 void main() {
   group('MoneyUtils Tests', () {
@@ -125,5 +128,73 @@ void main() {
       expect(diff, 20);
     });
   });
+
+  group('ReportRepository Profit Math Tests', () {
+    test('Calculates profit correctly: sale total minus cost of all items', () {
+      final productsMap = {
+        'p1': ProductModel(
+          id: 'p1',
+          name: 'Coca Cola',
+          code: 'PROD-001',
+          categoryId: 'cat_drinks',
+          costPrice: 1600,
+          salePrice: 2500,
+          stockQty: 20,
+        ),
+        'p2': ProductModel(
+          id: 'p2',
+          name: 'MAMA Noodles',
+          code: 'PROD-002',
+          categoryId: 'cat_food',
+          costPrice: 1200,
+          salePrice: 2000,
+          stockQty: 30,
+        ),
+      };
+
+      final sales = [
+        SaleModel(
+          id: 's1',
+          invoiceNumber: 'INV-001',
+          cashierId: 'cashier_1',
+          items: [
+            SaleItem(productId: 'p1', name: 'Coca Cola', qty: 2, unitPrice: 2500, totalPrice: 5000),
+            SaleItem(productId: 'p2', name: 'MAMA Noodles', qty: 1, unitPrice: 2000, totalPrice: 2000),
+          ],
+          subtotal: 7000,
+          discount: 0,
+          totalTax: 0,
+          total: 7000,
+          paidAmount: 7000,
+          changeAmount: 0,
+          paymentMethod: 'cash',
+          paymentStatus: 'paid',
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      // Revenue = 7,000 Riel
+      // Cost = (2 * 1,600) + (1 * 1,200) = 3,200 + 1,200 = 4,400 Riel
+      // Profit = 7,000 - 4,400 = 2,600 Riel
+      final profit = ReportRepository.calculateProfit(
+        sales: sales,
+        productsMap: productsMap,
+      );
+      expect(profit, 2600);
+    });
+  });
+
+  group('CustomerRepository Delete Blocker Tests', () {
+    test('Blocks customer deletion when customer has existing sales', () {
+      final canDelete = CustomerRepository.canDeleteCustomer(hasSales: true);
+      expect(canDelete, false);
+    });
+
+    test('Allows customer deletion when customer has zero sales', () {
+      final canDelete = CustomerRepository.canDeleteCustomer(hasSales: false);
+      expect(canDelete, true);
+    });
+  });
 }
+
 
