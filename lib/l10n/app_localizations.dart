@@ -650,17 +650,131 @@ abstract class AppLocalizations {
   /// **'Shift open'**
   String get shiftOpen;
 
-  /// No description provided for @noShift.
-  ///
-  /// In en, this message translates to:
-  /// **'No shift'**
-  String get noShift;
-
   /// No description provided for @cannotDeactivateLastAdmin.
   ///
   /// In en, this message translates to:
   /// **'Cannot deactivate the last active admin'**
   String get cannotDeactivateLastAdmin;
+
+  /// No description provided for @suppliers.
+  ///
+  /// In en, this message translates to:
+  /// **'Suppliers'**
+  String get suppliers;
+
+  /// No description provided for @purchases.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchases'**
+  String get purchases;
+
+  /// No description provided for @newSupplier.
+  ///
+  /// In en, this message translates to:
+  /// **'New Supplier'**
+  String get newSupplier;
+
+  /// No description provided for @editSupplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Supplier'**
+  String get editSupplier;
+
+  /// No description provided for @supplierName.
+  ///
+  /// In en, this message translates to:
+  /// **'Supplier Name'**
+  String get supplierName;
+
+  /// No description provided for @phone.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone'**
+  String get phone;
+
+  /// No description provided for @address.
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get address;
+
+  /// No description provided for @note.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get note;
+
+  /// No description provided for @deactivateSupplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Deactivate Supplier'**
+  String get deactivateSupplier;
+
+  /// No description provided for @activateSupplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Activate Supplier'**
+  String get activateSupplier;
+
+  /// No description provided for @deactivateSupplierConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to deactivate this supplier?'**
+  String get deactivateSupplierConfirm;
+
+  /// No description provided for @cannotDeactivateSupplierWithPurchases.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot deactivate supplier with existing purchase history'**
+  String get cannotDeactivateSupplierWithPurchases;
+
+  /// No description provided for @newPurchase.
+  ///
+  /// In en, this message translates to:
+  /// **'New Purchase'**
+  String get newPurchase;
+
+  /// No description provided for @purchaseDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase Detail'**
+  String get purchaseDetail;
+
+  /// No description provided for @selectSupplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Supplier'**
+  String get selectSupplier;
+
+  /// No description provided for @addItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Item'**
+  String get addItem;
+
+  /// No description provided for @removeItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Item'**
+  String get removeItem;
+
+  /// No description provided for @totalCost.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Cost'**
+  String get totalCost;
+
+  /// No description provided for @purchaseSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase recorded successfully'**
+  String get purchaseSuccess;
+
+  /// No description provided for @orderStock.
+  ///
+  /// In en, this message translates to:
+  /// **'Order'**
+  String get orderStock;
 }
 
 class _AppLocalizationsDelegate

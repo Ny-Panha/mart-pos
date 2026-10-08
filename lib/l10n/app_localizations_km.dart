@@ -290,9 +290,68 @@ class AppLocalizationsKm extends AppLocalizations {
   String get shiftOpen => 'វេនកំពុងបើក';
 
   @override
-  String get noShift => 'គ្មានវេនលក់';
-
-  @override
   String get cannotDeactivateLastAdmin =>
       'មិនអាចផ្អាកដំណើរការ Admin ចុងក្រោយបានទេ';
+
+  @override
+  String get suppliers => 'អ្នកផ្គត់ផ្គង់';
+
+  @override
+  String get purchases => 'ការទិញចូល (Purchases)';
+
+  @override
+  String get newSupplier => 'បន្ថែមអ្នកផ្គត់ផ្គង់ថ្មី';
+
+  @override
+  String get editSupplier => 'កែប្រែអ្នកផ្គត់ផ្គង់';
+
+  @override
+  String get supplierName => 'ឈ្មោះអ្នកផ្គត់ផ្គង់';
+
+  @override
+  String get phone => 'លេខទូរស័ព្ទ';
+
+  @override
+  String get address => 'អាសយដ្ឋាន';
+
+  @override
+  String get note => 'កំណត់ចំណាំ';
+
+  @override
+  String get deactivateSupplier => 'ផ្អាកអ្នកផ្គត់ផ្គង់';
+
+  @override
+  String get activateSupplier => 'បើកដំណើរការឡើងវិញ';
+
+  @override
+  String get deactivateSupplierConfirm =>
+      'តើអ្នកពិតជាចង់ផ្អាកអ្នកផ្គត់ផ្គង់នេះមែនទេ?';
+
+  @override
+  String get cannotDeactivateSupplierWithPurchases =>
+      'មិនអាចផ្អាកអ្នកផ្គត់ផ្គង់ដែលមានប្រវត្តិបញ្ជាទិញរួចហើយទេ';
+
+  @override
+  String get newPurchase => 'កត់ត្រាការទិញចូលថ្មី';
+
+  @override
+  String get purchaseDetail => 'ព័ត៌មានលម្អិតនៃការទិញចូល';
+
+  @override
+  String get selectSupplier => 'ជ្រើសរើសអ្នកផ្គត់ផ្គង់';
+
+  @override
+  String get addItem => 'បន្ថែមមុខទំនិញ';
+
+  @override
+  String get removeItem => 'លុបមុខទំនិញ';
+
+  @override
+  String get totalCost => 'ថ្លៃដើមសរុប';
+
+  @override
+  String get purchaseSuccess => 'បានកត់ត្រាការទិញចូលដោយជោគជ័យ';
+
+  @override
+  String get orderStock => 'កុម្ម៉ង់ទិញ';
 }

@@ -6,8 +6,10 @@ import 'models/daily_close_model.dart';
 import 'models/held_bill_model.dart';
 import 'models/product_code_model.dart';
 import 'models/product_model.dart';
+import 'models/purchase_model.dart';
 import 'models/sale_model.dart';
 import 'models/stock_movement_model.dart';
+import 'models/supplier_model.dart';
 import 'models/user_model.dart';
 
 class FirestoreCollections {
@@ -80,6 +82,20 @@ class FirestoreCollections {
       .collection('counters')
       .withConverter<CounterModel>(
         fromFirestore: CounterModel.fromFirestore,
+        toFirestore: (model, _) => model.toFirestore(),
+      );
+
+  static CollectionReference<SupplierModel> suppliers = db
+      .collection('suppliers')
+      .withConverter<SupplierModel>(
+        fromFirestore: SupplierModel.fromFirestore,
+        toFirestore: (model, _) => model.toFirestore(),
+      );
+
+  static CollectionReference<PurchaseModel> purchases = db
+      .collection('purchases')
+      .withConverter<PurchaseModel>(
+        fromFirestore: PurchaseModel.fromFirestore,
         toFirestore: (model, _) => model.toFirestore(),
       );
 }

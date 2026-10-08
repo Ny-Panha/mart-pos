@@ -11,6 +11,7 @@ import '../../../core/widgets/page_header.dart';
 import '../../../data/firestore/models/product_model.dart';
 import '../../../data/firestore/models/stock_movement_model.dart';
 import '../../products/providers/product_provider.dart';
+import '../../purchases/presentation/purchase_form_dialog.dart';
 import '../providers/inventory_provider.dart';
 import 'stock_action_dialog.dart';
 
@@ -316,6 +317,21 @@ class InventoryScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        minimumSize: Size.zero,
+                        side: const BorderSide(color: AppColors.secondary),
+                        foregroundColor: AppColors.secondary,
+                      ),
+                      onPressed: () => PurchaseFormDialog.show(
+                        context,
+                        preselectedProduct: p,
+                      ),
+                      icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 14),
+                      label: const Text('ORDER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 6),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,

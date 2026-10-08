@@ -8,7 +8,9 @@ import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/inventory/presentation/inventory_screen.dart';
 import '../features/pos/presentation/pos_screen.dart';
 import '../features/products/presentation/products_screen.dart';
+import '../features/purchases/presentation/purchases_screen.dart';
 import '../features/reports/presentation/reports_screen.dart';
+import '../features/suppliers/presentation/suppliers_screen.dart';
 import '../features/users/presentation/users_screen.dart';
 import 'widgets/main_shell.dart';
 
@@ -74,6 +76,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/inventory',
             builder: (context, state) => const InventoryScreen(),
+          ),
+          GoRoute(
+            path: '/admin/purchases',
+            builder: (context, state) => const PurchasesScreen(),
+          ),
+          GoRoute(
+            path: '/admin/suppliers',
+            builder: (context, state) => const SuppliersScreen(),
           ),
           GoRoute(
             path: '/admin/customers',

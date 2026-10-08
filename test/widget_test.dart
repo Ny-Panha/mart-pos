@@ -2,12 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
 import 'package:mart_pos/data/firestore/models/product_model.dart';
+import 'package:mart_pos/data/firestore/models/purchase_model.dart';
 import 'package:mart_pos/data/firestore/models/sale_model.dart';
 import 'package:mart_pos/data/firestore/models/user_model.dart';
 import 'package:mart_pos/data/repositories/inventory_repository.dart';
 import 'package:mart_pos/data/repositories/product_repository.dart';
+import 'package:mart_pos/data/repositories/purchase_repository.dart';
 import 'package:mart_pos/data/repositories/report_repository.dart';
 import 'package:mart_pos/data/repositories/shift_repository.dart';
+import 'package:mart_pos/data/repositories/supplier_repository.dart';
 import 'package:mart_pos/data/repositories/user_repository.dart';
 import 'package:mart_pos/features/customers/providers/customer_provider.dart';
 
@@ -289,6 +292,142 @@ void main() {
         targetUid: 'cashier_1',
       );
       expect(canDeactivate, true);
+    });
+  });
+
+  group('SupplierRepository Deactivate Blocker Tests', () {
+    test('Blocks supplier deactivation when supplier has existing purchase history', () {
+      final canDeactivate = SupplierRepository.canDeactivateSupplier(purchaseCount: 3);
+      expect(canDeactivate, false);
+    });
+
+    test('Blocks supplier deactivation when supplier has at least 1 purchase', () {
+      final canDeactivate = SupplierRepository.canDeactivateSupplier(purchaseCount: 1);
+      expect(canDeactivate, false);
+    });
+
+    test('Allows supplier deactivation when supplier has 0 purchases', () {
+      final canDeactivate = SupplierRepository.canDeactivateSupplier(purchaseCount: 0);
+      expect(canDeactivate, true);
+    });
+  });
+
+  group('PurchaseRepository Math & Input Guard Tests', () {
+    test('calculateTotalCost calculates sum of qty * costPrice correctly', () {
+      final items = [
+        const PurchaseItem(
+          productId: 'p1',
+          name: 'Coca Cola',
+          qty: 24, // 1 case
+          costPrice: 1500, // 1500 Riel each -> 36,000
+        ),
+        const PurchaseItem(
+          productId: 'p2',
+          name: 'Angkor Beer',
+          qty: 12,
+          costPrice: 2800, // 2800 Riel each -> 33,600
+        ),
+      ];
+
+      final total = PurchaseRepository.calculateTotalCost(items);
+      expect(total, 69600); // 36,000 + 33,600 = 69,600 Riel
+    });
+
+    test('calculateTotalCost returns 0 for empty item list', () {
+      final total = PurchaseRepository.calculateTotalCost([]);
+      expect(total, 0);
+    });
+
+    test('validatePurchaseInput blocks inactive supplier', () {
+      final items = [
+        const PurchaseItem(
+          productId: 'p1',
+          name: 'Coca Cola',
+          qty: 10,
+          costPrice: 1500,
+        ),
+      ];
+
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: false,
+          items: items,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('validatePurchaseInput blocks empty items list', () {
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: true,
+          items: [],
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('validatePurchaseInput blocks non-positive quantity', () {
+      final items = [
+        const PurchaseItem(
+          productId: 'p1',
+          name: 'Coca Cola',
+          qty: 0,
+          costPrice: 1500,
+        ),
+      ];
+
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: true,
+          items: items,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('validatePurchaseInput blocks negative cost price', () {
+      final items = [
+        const PurchaseItem(
+          productId: 'p1',
+          name: 'Coca Cola',
+          qty: 5,
+          costPrice: -100,
+        ),
+      ];
+
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: true,
+          items: items,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('validatePurchaseInput succeeds with valid inputs', () {
+      final items = [
+        const PurchaseItem(
+          productId: 'p1',
+          name: 'Coca Cola',
+          qty: 10,
+          costPrice: 1500,
+        ),
+        const PurchaseItem(
+          productId: 'p2',
+          name: 'MAMA Noodles',
+          qty: 50,
+          costPrice: 1200,
+        ),
+      ];
+
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: true,
+          items: items,
+        ),
+        returnsNormally,
+      );
     });
   });
 }

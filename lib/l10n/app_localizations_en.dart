@@ -290,9 +290,68 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shiftOpen => 'Shift open';
 
   @override
-  String get noShift => 'No shift';
-
-  @override
   String get cannotDeactivateLastAdmin =>
       'Cannot deactivate the last active admin';
+
+  @override
+  String get suppliers => 'Suppliers';
+
+  @override
+  String get purchases => 'Purchases';
+
+  @override
+  String get newSupplier => 'New Supplier';
+
+  @override
+  String get editSupplier => 'Edit Supplier';
+
+  @override
+  String get supplierName => 'Supplier Name';
+
+  @override
+  String get phone => 'Phone';
+
+  @override
+  String get address => 'Address';
+
+  @override
+  String get note => 'Note';
+
+  @override
+  String get deactivateSupplier => 'Deactivate Supplier';
+
+  @override
+  String get activateSupplier => 'Activate Supplier';
+
+  @override
+  String get deactivateSupplierConfirm =>
+      'Are you sure you want to deactivate this supplier?';
+
+  @override
+  String get cannotDeactivateSupplierWithPurchases =>
+      'Cannot deactivate supplier with existing purchase history';
+
+  @override
+  String get newPurchase => 'New Purchase';
+
+  @override
+  String get purchaseDetail => 'Purchase Detail';
+
+  @override
+  String get selectSupplier => 'Select Supplier';
+
+  @override
+  String get addItem => 'Add Item';
+
+  @override
+  String get removeItem => 'Remove Item';
+
+  @override
+  String get totalCost => 'Total Cost';
+
+  @override
+  String get purchaseSuccess => 'Purchase recorded successfully';
+
+  @override
+  String get orderStock => 'Order';
 }

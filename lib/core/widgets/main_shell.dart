@@ -15,9 +15,11 @@ class MainShell extends ConsumerWidget {
     if (location.startsWith('/pos')) return 0;
     if (location.startsWith('/admin/products')) return 2;
     if (location.startsWith('/admin/inventory')) return 3;
-    if (location.startsWith('/admin/customers')) return 4;
-    if (location.startsWith('/admin/reports')) return 5;
-    if (location.startsWith('/admin/users')) return 6;
+    if (location.startsWith('/admin/purchases')) return 4;
+    if (location.startsWith('/admin/suppliers')) return 5;
+    if (location.startsWith('/admin/customers')) return 6;
+    if (location.startsWith('/admin/reports')) return 7;
+    if (location.startsWith('/admin/users')) return 8;
     if (location.startsWith('/admin')) return 1;
     return 0;
   }
@@ -37,13 +39,50 @@ class MainShell extends ConsumerWidget {
         if (isAdmin) context.go('/admin/inventory');
         break;
       case 4:
-        if (isAdmin) context.go('/admin/customers');
+        if (isAdmin) context.go('/admin/purchases');
         break;
       case 5:
-        if (isAdmin) context.go('/admin/reports');
+        if (isAdmin) context.go('/admin/suppliers');
         break;
       case 6:
+        if (isAdmin) context.go('/admin/customers');
+        break;
+      case 7:
+        if (isAdmin) context.go('/admin/reports');
+        break;
+      case 8:
         if (isAdmin) context.go('/admin/users');
+        break;
+    }
+  }
+
+  int _calculateBottomNavIndex(BuildContext context, bool isAdmin) {
+    if (!isAdmin) return 0;
+    final location = GoRouterState.of(context).uri.toString();
+    if (location.startsWith('/pos')) return 0;
+    if (location.startsWith('/admin/products')) return 2;
+    if (location.startsWith('/admin/inventory')) return 3;
+    if (location.startsWith('/admin/reports')) return 4;
+    if (location.startsWith('/admin')) return 1;
+    return 0;
+  }
+
+  void _onBottomNavTapped(int index, BuildContext context, bool isAdmin) {
+    switch (index) {
+      case 0:
+        context.go('/pos');
+        break;
+      case 1:
+        if (isAdmin) context.go('/admin');
+        break;
+      case 2:
+        if (isAdmin) context.go('/admin/products');
+        break;
+      case 3:
+        if (isAdmin) context.go('/admin/inventory');
+        break;
+      case 4:
+        if (isAdmin) context.go('/admin/reports');
         break;
     }
   }
@@ -141,6 +180,16 @@ class MainShell extends ConsumerWidget {
                     label: Text('Stock'),
                   ),
                   const NavigationRailDestination(
+                    icon: Icon(Icons.shopping_bag_outlined),
+                    selectedIcon: Icon(Icons.shopping_bag, color: AppColors.primary),
+                    label: Text('Purchases'),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.local_shipping_outlined),
+                    selectedIcon: Icon(Icons.local_shipping, color: AppColors.primary),
+                    label: Text('Suppliers'),
+                  ),
+                  const NavigationRailDestination(
                     icon: Icon(Icons.people_outline),
                     selectedIcon: Icon(Icons.people, color: AppColors.primary),
                     label: Text('Customers'),
@@ -169,8 +218,8 @@ class MainShell extends ConsumerWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex > (isAdmin ? 4 : 0) ? 0 : selectedIndex,
-        onTap: (idx) => _onItemTapped(idx, context, isAdmin),
+        currentIndex: _calculateBottomNavIndex(context, isAdmin),
+        onTap: (idx) => _onBottomNavTapped(idx, context, isAdmin),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.lightMutedText,
