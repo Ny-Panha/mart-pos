@@ -100,13 +100,18 @@ class MainShell extends ConsumerWidget {
     final isDesktop = Responsive.isDesktop(context);
     final isTablet = Responsive.isTablet(context);
 
+    final totalDestinations = isAdmin ? 10 : 1;
+    final railIndex = (selectedIndex >= 0 && selectedIndex < totalDestinations)
+        ? selectedIndex
+        : 0;
+
     // Desktop/Tablet: Side Navigation Rail
     if (isDesktop || isTablet) {
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
-              selectedIndex: selectedIndex,
+              selectedIndex: railIndex,
               onDestinationSelected: (idx) => _onItemTapped(idx, context, isAdmin),
               labelType: NavigationRailLabelType.all,
               leading: Padding(
@@ -145,20 +150,15 @@ class MainShell extends ConsumerWidget {
                   ],
                 ),
               ),
-              trailing: Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: IconButton(
-                      tooltip: 'Log Out',
-                      icon: const Icon(Icons.logout_rounded, color: AppColors.danger),
-                      onPressed: () {
-                        ref.read(authProvider.notifier).signOut();
-                        context.go('/login');
-                      },
-                    ),
-                  ),
+              trailing: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: IconButton(
+                  tooltip: 'Log Out',
+                  icon: const Icon(Icons.logout_rounded, color: AppColors.danger),
+                  onPressed: () {
+                    ref.read(authProvider.notifier).signOut();
+                    context.go('/login');
+                  },
                 ),
               ),
               destinations: [
