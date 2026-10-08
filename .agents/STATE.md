@@ -2,45 +2,46 @@
 
 ## Last Session
 - **Environment**: Antigravity IDE
-- **Timestamp**: 2026-10-07 20:56 (ICT)
+- **Timestamp**: 2026-10-08 11:34 (ICT)
 - **Author**: Pair programming with Nha (Build Bright University, Year 4 Semester 2)
 - **Team**: នី បញ្ញា, គក់ ស្រីផ្កាយ, គុយ ដាលី
 
-## Summary: W5 — Users/Roles Management + Daily Close (Shifts) Implementation
-1. **Users Management (Admin Only)**:
-   - `UserRepository` ([user_repository.dart](file:///home/kali/Desktop/mart_pos/lib/data/repositories/user_repository.dart)): Created with `watchUsers()`, `createUserDoc({uid, name, role})`, `updateUserRole(uid, role)`, `updateUserName(uid, name)`, and `setUserActive(uid, active)`.
-   - **Last Admin Protection**: Pure helper `UserRepository.canDeactivateUser` blocks deactivating the only active administrator in the system with an explicit error dialog.
-   - `UserFormDialog` ([user_form_dialog.dart](file:///home/kali/Desktop/mart_pos/lib/features/users/presentation/user_form_dialog.dart)): Dialog to add new staff profiles using Firebase Auth UIDs or edit existing staff details/roles.
-   - `UsersScreen` ([users_screen.dart](file:///home/kali/Desktop/mart_pos/lib/features/users/presentation/users_screen.dart)): Replaced stub with full 2-tab view: Tab 1 for Staff Accounts (with search, role badges, active switch, edit) and Tab 2 for Shift History.
-2. **Replaced Auth Email Hack**:
-   - `AuthRepository` ([auth_repository.dart](file:///home/kali/Desktop/mart_pos/lib/data/repositories/auth_repository.dart)): Removed email substring guessing (`cashier`, `pkay`, `daly`). Now reads real Firestore `users/{uid}` documents.
-   - If doc does not exist: throws `Exception('Account not set up — contact admin')`.
-   - If `active == false`: signs out and throws `Exception('Account deactivated')`.
-   - `Router Guard` ([router.dart](file:///home/kali/Desktop/mart_pos/lib/core/router.dart)) & `LoginScreen` ([login_screen.dart](file:///home/kali/Desktop/mart_pos/lib/features/auth/presentation/login_screen.dart)): Redirects inactive users to `/login?error=deactivated` with an alert message.
-3. **Daily Close / Shifts (Cashier)**:
-   - `ShiftRepository` ([shift_repository.dart](file:///home/kali/Desktop/mart_pos/lib/data/repositories/shift_repository.dart)): Implemented `watchOpenShift(cashierId)`, `watchAllShifts()`, `openShift({cashierId, openingCash})`, `closeShift({shiftId, cashierId, actualCash})`, `getShiftSalesSummary`, and difference math `actualCash - (openingCash + totalSales)`.
-   - `FirestoreCollections.dailyCloses` ([firestore_collections.dart](file:///home/kali/Desktop/mart_pos/lib/data/firestore/firestore_collections.dart)): Points to `daily_closes` collection.
-   - `OpenShiftDialog` & `CloseShiftDialog` ([shifts/presentation](file:///home/kali/Desktop/mart_pos/lib/features/shifts/presentation)):
-     - Open: Opening float cash in Riel, quick presets (0, 100k, 200k, 400k), dual currency display.
-     - Close: Shows opening float, live shift sales, expected cash, actual drawer cash input, and live difference badge with red/green highlights.
-   - `POS Screen Integration` ([pos_screen.dart](file:///home/kali/Desktop/mart_pos/lib/features/pos/presentation/pos_screen.dart)):
-     - Added shift status chip in top bar ("Shift open · 09:30" green / "No shift" grey). Tap opens corresponding dialog.
-     - Added amber warning banner when no shift is open ("No open shift — sales won't appear in shift report") without hard-blocking checkout.
-4. **Quality & Tests**:
+## Summary: Suppliers + Purchases Management with Stock-In Integration
+1. **Suppliers Feature (`/admin/suppliers`)**:
+   - `SupplierModel` ([supplier_model.dart](file:///home/nha/Desktop/mart_pos/lib/data/firestore/models/supplier_model.dart)): `id`, `name`, `phone`, `address`, `note`, `active`, `createdAt`.
+   - `SupplierRepository` ([supplier_repository.dart](file:///home/nha/Desktop/mart_pos/lib/data/repositories/supplier_repository.dart)): `watchSuppliers()` (active first, alphabetical), `createSupplier`, `updateSupplier`, `activateSupplier`, `deactivateSupplier`.
+   - **Deactivation Protection**: Blocks deactivating suppliers who have existing purchase records (`canDeactivateSupplier({required int purchaseCount})`).
+   - `SuppliersScreen` ([suppliers_screen.dart](file:///home/nha/Desktop/mart_pos/lib/features/suppliers/presentation/suppliers_screen.dart)): List with search, status toggles, responsive `SupplierFormDialog`, and `SupplierDetailDialog` with purchase history stream.
+2. **Purchases Feature (`/admin/purchases`)**:
+   - `PurchaseModel` ([purchase_model.dart](file:///home/nha/Desktop/mart_pos/lib/data/firestore/models/purchase_model.dart)) & `PurchaseItem`: `id`, `supplierId`, `supplierName`, `items`, `totalCost`, `note`, `createdBy`, `createdAt`.
+   - `PurchaseRepository` ([purchase_repository.dart](file:///home/nha/Desktop/mart_pos/lib/data/repositories/purchase_repository.dart)): `watchPurchases()`, `watchPurchasesBySupplier()`.
+   - **Single Atomic WriteBatch (`createPurchase`)**:
+     1. Increment `products/{id}.stockQty` AND update `costPrice` to keep margins accurate.
+     2. Create `stockMovements` entry (`type: "in"`, `refId: purchaseId`, `note: "Purchase from {supplierName}"`).
+     3. Create `purchases` doc.
+     - Pure validation guards: `validatePurchaseInput` & `calculateTotalCost`.
+   - `PurchasesScreen` ([purchases_screen.dart](file:///home/nha/Desktop/mart_pos/lib/features/purchases/presentation/purchases_screen.dart)): Live purchase log cards with supplier name, date, item count, Riel + USD total.
+   - `PurchaseFormDialog` ([purchase_form_dialog.dart](file:///home/nha/Desktop/mart_pos/lib/features/purchases/presentation/purchase_form_dialog.dart)): Active suppliers dropdown, dynamic item rows with searchable product picker, qty, cost price (៛), and live total footer.
+   - `PurchaseDetailDialog` ([purchase_detail_dialog.dart](file:///home/nha/Desktop/mart_pos/lib/features/purchases/presentation/purchase_detail_dialog.dart)): Item breakdown table with unit cost and subtotals.
+3. **Inventory Screen Integration**:
+   - `InventoryScreen` ([inventory_screen.dart](file:///home/nha/Desktop/mart_pos/lib/features/inventory/presentation/inventory_screen.dart)): Added "ORDER" action on low-stock alert card items that opens `PurchaseFormDialog` prefilled with the selected product.
+4. **Router & Shell Navigation**:
+   - `router.dart` ([router.dart](file:///home/nha/Desktop/mart_pos/lib/core/router.dart)): Added `/admin/suppliers` and `/admin/purchases` protected by admin auth guard.
+   - `main_shell.dart` ([main_shell.dart](file:///home/nha/Desktop/mart_pos/lib/core/widgets/main_shell.dart)): Added Purchases and Suppliers navigation rail destinations and updated mobile bottom bar handling.
+5. **Quality & Verification**:
    - `flutter analyze`: **0 issues found** (clean 100%).
-   - `flutter test`: **All 23 tests passed** (including close-shift difference math tests and last-admin-deactivate blocker tests).
-   - Localization: Added EN and KM keys to `app_en.arb` and `app_km.arb` and generated with `flutter gen-l10n`.
+   - `flutter test`: **33/33 tests passed** (including purchase total math, input guards, and supplier deactivation blocker tests).
+   - Localization: Added English and Khmer keys in `app_en.arb` and `app_km.arb` and regenerated.
 
 ## Active Branch & Git
-- **Branch**: `feat/w5-users-shifts`
-- **Pull Request**: [#4](https://github.com/Ny-Panha/mart-pos/pull/4) (feat(w5): Users/Roles management and Daily Close shifts)
+- **Branch**: `feat/suppliers-purchases`
+- **Pull Request**: [#5](https://github.com/Ny-Panha/mart-pos/pull/5) (`feat(suppliers-purchases): Suppliers + Purchases management and stock-in integration`)
 - **Status**: Open, ready for review & merge into `main`
 
 ## Active Environment
-- **Flutter Web Dev Server**: Running on Chrome (`http://localhost:38243`)
-- **Tests & Analyzer**: 0 issues, 23/23 tests passing clean
+- **Flutter Web Dev Server**: Running on Chrome
+- **Tests & Analyzer**: 0 issues, 33/33 tests passing clean
 
 ## Next Steps
-1. Review and test login/shifts/POS flows directly in the running Chrome window.
-2. Review and merge PR #4 on GitHub (`gh pr merge 4 --merge`).
-3. Switch to `main` branch and pull latest changes (`git checkout main && git pull`).
+1. Review PR #5 on GitHub: `https://github.com/Ny-Panha/mart-pos/pull/5`
+2. Merge PR #5 into `main` when approved.
