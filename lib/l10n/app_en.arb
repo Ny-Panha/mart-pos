@@ -112,5 +112,22 @@
   "removeItem": "Remove Item",
   "totalCost": "Total Cost",
   "purchaseSuccess": "Purchase recorded successfully",
-  "orderStock": "Order"
+  "orderStock": "Order",
+  "auditLog": "Audit Log",
+  "auditLogDescription": "Track all administrative, sales, inventory, and system changes",
+  "filterAll": "All",
+  "filterSales": "Sales",
+  "filterProducts": "Products",
+  "filterStock": "Stock",
+  "filterPurchases": "Purchases",
+  "filterUsers": "Users",
+  "filterShifts": "Shifts",
+  "filterToday": "Today",
+  "filter7Days": "7 Days",
+  "filter30Days": "30 Days",
+  "noAuditLogs": "No audit logs found",
+  "auditDetails": "Audit Log Details",
+  "action": "Action",
+  "entity": "Entity",
+  "performedBy": "Performed By"
 }

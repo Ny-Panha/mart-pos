@@ -1,5 +1,6 @@
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/user_model.dart';
+import '../services/audit_service.dart';
 
 class UserRepository {
   Stream<List<UserModel>> watchUsers() {
@@ -29,10 +30,25 @@ class UserRepository {
     await FirestoreCollections.users.doc(cleanUid).set(user);
   }
 
-  Future<void> updateUserRole(String uid, String role) async {
+  Future<void> updateUserRole(
+    String uid,
+    String role, {
+    String? adminId,
+    String? adminName,
+  }) async {
     await FirestoreCollections.users.doc(uid).update({
       'role': role.trim().toLowerCase(),
     });
+
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: adminId ?? 'system',
+      userName: adminName ?? 'Admin',
+      action: 'user.role_change',
+      entityType: 'user',
+      entityId: uid,
+      details: 'Role changed to ${role.trim().toUpperCase()}',
+    );
   }
 
   Future<void> updateUserName(String uid, String name) async {
@@ -41,7 +57,13 @@ class UserRepository {
     });
   }
 
-  Future<void> setUserActive(String uid, bool active) async {
+  Future<void> setUserActive(
+    String uid,
+    bool active, {
+    String? adminId,
+    String? adminName,
+    String? targetUserName,
+  }) async {
     if (!active) {
       // Check if user is the last active admin
       final targetDoc = await FirestoreCollections.users.doc(uid).get();
@@ -63,6 +85,16 @@ class UserRepository {
     await FirestoreCollections.users.doc(uid).update({
       'active': active,
     });
+
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: adminId ?? 'system',
+      userName: adminName ?? 'Admin',
+      action: active ? 'user.activate' : 'user.deactivate',
+      entityType: 'user',
+      entityId: uid,
+      details: '${targetUserName ?? "User $uid"} ${active ? "activated" : "deactivated"}',
+    );
   }
 
   /// Pure helper for checking whether a user can be safely deactivated.

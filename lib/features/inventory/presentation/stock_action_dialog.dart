@@ -134,6 +134,8 @@ class _StockActionDialogState extends ConsumerState<StockActionDialog> {
             qty: rawQty,
             note: note.isNotEmpty ? note : 'Incoming delivery',
             userId: userId,
+            productName: _selectedProduct!.name,
+            userName: user?.name,
           );
           if (mounted) {
             Navigator.pop(context);
@@ -155,6 +157,8 @@ class _StockActionDialogState extends ConsumerState<StockActionDialog> {
             qty: rawQty,
             note: note,
             userId: userId,
+            productName: _selectedProduct!.name,
+            userName: user?.name,
           );
           if (mounted) {
             Navigator.pop(context);
@@ -176,6 +180,8 @@ class _StockActionDialogState extends ConsumerState<StockActionDialog> {
             newQty: rawQty,
             note: note,
             userId: userId,
+            productName: _selectedProduct!.name,
+            userName: user?.name,
           );
           final diff = rawQty - _selectedProduct!.stockQty;
           final diffSign = diff >= 0 ? '+$diff' : '$diff';

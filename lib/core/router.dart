@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../features/audit/presentation/audit_logs_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/customers/presentation/customers_screen.dart';
@@ -96,6 +97,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/users',
             builder: (context, state) => const UsersScreen(),
+          ),
+          GoRoute(
+            path: '/admin/audit-log',
+            builder: (context, state) => const AuditLogsScreen(),
           ),
         ],
       ),

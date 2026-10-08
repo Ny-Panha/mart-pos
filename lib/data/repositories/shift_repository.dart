@@ -1,6 +1,8 @@
+import '../../core/utils/money.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/daily_close_model.dart';
 import '../firestore/models/sale_model.dart';
+import '../services/audit_service.dart';
 
 class ShiftRepository {
   /// Watches the active open shift for a specific cashier
@@ -105,6 +107,7 @@ class ShiftRepository {
     required String shiftId,
     required String cashierId,
     required int actualCash,
+    String? cashierName,
   }) async {
     final shiftDoc = await FirestoreCollections.dailyCloses.doc(shiftId).get();
     if (!shiftDoc.exists || shiftDoc.data() == null) {
@@ -138,6 +141,21 @@ class ShiftRepository {
     );
 
     await FirestoreCollections.dailyCloses.doc(shiftId).set(closedShift);
+
+    final diffStr = difference == 0
+        ? '0 ៛'
+        : (difference > 0 ? '+${MoneyUtils.formatRiel(difference)}' : MoneyUtils.formatRiel(difference));
+
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: cashierId,
+      userName: cashierName ?? 'Cashier $cashierId',
+      action: 'shift.close',
+      entityType: 'shift',
+      entityId: shiftId,
+      details: 'Diff: $diffStr · Actual: ${MoneyUtils.formatRiel(actualCash)}',
+    );
+
     return closedShift;
   }
 

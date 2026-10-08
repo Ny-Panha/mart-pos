@@ -1,6 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mart_pos/core/utils/money.dart';
+import 'package:mart_pos/data/firestore/models/audit_log_model.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
+import 'package:mart_pos/data/services/audit_service.dart';
 import 'package:mart_pos/data/firestore/models/product_model.dart';
 import 'package:mart_pos/data/firestore/models/purchase_model.dart';
 import 'package:mart_pos/data/firestore/models/sale_model.dart';
@@ -427,6 +430,89 @@ void main() {
           items: items,
         ),
         returnsNormally,
+      );
+    });
+  });
+
+  group('AuditLogModel Serialization & fromMap Tests', () {
+    test('Serializes to Firestore map with all expected fields', () {
+      final now = DateTime(2026, 10, 8, 12, 0);
+      final model = AuditLogModel(
+        id: 'log_001',
+        userId: 'user_123',
+        userName: 'Panha',
+        action: 'sale.checkout',
+        entityType: 'sale',
+        entityId: 'sale_999',
+        details: 'INV-0001 · 15,000 ៛',
+        createdAt: now,
+      );
+
+      final map = model.toFirestore();
+      expect(map['userId'], 'user_123');
+      expect(map['userName'], 'Panha');
+      expect(map['action'], 'sale.checkout');
+      expect(map['entityType'], 'sale');
+      expect(map['entityId'], 'sale_999');
+      expect(map['details'], 'INV-0001 · 15,000 ៛');
+      expect((map['createdAt'] as Timestamp).toDate(), now);
+    });
+
+    test('AuditLogModel.fromMap correctly parses map data', () {
+      final now = DateTime(2026, 10, 8, 12, 0);
+      final map = {
+        'userId': 'user_456',
+        'userName': 'Sokha',
+        'action': 'stock.in',
+        'entityType': 'product',
+        'entityId': 'prod_777',
+        'details': 'Coca Cola · +24',
+        'createdAt': Timestamp.fromDate(now),
+      };
+
+      final model = AuditLogModel.fromMap(map, 'log_002');
+      expect(model.id, 'log_002');
+      expect(model.userId, 'user_456');
+      expect(model.userName, 'Sokha');
+      expect(model.action, 'stock.in');
+      expect(model.entityType, 'product');
+      expect(model.entityId, 'prod_777');
+      expect(model.details, 'Coca Cola · +24');
+      expect(model.createdAt, now);
+    });
+
+    test('AuditLogModel.copyWith preserves unchanged fields and overrides specified fields', () {
+      final model = AuditLogModel(
+        id: 'log_001',
+        userId: 'user_123',
+        userName: 'Panha',
+        action: 'product.create',
+        entityType: 'product',
+        entityId: 'prod_1',
+        details: 'MAMA Noodles',
+      );
+
+      final updated = model.copyWith(details: 'MAMA Noodles (Updated)', action: 'product.update');
+      expect(updated.id, 'log_001');
+      expect(updated.userId, 'user_123');
+      expect(updated.userName, 'Panha');
+      expect(updated.action, 'product.update');
+      expect(updated.details, 'MAMA Noodles (Updated)');
+    });
+  });
+
+  group('AuditService Error Swallowing Tests', () {
+    test('AuditService.log swallows errors and never throws when underlying operation fails', () async {
+      await expectLater(
+        AuditService.log(
+          userId: 'test_user',
+          userName: 'Tester',
+          action: 'test.action',
+          entityType: 'test',
+          entityId: 'test_123',
+          details: 'Unit test log swallowing',
+        ),
+        completes,
       );
     });
   });

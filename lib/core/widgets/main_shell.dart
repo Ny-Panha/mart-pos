@@ -20,6 +20,7 @@ class MainShell extends ConsumerWidget {
     if (location.startsWith('/admin/customers')) return 6;
     if (location.startsWith('/admin/reports')) return 7;
     if (location.startsWith('/admin/users')) return 8;
+    if (location.startsWith('/admin/audit-log')) return 9;
     if (location.startsWith('/admin')) return 1;
     return 0;
   }
@@ -52,6 +53,9 @@ class MainShell extends ConsumerWidget {
         break;
       case 8:
         if (isAdmin) context.go('/admin/users');
+        break;
+      case 9:
+        if (isAdmin) context.go('/admin/audit-log');
         break;
     }
   }
@@ -203,6 +207,11 @@ class MainShell extends ConsumerWidget {
                     icon: Icon(Icons.badge_outlined),
                     selectedIcon: Icon(Icons.badge, color: AppColors.primary),
                     label: Text('Staff'),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.shield_outlined),
+                    selectedIcon: Icon(Icons.shield, color: AppColors.primary),
+                    label: Text('Audit Log'),
                   ),
                 ],
               ],

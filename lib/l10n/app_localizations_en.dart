@@ -354,4 +354,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get orderStock => 'Order';
+
+  @override
+  String get auditLog => 'Audit Log';
+
+  @override
+  String get auditLogDescription =>
+      'Track all administrative, sales, inventory, and system changes';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterSales => 'Sales';
+
+  @override
+  String get filterProducts => 'Products';
+
+  @override
+  String get filterStock => 'Stock';
+
+  @override
+  String get filterPurchases => 'Purchases';
+
+  @override
+  String get filterUsers => 'Users';
+
+  @override
+  String get filterShifts => 'Shifts';
+
+  @override
+  String get filterToday => 'Today';
+
+  @override
+  String get filter7Days => '7 Days';
+
+  @override
+  String get filter30Days => '30 Days';
+
+  @override
+  String get noAuditLogs => 'No audit logs found';
+
+  @override
+  String get auditDetails => 'Audit Log Details';
+
+  @override
+  String get action => 'Action';
+
+  @override
+  String get entity => 'Entity';
+
+  @override
+  String get performedBy => 'Performed By';
 }

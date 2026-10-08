@@ -6,6 +6,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/firestore/models/user_model.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../providers/user_provider.dart';
 
 class UserFormDialog extends ConsumerStatefulWidget {
@@ -71,8 +72,14 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
       if (isEditing) {
         final targetUid = widget.user!.id;
         await repo.updateUserName(targetUid, _nameController.text.trim());
+        final currentAdmin = ref.read(authProvider).value;
         if (_role != widget.user!.role.toLowerCase()) {
-          await repo.updateUserRole(targetUid, _role);
+          await repo.updateUserRole(
+            targetUid,
+            _role,
+            adminId: currentAdmin?.id,
+            adminName: currentAdmin?.name,
+          );
         }
       } else {
         await repo.createUserDoc(

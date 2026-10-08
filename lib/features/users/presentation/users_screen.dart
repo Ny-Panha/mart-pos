@@ -12,6 +12,7 @@ import '../../../core/widgets/page_header.dart';
 import '../../../data/firestore/models/user_model.dart';
 import '../../../data/repositories/shift_repository.dart';
 import '../../../data/repositories/user_repository.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../shifts/providers/shift_provider.dart';
 import '../providers/user_provider.dart';
 import 'user_form_dialog.dart';
@@ -101,7 +102,14 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
     }
 
     try {
-      await ref.read(userRepositoryProvider).setUserActive(user.id, newActive);
+      final currentAdmin = ref.read(authProvider).value;
+      await ref.read(userRepositoryProvider).setUserActive(
+        user.id,
+        newActive,
+        adminId: currentAdmin?.id,
+        adminName: currentAdmin?.name,
+        targetUserName: user.name,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
