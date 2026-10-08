@@ -70,7 +70,7 @@
 
 ### ជំហានទី ១៖ ចូលទៅកាន់ Folder គម្រោង
 ```bash
-cd /home/kali/Desktop/mart_pos
+cd /home/nha/Desktop/mart_pos
 ```
 
 ### ជំហានទី ២៖ ទាញយក Packages

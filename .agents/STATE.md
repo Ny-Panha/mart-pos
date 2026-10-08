@@ -37,9 +37,10 @@
 - **Status**: Open, ready for review & merge into `main`
 
 ## Active Environment
-- Local dev server: idle
-- Tests & Analyzer: 0 issues, 23/23 tests passing
+- **Flutter Web Dev Server**: Running on Chrome (`http://localhost:38243`)
+- **Tests & Analyzer**: 0 issues, 23/23 tests passing clean
 
 ## Next Steps
-1. Review and merge PR #4 on GitHub (`gh pr merge 4 --merge`).
-2. Switch to `main` branch and pull latest changes (`git checkout main && git pull`).
+1. Review and test login/shifts/POS flows directly in the running Chrome window.
+2. Review and merge PR #4 on GitHub (`gh pr merge 4 --merge`).
+3. Switch to `main` branch and pull latest changes (`git checkout main && git pull`).

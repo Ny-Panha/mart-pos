@@ -662,6 +662,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                   icon: const Icon(Icons.camera_alt_outlined, size: 20),
                   label: const Text('CAMERA SCAN'),
                   style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
                     backgroundColor: AppColors.secondary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.button),
