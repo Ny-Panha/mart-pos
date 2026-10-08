@@ -565,6 +565,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Average Ticket'**
   String get avgTicket;
+
+  /// No description provided for @addStaff.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Staff'**
+  String get addStaff;
+
+  /// No description provided for @editStaff.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Staff'**
+  String get editStaff;
+
+  /// No description provided for @role.
+  ///
+  /// In en, this message translates to:
+  /// **'Role'**
+  String get role;
+
+  /// No description provided for @admin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get admin;
+
+  /// No description provided for @cashier.
+  ///
+  /// In en, this message translates to:
+  /// **'Cashier'**
+  String get cashier;
+
+  /// No description provided for @openShift.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Shift'**
+  String get openShift;
+
+  /// No description provided for @closeShift.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Shift'**
+  String get closeShift;
+
+  /// No description provided for @shiftHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Shift History'**
+  String get shiftHistory;
+
+  /// No description provided for @openingCash.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening Cash'**
+  String get openingCash;
+
+  /// No description provided for @actualCash.
+  ///
+  /// In en, this message translates to:
+  /// **'Actual Cash'**
+  String get actualCash;
+
+  /// No description provided for @expectedCash.
+  ///
+  /// In en, this message translates to:
+  /// **'Expected Cash'**
+  String get expectedCash;
+
+  /// No description provided for @difference.
+  ///
+  /// In en, this message translates to:
+  /// **'Difference'**
+  String get difference;
+
+  /// No description provided for @noOpenShiftWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'No open shift — sales won\'t appear in shift report'**
+  String get noOpenShiftWarning;
+
+  /// No description provided for @shiftOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Shift open'**
+  String get shiftOpen;
+
+  /// No description provided for @noShift.
+  ///
+  /// In en, this message translates to:
+  /// **'No shift'**
+  String get noShift;
+
+  /// No description provided for @cannotDeactivateLastAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot deactivate the last active admin'**
+  String get cannotDeactivateLastAdmin;
 }
 
 class _AppLocalizationsDelegate

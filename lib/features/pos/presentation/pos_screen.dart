@@ -12,9 +12,14 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/offline_bar.dart';
 import '../../../core/widgets/qty_stepper.dart';
 import '../../../data/firestore/models/product_model.dart';
+import 'package:intl/intl.dart';
+import '../../../data/firestore/models/daily_close_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../customers/providers/customer_provider.dart';
 import '../../products/providers/product_provider.dart';
+import '../../shifts/presentation/close_shift_dialog.dart';
+import '../../shifts/presentation/open_shift_dialog.dart';
+import '../../shifts/providers/shift_provider.dart';
 import '../providers/pos_cart_provider.dart';
 import 'payment_dialog.dart';
 
@@ -548,6 +553,8 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
     final isDesktop = Responsive.isDesktop(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cart = ref.watch(posCartProvider);
+    final openShiftAsync = ref.watch(currentOpenShiftProvider);
+    final openShift = openShiftAsync.value;
 
     return Scaffold(
       body: Column(
@@ -555,7 +562,11 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           // 1. Top Offline Status Bar
           const OfflineBar(),
 
-          // 2. Main Content Area
+          // 2. Warning banner when no cashier shift is open
+          if (openShift == null && !openShiftAsync.isLoading)
+            _buildNoShiftWarningBanner(context),
+
+          // 3. Main Content Area
           Expanded(
             child: isDesktop
                 ? Row(
@@ -615,15 +626,18 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
   Widget _buildProductBrowser(BuildContext context, bool isDark) {
     final filteredProducts = ref.watch(filteredProductsProvider);
     final cart = ref.watch(posCartProvider);
+    final openShift = ref.watch(currentOpenShiftProvider).value;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Scan Bar in top area
+          // 1. Scan Bar & Shift status chip in top area
           Row(
             children: [
+              _buildShiftStatusChip(context, openShift, isDark),
+              const SizedBox(width: 12),
               Expanded(
                 child: TextField(
                   controller: _scanController,
@@ -648,6 +662,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                   icon: const Icon(Icons.camera_alt_outlined, size: 20),
                   label: const Text('CAMERA SCAN'),
                   style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
                     backgroundColor: AppColors.secondary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.button),
@@ -1289,6 +1304,89 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNoShiftWarningBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.amber.shade800,
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'No open shift — sales won\'t appear in shift report (មិនទាន់បើកវេនលក់)',
+              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.amber.shade900,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+            icon: const Icon(Icons.lock_open_rounded, size: 16),
+            label: const Text('OPEN SHIFT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            onPressed: () => OpenShiftDialog.show(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShiftStatusChip(BuildContext context, DailyCloseModel? shift, bool isDark) {
+    final isOpen = shift != null;
+    final timeStr = isOpen ? DateFormat('HH:mm').format(shift.openedAt) : '';
+
+    return InkWell(
+      onTap: () {
+        if (isOpen) {
+          CloseShiftDialog.show(context, shift);
+        } else {
+          OpenShiftDialog.show(context);
+        }
+      },
+      borderRadius: BorderRadius.circular(AppRadius.button),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: isOpen
+              ? AppColors.success.withValues(alpha: 0.12)
+              : (isDark ? AppColors.darkBorder : Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          border: Border.all(
+            color: isOpen
+                ? AppColors.success.withValues(alpha: 0.4)
+                : (isDark ? AppColors.darkBorder : Colors.grey.shade400),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isOpen ? Icons.check_circle_rounded : Icons.schedule_rounded,
+              size: 18,
+              color: isOpen ? AppColors.success : (isDark ? AppColors.darkMutedText : Colors.grey.shade600),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              isOpen ? 'Shift open · $timeStr' : 'No shift',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isOpen
+                    ? AppColors.success
+                    : (isDark ? AppColors.darkMutedText : Colors.grey.shade700),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

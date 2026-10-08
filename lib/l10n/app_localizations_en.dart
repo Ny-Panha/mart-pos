@@ -245,4 +245,54 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get avgTicket => 'Average Ticket';
+
+  @override
+  String get addStaff => 'Add Staff';
+
+  @override
+  String get editStaff => 'Edit Staff';
+
+  @override
+  String get role => 'Role';
+
+  @override
+  String get admin => 'Admin';
+
+  @override
+  String get cashier => 'Cashier';
+
+  @override
+  String get openShift => 'Open Shift';
+
+  @override
+  String get closeShift => 'Close Shift';
+
+  @override
+  String get shiftHistory => 'Shift History';
+
+  @override
+  String get openingCash => 'Opening Cash';
+
+  @override
+  String get actualCash => 'Actual Cash';
+
+  @override
+  String get expectedCash => 'Expected Cash';
+
+  @override
+  String get difference => 'Difference';
+
+  @override
+  String get noOpenShiftWarning =>
+      'No open shift — sales won\'t appear in shift report';
+
+  @override
+  String get shiftOpen => 'Shift open';
+
+  @override
+  String get noShift => 'No shift';
+
+  @override
+  String get cannotDeactivateLastAdmin =>
+      'Cannot deactivate the last active admin';
 }

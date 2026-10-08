@@ -245,4 +245,54 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get avgTicket => 'មធ្យមភាគ / វិក្កយបត្រ';
+
+  @override
+  String get addStaff => 'បន្ថែមបុគ្គលិកថ្មី';
+
+  @override
+  String get editStaff => 'កែប្រែព័ត៌មានបុគ្គលិក';
+
+  @override
+  String get role => 'តួនាទី';
+
+  @override
+  String get admin => 'អ្នកគ្រប់គ្រង (Admin)';
+
+  @override
+  String get cashier => 'អ្នកគិតលុយ (Cashier)';
+
+  @override
+  String get openShift => 'បើកវេនលក់';
+
+  @override
+  String get closeShift => 'បិទវេនលក់';
+
+  @override
+  String get shiftHistory => 'ប្រវត្តិវេនលក់';
+
+  @override
+  String get openingCash => 'ប្រាក់ដើមវេន';
+
+  @override
+  String get actualCash => 'សាច់ប្រាក់រាប់បាន';
+
+  @override
+  String get expectedCash => 'សាច់ប្រាក់រំពឹងទុក';
+
+  @override
+  String get difference => 'ប្រាក់ខុសគ្នា';
+
+  @override
+  String get noOpenShiftWarning =>
+      'មិនទាន់បើកវេនលក់ទេ — ការលក់នឹងមិនបង្ហាញក្នុងរបាយការណ៍បិទវេនឡើយ';
+
+  @override
+  String get shiftOpen => 'វេនកំពុងបើក';
+
+  @override
+  String get noShift => 'គ្មានវេនលក់';
+
+  @override
+  String get cannotDeactivateLastAdmin =>
+      'មិនអាចផ្អាកដំណើរការ Admin ចុងក្រោយបានទេ';
 }

@@ -77,5 +77,21 @@
   "revenue": "ចំណូលសរុប",
   "profit": "ប្រាក់ចំណេញ",
   "transactions": "ចំនួនវិក្កយបត្រ",
-  "avgTicket": "មធ្យមភាគ / វិក្កយបត្រ"
+  "avgTicket": "មធ្យមភាគ / វិក្កយបត្រ",
+  "addStaff": "បន្ថែមបុគ្គលិកថ្មី",
+  "editStaff": "កែប្រែព័ត៌មានបុគ្គលិក",
+  "role": "តួនាទី",
+  "admin": "អ្នកគ្រប់គ្រង (Admin)",
+  "cashier": "អ្នកគិតលុយ (Cashier)",
+  "openShift": "បើកវេនលក់",
+  "closeShift": "បិទវេនលក់",
+  "shiftHistory": "ប្រវត្តិវេនលក់",
+  "openingCash": "ប្រាក់ដើមវេន",
+  "actualCash": "សាច់ប្រាក់រាប់បាន",
+  "expectedCash": "សាច់ប្រាក់រំពឹងទុក",
+  "difference": "ប្រាក់ខុសគ្នា",
+  "noOpenShiftWarning": "មិនទាន់បើកវេនលក់ទេ — ការលក់នឹងមិនបង្ហាញក្នុងរបាយការណ៍បិទវេនឡើយ",
+  "shiftOpen": "វេនកំពុងបើក",
+  "noShift": "គ្មានវេនលក់",
+  "cannotDeactivateLastAdmin": "មិនអាចផ្អាកដំណើរការ Admin ចុងក្រោយបានទេ"
 }

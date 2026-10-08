@@ -77,5 +77,21 @@
   "revenue": "Revenue",
   "profit": "Profit",
   "transactions": "Transactions",
-  "avgTicket": "Average Ticket"
+  "avgTicket": "Average Ticket",
+  "addStaff": "Add Staff",
+  "editStaff": "Edit Staff",
+  "role": "Role",
+  "admin": "Admin",
+  "cashier": "Cashier",
+  "openShift": "Open Shift",
+  "closeShift": "Close Shift",
+  "shiftHistory": "Shift History",
+  "openingCash": "Opening Cash",
+  "actualCash": "Actual Cash",
+  "expectedCash": "Expected Cash",
+  "difference": "Difference",
+  "noOpenShiftWarning": "No open shift — sales won't appear in shift report",
+  "shiftOpen": "Shift open",
+  "noShift": "No shift",
+  "cannotDeactivateLastAdmin": "Cannot deactivate the last active admin"
 }
