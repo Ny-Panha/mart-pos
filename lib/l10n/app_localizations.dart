@@ -775,6 +775,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Order'**
   String get orderStock;
+
+  /// No description provided for @auditLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Audit Log'**
+  String get auditLog;
+
+  /// No description provided for @auditLogDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Track all administrative, sales, inventory, and system changes'**
+  String get auditLogDescription;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get filterAll;
+
+  /// No description provided for @filterSales.
+  ///
+  /// In en, this message translates to:
+  /// **'Sales'**
+  String get filterSales;
+
+  /// No description provided for @filterProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'Products'**
+  String get filterProducts;
+
+  /// No description provided for @filterStock.
+  ///
+  /// In en, this message translates to:
+  /// **'Stock'**
+  String get filterStock;
+
+  /// No description provided for @filterPurchases.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchases'**
+  String get filterPurchases;
+
+  /// No description provided for @filterUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Users'**
+  String get filterUsers;
+
+  /// No description provided for @filterShifts.
+  ///
+  /// In en, this message translates to:
+  /// **'Shifts'**
+  String get filterShifts;
+
+  /// No description provided for @filterToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get filterToday;
+
+  /// No description provided for @filter7Days.
+  ///
+  /// In en, this message translates to:
+  /// **'7 Days'**
+  String get filter7Days;
+
+  /// No description provided for @filter30Days.
+  ///
+  /// In en, this message translates to:
+  /// **'30 Days'**
+  String get filter30Days;
+
+  /// No description provided for @noAuditLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'No audit logs found'**
+  String get noAuditLogs;
+
+  /// No description provided for @auditDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Audit Log Details'**
+  String get auditDetails;
+
+  /// No description provided for @action.
+  ///
+  /// In en, this message translates to:
+  /// **'Action'**
+  String get action;
+
+  /// No description provided for @entity.
+  ///
+  /// In en, this message translates to:
+  /// **'Entity'**
+  String get entity;
+
+  /// No description provided for @performedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Performed By'**
+  String get performedBy;
 }
 
 class _AppLocalizationsDelegate

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'models/audit_log_model.dart';
 import 'models/category_model.dart';
 import 'models/counter_model.dart';
 import 'models/customer_model.dart';
@@ -96,6 +97,13 @@ class FirestoreCollections {
       .collection('purchases')
       .withConverter<PurchaseModel>(
         fromFirestore: PurchaseModel.fromFirestore,
+        toFirestore: (model, _) => model.toFirestore(),
+      );
+
+  static CollectionReference<AuditLogModel> auditLogs = db
+      .collection('auditLogs')
+      .withConverter<AuditLogModel>(
+        fromFirestore: AuditLogModel.fromFirestore,
         toFirestore: (model, _) => model.toFirestore(),
       );
 }

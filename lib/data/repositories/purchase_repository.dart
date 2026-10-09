@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../core/utils/money.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/purchase_model.dart';
 import '../firestore/models/stock_movement_model.dart';
+import '../services/audit_service.dart';
 
 class PurchaseRepository {
   final FirebaseFirestore _db = FirestoreCollections.db;
@@ -71,6 +73,7 @@ class PurchaseRepository {
     required List<PurchaseItem> items,
     String? note,
     required String userId,
+    String? userName,
   }) async {
     // 1. Verify supplier exists and is active
     final supplierDoc = await FirestoreCollections.suppliers.doc(supplierId).get();
@@ -132,6 +135,16 @@ class PurchaseRepository {
 
     // 5. Commit batch atomically
     await batch.commit();
+
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: userId,
+      userName: userName ?? 'User $userId',
+      action: 'purchase.create',
+      entityType: 'purchase',
+      entityId: purchaseId,
+      details: '${supplier.name} · ${items.length} items · ${MoneyUtils.formatRiel(totalCost)}',
+    );
 
     return purchaseId;
   }

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/stock_movement_model.dart';
+import '../services/audit_service.dart';
 
 class InventoryRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -36,6 +37,8 @@ class InventoryRepository {
     required int qty,
     String? note,
     required String userId,
+    String? productName,
+    String? userName,
   }) async {
     if (qty <= 0) {
       throw ArgumentError('Stock In quantity must be greater than zero.');
@@ -64,6 +67,16 @@ class InventoryRepository {
     batch.set(movementRef, movement);
 
     await batch.commit();
+
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: userId,
+      userName: userName ?? 'User $userId',
+      action: 'stock.in',
+      entityType: 'product',
+      entityId: productId,
+      details: '${productName ?? "Product #$productId"} · +$qty',
+    );
   }
 
   /// Stock Out: For damage, loss, or waste (offline-safe WriteBatch)
@@ -73,6 +86,8 @@ class InventoryRepository {
     required int qty,
     required String note,
     required String userId,
+    String? productName,
+    String? userName,
   }) async {
     if (qty <= 0) {
       throw ArgumentError('Stock Out quantity must be greater than zero.');
@@ -109,6 +124,16 @@ class InventoryRepository {
     batch.set(movementRef, movement);
 
     await batch.commit();
+
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: userId,
+      userName: userName ?? 'User $userId',
+      action: 'stock.out',
+      entityType: 'product',
+      entityId: productId,
+      details: '${productName ?? "Product #$productId"} · -$qty',
+    );
   }
 
   /// Adjust Stock: Reconcile physical inventory count (offline-safe WriteBatch)
@@ -118,6 +143,8 @@ class InventoryRepository {
     required int newQty,
     required String note,
     required String userId,
+    String? productName,
+    String? userName,
   }) async {
     if (newQty < 0) {
       throw ArgumentError('New stock quantity cannot be negative.');
@@ -151,5 +178,16 @@ class InventoryRepository {
     batch.set(movementRef, movement);
 
     await batch.commit();
+
+    final diffSign = diff >= 0 ? '+$diff' : '$diff';
+    // Fire-and-forget Audit Log
+    AuditService.log(
+      userId: userId,
+      userName: userName ?? 'User $userId',
+      action: 'stock.adjust',
+      entityType: 'product',
+      entityId: productId,
+      details: '${productName ?? "Product #$productId"} · $diffSign (to $newQty)',
+    );
   }
 }

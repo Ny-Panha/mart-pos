@@ -112,5 +112,22 @@
   "removeItem": "លុបមុខទំនិញ",
   "totalCost": "ថ្លៃដើមសរុប",
   "purchaseSuccess": "បានកត់ត្រាការទិញចូលដោយជោគជ័យ",
-  "orderStock": "កុម្ម៉ង់ទិញ"
+  "orderStock": "កុម្ម៉ង់ទិញ",
+  "auditLog": "កំណត់ហេតុសវនកម្ម (Audit Log)",
+  "auditLogDescription": "តាមដានរាល់សកម្មភាពលក់ ស្តុក ទំនិញ និងបុគ្គលិកក្នុងប្រព័ន្ធ",
+  "filterAll": "ទាំងអស់",
+  "filterSales": "ការលក់",
+  "filterProducts": "ទំនិញ",
+  "filterStock": "ស្តុក",
+  "filterPurchases": "ទិញចូល",
+  "filterUsers": "បុគ្គលិក",
+  "filterShifts": "វេនលក់",
+  "filterToday": "ថ្ងៃនេះ",
+  "filter7Days": "៧ ថ្ងៃ",
+  "filter30Days": "៣០ ថ្ងៃ",
+  "noAuditLogs": "មិនមានកំណត់ហេតុសវនកម្មទេ",
+  "auditDetails": "ព័ត៌មានលម្អិតសវនកម្ម",
+  "action": "សកម្មភាព",
+  "entity": "ប្រភេទ",
+  "performedBy": "ប្រតិបត្តិការដោយ"
 }

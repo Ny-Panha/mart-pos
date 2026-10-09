@@ -158,6 +158,7 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
         items: purchaseItems,
         note: _noteController.text.trim(),
         userId: user?.id ?? 'admin',
+        userName: user?.name,
       );
 
       if (mounted) {

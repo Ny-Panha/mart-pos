@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/firestore/models/product_model.dart';
+import '../../../data/services/audit_service.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
 
@@ -167,6 +168,15 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
 
         await repo.updateProduct(updated, oldCode: widget.product!.code);
 
+        // Fire-and-forget Audit Log
+        AuditService.logFromRef(
+          ref,
+          action: 'product.update',
+          entityType: 'product',
+          entityId: updated.id,
+          details: '${updated.name} (${updated.code})',
+        );
+
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -197,6 +207,15 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
         );
 
         await repo.createProduct(newProduct);
+
+        // Fire-and-forget Audit Log
+        AuditService.logFromRef(
+          ref,
+          action: 'product.create',
+          entityType: 'product',
+          entityId: newProduct.id,
+          details: '${newProduct.name} (${newProduct.code})',
+        );
 
         if (mounted) {
           Navigator.pop(context);

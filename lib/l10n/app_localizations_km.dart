@@ -354,4 +354,56 @@ class AppLocalizationsKm extends AppLocalizations {
 
   @override
   String get orderStock => 'កុម្ម៉ង់ទិញ';
+
+  @override
+  String get auditLog => 'កំណត់ហេតុសវនកម្ម (Audit Log)';
+
+  @override
+  String get auditLogDescription =>
+      'តាមដានរាល់សកម្មភាពលក់ ស្តុក ទំនិញ និងបុគ្គលិកក្នុងប្រព័ន្ធ';
+
+  @override
+  String get filterAll => 'ទាំងអស់';
+
+  @override
+  String get filterSales => 'ការលក់';
+
+  @override
+  String get filterProducts => 'ទំនិញ';
+
+  @override
+  String get filterStock => 'ស្តុក';
+
+  @override
+  String get filterPurchases => 'ទិញចូល';
+
+  @override
+  String get filterUsers => 'បុគ្គលិក';
+
+  @override
+  String get filterShifts => 'វេនលក់';
+
+  @override
+  String get filterToday => 'ថ្ងៃនេះ';
+
+  @override
+  String get filter7Days => '៧ ថ្ងៃ';
+
+  @override
+  String get filter30Days => '៣០ ថ្ងៃ';
+
+  @override
+  String get noAuditLogs => 'មិនមានកំណត់ហេតុសវនកម្មទេ';
+
+  @override
+  String get auditDetails => 'ព័ត៌មានលម្អិតសវនកម្ម';
+
+  @override
+  String get action => 'សកម្មភាព';
+
+  @override
+  String get entity => 'ប្រភេទ';
+
+  @override
+  String get performedBy => 'ប្រតិបត្តិការដោយ';
 }

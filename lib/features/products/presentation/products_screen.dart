@@ -9,6 +9,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../data/firestore/models/product_model.dart';
+import '../../../data/services/audit_service.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
 import 'category_manager_dialog.dart';
@@ -68,6 +69,16 @@ class ProductsScreen extends ConsumerWidget {
     if (confirmed == true) {
       try {
         await ref.read(productRepositoryProvider).deleteProduct(product.id, product.code);
+
+        // Fire-and-forget Audit Log
+        AuditService.logFromRef(
+          ref,
+          action: 'product.delete',
+          entityType: 'product',
+          entityId: product.id,
+          details: '${product.name} (${product.code})',
+        );
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

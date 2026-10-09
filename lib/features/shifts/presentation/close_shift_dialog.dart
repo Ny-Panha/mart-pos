@@ -78,6 +78,7 @@ class _CloseShiftDialogState extends ConsumerState<CloseShiftDialog> {
             shiftId: widget.shift.id,
             cashierId: user.id,
             actualCash: _actualCash,
+            cashierName: user.name,
           );
 
       if (mounted) {

@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/money.dart';
 import '../../../data/firestore/models/product_model.dart';
 import '../../../data/firestore/models/sale_model.dart';
 import '../../../data/repositories/sale_repository.dart';
+import '../../../data/services/audit_service.dart';
 import '../../../data/services/invoice_counter_service.dart';
 
 final saleRepositoryProvider = Provider<SaleRepository>((ref) {
@@ -250,6 +252,15 @@ class PosCartNotifier extends Notifier<PosCartState> {
       final saleRepo = ref.read(saleRepositoryProvider);
       // Execute WriteBatch (works offline)
       await saleRepo.checkoutSale(sale);
+
+      // Fire-and-forget Audit Log
+      AuditService.logFromRef(
+        ref,
+        action: 'sale.checkout',
+        entityType: 'sale',
+        entityId: saleId,
+        details: '$invoiceNum · ${MoneyUtils.formatRiel(sale.total)}',
+      );
 
       state = PosCartState(
         recentScans: state.recentScans,
