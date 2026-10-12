@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -32,7 +33,9 @@ class DashboardScreen extends ConsumerWidget {
     // 1. Calculate Today's Stats
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
-    final todaySales = allSales.where((s) => s.createdAt.isAfter(startOfToday)).toList();
+    final todaySales = allSales
+        .where((s) => s.createdAt.isAfter(startOfToday))
+        .toList();
     final todayRevenue = todaySales.fold<int>(0, (sum, s) => sum + s.total);
     final todayTransactions = todaySales.length;
 
@@ -44,7 +47,11 @@ class DashboardScreen extends ConsumerWidget {
     });
 
     for (final sale in allSales) {
-      final saleDay = DateTime(sale.createdAt.year, sale.createdAt.month, sale.createdAt.day);
+      final saleDay = DateTime(
+        sale.createdAt.year,
+        sale.createdAt.month,
+        sale.createdAt.day,
+      );
       for (int i = 0; i < 30; i++) {
         if (saleDay.year == dailyDates[i].year &&
             saleDay.month == dailyDates[i].month &&
@@ -59,7 +66,9 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -74,55 +83,77 @@ class DashboardScreen extends ConsumerWidget {
                   icon: const Icon(Icons.analytics_outlined, size: 18),
                   label: const Text('មើលរបាយការណ៍ (REPORTS)'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
             ),
 
             // 4 Metric Cards Grid
-            LayoutBuilder(builder: (context, constraints) {
-              final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 550 ? 2 : 1);
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: constraints.maxWidth > 900 ? 2.1 : 2.3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildMetricCard(
-                    title: 'ចំណូលថ្ងៃនេះ (Today Revenue)',
-                    value: MoneyUtils.formatRiel(todayRevenue),
-                    subValue: MoneyUtils.formatUSD(MoneyUtils.rielToUsd(todayRevenue)),
-                    icon: Icons.monetization_on_outlined,
-                    color: AppColors.primary,
-                  ),
-                  _buildMetricCard(
-                    title: 'ការលក់ថ្ងៃនេះ (Today Orders)',
-                    value: '$todayTransactions Orders',
-                    subValue: 'Completed receipts',
-                    icon: Icons.receipt_long_outlined,
-                    color: AppColors.secondary,
-                  ),
-                  _buildMetricCard(
-                    title: 'ទំនិញសកម្ម (Active Products)',
-                    value: '${products.length} Items',
-                    subValue: 'In catalog directory',
-                    icon: Icons.inventory_2_outlined,
-                    color: AppColors.success,
-                  ),
-                  _buildMetricCard(
-                    title: 'ស្តុកទាប / អស់ (Low Stock Alert)',
-                    value: '${lowStockProducts.length} Items',
-                    subValue: 'ចុចដើម្បីចូលស្តុក (Tap to fix)',
-                    icon: Icons.warning_amber_rounded,
-                    color: lowStockProducts.isEmpty ? AppColors.success : AppColors.warning,
-                    onTap: () => context.go('/admin/inventory'),
-                  ),
-                ],
-              );
-            }),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isPhone = constraints.maxWidth <= 550;
+                final crossAxisCount = constraints.maxWidth > 900
+                    ? 4
+                    : (isPhone ? 1 : 2);
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: constraints.maxWidth > 900
+                      ? 2.1
+                      : (isPhone ? 3.4 : 2.3),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildMetricCard(
+                      title: 'ចំណូលថ្ងៃនេះ (Today Revenue)',
+                      value: MoneyUtils.formatRiel(todayRevenue),
+                      subValue: MoneyUtils.formatUSD(
+                        MoneyUtils.rielToUsd(todayRevenue),
+                      ),
+                      icon: Icons.monetization_on_outlined,
+                      color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                      isDark: isDark,
+                    ),
+                    _buildMetricCard(
+                      title: 'ការលក់ថ្ងៃនេះ (Today Orders)',
+                      value: '$todayTransactions Orders',
+                      subValue: 'Completed receipts',
+                      icon: Icons.receipt_long_outlined,
+                      color: isDark
+                          ? AppColors.darkSecondary
+                          : AppColors.secondary,
+                      isDark: isDark,
+                    ),
+                    _buildMetricCard(
+                      title: 'ទំនិញសកម្ម (Active Products)',
+                      value: '${products.length} Items',
+                      subValue: 'In catalog directory',
+                      icon: Icons.inventory_2_outlined,
+                      color: isDark ? AppColors.darkSuccess : AppColors.success,
+                      isDark: isDark,
+                    ),
+                    _buildMetricCard(
+                      title: 'ស្តុកទាប / អស់ (Low Stock Alert)',
+                      value: '${lowStockProducts.length} Items',
+                      subValue: 'ចុចដើម្បីចូលស្តុក (Tap to fix)',
+                      icon: Icons.warning_amber_rounded,
+                      color: lowStockProducts.isEmpty
+                          ? (isDark ? AppColors.darkSuccess : AppColors.success)
+                          : (isDark
+                                ? AppColors.darkWarning
+                                : AppColors.warning),
+                      isDark: isDark,
+                      onTap: () => context.go('/admin/inventory'),
+                    ),
+                  ],
+                );
+              },
+            ),
             const SizedBox(height: 28),
 
             // 30-Day Bar Chart & Recent 5 Sales Layout
@@ -130,9 +161,19 @@ class DashboardScreen extends ConsumerWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 7, child: _buildRevenueBarChartCard(isDark, dailyDates, dailyTotals)),
+                  Expanded(
+                    flex: 7,
+                    child: _buildRevenueBarChartCard(
+                      isDark,
+                      dailyDates,
+                      dailyTotals,
+                    ),
+                  ),
                   const SizedBox(width: 20),
-                  Expanded(flex: 5, child: _buildRecentSalesCard(context, isDark, recent5Sales)),
+                  Expanded(
+                    flex: 5,
+                    child: _buildRecentSalesCard(context, isDark, recent5Sales),
+                  ),
                 ],
               )
             else
@@ -155,8 +196,19 @@ class DashboardScreen extends ConsumerWidget {
     required String subValue,
     required IconData icon,
     required Color color,
+    required bool isDark,
     VoidCallback? onTap,
   }) {
+    final textColor = isDark
+        ? color
+        : color == AppColors.secondary
+        ? const Color(0xFF0E7490)
+        : color == AppColors.success
+        ? const Color(0xFF047857)
+        : color == AppColors.warning
+        ? const Color(0xFF92400E)
+        : color;
+
     return AppCard(
       padding: const EdgeInsets.all(16),
       onTap: onTap,
@@ -176,10 +228,33 @@ class DashboardScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title, maxLines: 1, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.darkMutedText
+                        : AppColors.lightMutedText,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text(subValue, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  subValue,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: textColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -193,7 +268,9 @@ class DashboardScreen extends ConsumerWidget {
     List<DateTime> dailyDates,
     List<int> dailyTotals,
   ) {
-    final maxDaily = dailyTotals.isEmpty ? 0 : dailyTotals.reduce((a, b) => a > b ? a : b);
+    final maxDaily = dailyTotals.isEmpty
+        ? 0
+        : dailyTotals.reduce((a, b) => a > b ? a : b);
     final maxY = maxDaily > 0 ? (maxDaily * 1.25).toDouble() : 10000.0;
 
     return AppCard(
@@ -204,16 +281,33 @@ class DashboardScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('ចំណូល ៣០ ថ្ងៃចុងក្រោយ (30-Day Revenue)', style: AppTextStyles.titleLG),
+              Expanded(
+                child: Text(
+                  'ចំណូល ៣០ ថ្ងៃចុងក្រោយ (30-Day Revenue)',
+                  style: AppTextStyles.titleLG.copyWith(
+                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: (isDark ? AppColors.darkPrimary : AppColors.primary)
+                      .withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
+                child: Text(
                   'Daily (៛ Riel)',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -226,17 +320,29 @@ class DashboardScreen extends ConsumerWidget {
                 maxY: maxY,
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) =>
+                        isDark ? AppColors.darkSurface : AppColors.lightText,
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       final date = dailyDates[group.x.toInt()];
                       final formattedDate = DateFormat('dd MMM').format(date);
                       final amount = rod.toY.toInt();
                       return BarTooltipItem(
                         '$formattedDate\n',
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        TextStyle(
+                          color: isDark ? AppColors.darkText : Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                         children: [
                           TextSpan(
                             text: MoneyUtils.formatRiel(amount),
-                            style: const TextStyle(color: Colors.yellowAccent, fontSize: 11),
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkWarning
+                                  : AppColors.warning,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       );
@@ -244,21 +350,37 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
                 titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 48,
                       getTitlesWidget: (value, meta) {
                         if (value == 0) return const SizedBox.shrink();
+                        final axisColor = isDark
+                            ? AppColors.darkMutedText
+                            : AppColors.lightMutedText;
                         if (value >= 1000000) {
-                          return Text('${(value / 1000000).toStringAsFixed(1)}M', style: const TextStyle(fontSize: 10, color: Colors.grey));
+                          return Text(
+                            '${(value / 1000000).toStringAsFixed(1)}M',
+                            style: TextStyle(fontSize: 10, color: axisColor),
+                          );
                         }
                         if (value >= 1000) {
-                          return Text('${(value / 1000).toStringAsFixed(0)}k', style: const TextStyle(fontSize: 10, color: Colors.grey));
+                          return Text(
+                            '${(value / 1000).toStringAsFixed(0)}k',
+                            style: TextStyle(fontSize: 10, color: axisColor),
+                          );
                         }
-                        return Text('${value.toInt()}', style: const TextStyle(fontSize: 10, color: Colors.grey));
+                        return Text(
+                          '${value.toInt()}',
+                          style: TextStyle(fontSize: 10, color: axisColor),
+                        );
                       },
                     ),
                   ),
@@ -269,11 +391,21 @@ class DashboardScreen extends ConsumerWidget {
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
                         // Show label every 5 days
-                        if (idx >= 0 && idx < 30 && (idx % 6 == 0 || idx == 29)) {
+                        if (idx >= 0 &&
+                            idx < 30 &&
+                            (idx % 6 == 0 || idx == 29)) {
                           final date = dailyDates[idx];
                           return Padding(
                             padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(DateFormat('d/M').format(date), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                            child: Text(
+                              DateFormat('d/M').format(date),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isDark
+                                    ? AppColors.darkMutedText
+                                    : AppColors.lightMutedText,
+                              ),
+                            ),
                           );
                         }
                         return const SizedBox.shrink();
@@ -285,7 +417,11 @@ class DashboardScreen extends ConsumerWidget {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.withValues(alpha: 0.15),
+                    color:
+                        (isDark
+                                ? AppColors.darkMutedText
+                                : AppColors.lightBorder)
+                            .withValues(alpha: 0.45),
                     strokeWidth: 1,
                   ),
                 ),
@@ -296,9 +432,17 @@ class DashboardScreen extends ConsumerWidget {
                     barRods: [
                       BarChartRodData(
                         toY: dailyTotals[i].toDouble(),
-                        color: dailyTotals[i] > 0 ? AppColors.primary : Colors.grey.withValues(alpha: 0.2),
+                        color: dailyTotals[i] > 0
+                            ? (isDark
+                                  ? AppColors.darkPrimary
+                                  : AppColors.primary)
+                            : (isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.lightBorder),
                         width: 8,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(4),
+                        ),
                       ),
                     ],
                   );
@@ -324,10 +468,22 @@ class DashboardScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('ប្រតិបត្តិការថ្មីៗ (Recent Sales)', style: AppTextStyles.titleLG),
+              Expanded(
+                child: Text(
+                  'ប្រតិបត្តិការថ្មីៗ (Recent Sales)',
+                  style: AppTextStyles.titleLG.copyWith(
+                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               TextButton(
                 onPressed: () => context.go('/admin/reports'),
-                child: const Text('មើលទាំងអស់ (See All)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'មើលទាំងអស់ (See All)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),

@@ -1,33 +1,39 @@
+import 'package:cloud_functions/cloud_functions.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/user_model.dart';
+import '../firestore/shop_scope.dart';
 import '../services/audit_service.dart';
 
 class UserRepository {
+  final FirebaseFunctions _functions;
+  UserRepository({FirebaseFunctions? functions})
+    : _functions = functions ?? FirebaseFunctions.instance;
+
   Stream<List<UserModel>> watchUsers() {
-    return FirestoreCollections.users
+    return ShopScope.query(FirestoreCollections.users)
+        .orderBy('name')
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList());
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
 
   Future<void> createUserDoc({
-    required String uid,
+    required String email,
+    required String password,
     required String name,
     required String role,
   }) async {
-    final cleanUid = uid.trim();
-    if (cleanUid.isEmpty) {
-      throw Exception('UID cannot be empty');
+    final normalizedRole = role.trim().toUpperCase();
+    if (normalizedRole != UserModel.cashierRole) {
+      throw ArgumentError('Shop admins may provision cashier accounts only.');
     }
-
-    final user = UserModel(
-      id: cleanUid,
-      name: name.trim(),
-      role: role.trim().toLowerCase(),
-      active: true,
-      createdAt: DateTime.now(),
-    );
-
-    await FirestoreCollections.users.doc(cleanUid).set(user);
+    await _functions.httpsCallable('provisionUser').call({
+      'email': email.trim(),
+      'password': password,
+      'name': name.trim(),
+      'role': normalizedRole,
+      'shopId': ShopScope.requireShopId(),
+    });
   }
 
   Future<void> updateUserRole(
@@ -36,23 +42,25 @@ class UserRepository {
     String? adminId,
     String? adminName,
   }) async {
-    await FirestoreCollections.users.doc(uid).update({
-      'role': role.trim().toLowerCase(),
+    final normalizedRole = role.trim().toUpperCase();
+    await _functions.httpsCallable('setShopUserRole').call({
+      'uid': uid,
+      'role': normalizedRole,
+      'shopId': ShopScope.requireShopId(),
     });
-
-    // Fire-and-forget Audit Log
-    AuditService.log(
+    await AuditService.log(
       userId: adminId ?? 'system',
       userName: adminName ?? 'Admin',
       action: 'user.role_change',
       entityType: 'user',
       entityId: uid,
-      details: 'Role changed to ${role.trim().toUpperCase()}',
+      details: 'Role changed to $normalizedRole',
     );
   }
 
   Future<void> updateUserName(String uid, String name) async {
-    await FirestoreCollections.users.doc(uid).update({
+    await _functions.httpsCallable('updateUserAccess').call({
+      'uid': uid,
       'name': name.trim(),
     });
   }
@@ -64,55 +72,38 @@ class UserRepository {
     String? adminName,
     String? targetUserName,
   }) async {
-    if (!active) {
-      // Check if user is the last active admin
-      final targetDoc = await FirestoreCollections.users.doc(uid).get();
-      if (!targetDoc.exists || targetDoc.data() == null) {
-        throw Exception('User not found');
-      }
-
-      final targetUser = targetDoc.data()!;
-      if (targetUser.isAdmin) {
-        final allUsersSnap = await FirestoreCollections.users.get();
-        final allUsers = allUsersSnap.docs.map((d) => d.data()).toList();
-
-        if (!canDeactivateUser(allUsers: allUsers, targetUid: uid)) {
-          throw Exception('Cannot deactivate the last active admin');
-        }
-      }
-    }
-
-    await FirestoreCollections.users.doc(uid).update({
+    await _functions.httpsCallable('setShopUserActive').call({
+      'uid': uid,
       'active': active,
     });
-
-    // Fire-and-forget Audit Log
-    AuditService.log(
+    await AuditService.log(
       userId: adminId ?? 'system',
       userName: adminName ?? 'Admin',
       action: active ? 'user.activate' : 'user.deactivate',
       entityType: 'user',
       entityId: uid,
-      details: '${targetUserName ?? "User $uid"} ${active ? "activated" : "deactivated"}',
+      details:
+          '${targetUserName ?? 'User $uid'} ${active ? 'activated' : 'deactivated'}',
     );
   }
 
-  /// Pure helper for checking whether a user can be safely deactivated.
-  /// If the target is the only active admin remaining, returns false.
+  /// Pure helper retained for UI feedback; the callable also enforces this rule.
   static bool canDeactivateUser({
     required List<UserModel> allUsers,
     required String targetUid,
   }) {
     final target = allUsers.firstWhere(
-      (u) => u.id == targetUid,
-      orElse: () => UserModel(id: '', name: '', role: 'cashier', active: false),
+      (user) => user.id == targetUid,
+      orElse: () => UserModel(
+        id: '',
+        name: '',
+        role: UserModel.cashierRole,
+        active: false,
+      ),
     );
-
-    // Cashiers or non-admin roles can always be deactivated
     if (!target.isAdmin) return true;
-
-    // Check if there are other active admins in the list
-    final otherActiveAdmins = allUsers.where((u) => u.id != targetUid && u.isAdmin && u.active);
-    return otherActiveAdmins.isNotEmpty;
+    return allUsers.any(
+      (user) => user.id != targetUid && user.isAdmin && user.active,
+    );
   }
 }

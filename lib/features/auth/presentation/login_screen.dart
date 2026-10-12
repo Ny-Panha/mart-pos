@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/ios_theme_toggle.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -16,10 +19,12 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final TextEditingController _emailController =
-      TextEditingController(text: 'admin@bbu.edu.kh');
-  final TextEditingController _passwordController =
-      TextEditingController(text: '12345678');
+  final TextEditingController _emailController = TextEditingController(
+    text: 'admin@bbu.edu.kh',
+  );
+  final TextEditingController _passwordController = TextEditingController(
+    text: '12345678',
+  );
   bool _obscurePassword = true;
   bool _rememberMe = true;
   String? _errorMessage;
@@ -42,12 +47,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     try {
-      await ref.read(authProvider.notifier).signIn(email: email, password: password);
+      await ref
+          .read(authProvider.notifier)
+          .signIn(email: email, password: password);
       if (mounted) {
         context.go('/pos');
       }
     } catch (e) {
       setState(() => _errorMessage = 'Sign in failed: ${e.toString()}');
+    }
+  }
+
+  Future<void> _handleManagerBootstrap() async {
+    setState(() => _errorMessage = null);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(
+        () => _errorMessage =
+            'Enter the allowlisted manager email and password first.',
+      );
+      return;
+    }
+    try {
+      await ref
+          .read(authProvider.notifier)
+          .bootstrapFirstManager(
+            email: email,
+            password: password,
+            name: email.split('@').first,
+          );
+      if (mounted) context.go('/manager');
+    } catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = 'Manager setup failed: $error');
+      }
     }
   }
 
@@ -61,13 +95,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final isDesktop = Responsive.isDesktop(context);
     final isTablet = Responsive.isTablet(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system &&
+            Theme.of(context).brightness == Brightness.dark);
     final authState = ref.watch(authProvider);
     final isLoading = authState.isLoading;
 
     final routerState = GoRouterState.of(context);
-    final isDeactivated = routerState.uri.queryParameters['error'] == 'deactivated';
-    final effectiveError = _errorMessage ??
+    final isDeactivated =
+        routerState.uri.queryParameters['error'] == 'deactivated';
+    final effectiveError =
+        _errorMessage ??
         (isDeactivated
             ? 'គណនីត្រូវបានផ្អាកដំណើរការ — សូមទាក់ទង Admin (Account deactivated — please contact admin)'
             : null);
@@ -79,7 +118,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Logo & Title
+          // Logo, Title & Theme Toggle
           Row(
             children: [
               Container(
@@ -103,24 +142,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
               const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'MINI-MART POS',
-                    style: AppTextStyles.titleLG.copyWith(
-                      letterSpacing: 0.8,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.darkText : AppColors.lightText,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MINI-MART POS',
+                      style: AppTextStyles.titleLG.copyWith(
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? AppColors.darkText : AppColors.lightText,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Build Bright University - Year 4',
-                    style: AppTextStyles.caption.copyWith(
-                      color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                    Text(
+                      'Build Bright University - Year 4',
+                      style: AppTextStyles.caption.copyWith(
+                        color: isDark
+                            ? AppColors.darkMutedText
+                            : AppColors.lightMutedText,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+              IosThemeToggle(
+                value: isDark,
+                onChanged: (_) => ref.read(themeModeProvider.notifier).toggle(),
               ),
             ],
           ),
@@ -136,7 +183,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             'ចូលប្រើប្រាស់ដើម្បីគ្រប់គ្រងការលក់ និងស្តុកទំនិញ',
             style: TextStyle(
               fontSize: 13,
-              color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+              color: isDark
+                  ? AppColors.darkMutedText
+                  : AppColors.lightMutedText,
             ),
           ),
           const SizedBox(height: 28),
@@ -147,7 +196,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               decoration: BoxDecoration(
                 color: AppColors.danger.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.danger.withValues(alpha: 0.3),
+                ),
               ),
               child: Text(
                 effectiveError,
@@ -186,10 +237,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               hintText: '••••••••',
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  _obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                   size: 20,
                 ),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
               ),
             ),
           ),
@@ -216,7 +270,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               TextButton(
                 onPressed: () {},
-                child: const Text('ភ្លេចពាក្យសម្ងាត់?', style: TextStyle(fontSize: 13)),
+                child: const Text(
+                  'ភ្លេចពាក្យសម្ងាត់?',
+                  style: TextStyle(fontSize: 13),
+                ),
               ),
             ],
           ),
@@ -228,6 +285,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isLoading: isLoading,
             onPressed: _handleSignIn,
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: isLoading ? null : _handleManagerBootstrap,
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            label: const Text('Initialize first platform manager'),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Works only for the allowlisted UID, once, while no manager profile exists.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 10, color: Colors.grey),
+          ),
           const SizedBox(height: 24),
 
           // Quick Demo Users
@@ -238,7 +307,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+              color: isDark
+                  ? AppColors.darkMutedText
+                  : AppColors.lightMutedText,
             ),
           ),
           const SizedBox(height: 8),
@@ -253,20 +324,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                   ),
-                  child: const Text('Admin (បញ្ញា)', style: TextStyle(fontSize: 11)),
+                  child: const Text(
+                    'Admin (បញ្ញា)',
+                    style: TextStyle(fontSize: 11),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => _fillDemoUser('cashier@bbu.edu.kh', 'cashier'),
+                  onPressed: () =>
+                      _fillDemoUser('cashier@bbu.edu.kh', 'cashier'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                   ),
-                  child: const Text('Cashier (ស្រីផ្កាយ)', style: TextStyle(fontSize: 11)),
+                  child: const Text(
+                    'Cashier (ស្រីផ្កាយ)',
+                    style: TextStyle(fontSize: 11),
+                  ),
                 ),
               ),
             ],
@@ -281,11 +359,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF5300B7),
-            Color(0xFF2E0854),
-            Color(0xFF0F172A),
-          ],
+          colors: [Color(0xFF5300B7), Color(0xFF2E0854), Color(0xFF0F172A)],
         ),
       ),
       padding: const EdgeInsets.all(48),
@@ -296,7 +370,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -340,7 +417,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,7 +463,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return Scaffold(
         body: Row(
           children: [
-            Expanded(flex: 5, child: Center(child: SingleChildScrollView(child: formContent))),
+            Expanded(
+              flex: 5,
+              child: Center(child: SingleChildScrollView(child: formContent)),
+            ),
             Expanded(flex: 6, child: brandingPanel),
           ],
         ),
@@ -394,11 +476,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Mobile layout
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            child: formContent,
-          ),
-        ),
+        child: Center(child: SingleChildScrollView(child: formContent)),
       ),
     );
   }

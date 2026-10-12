@@ -1,11 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/product_code_model.dart';
 import '../firestore/models/product_model.dart';
+import '../firestore/shop_scope.dart';
 
 class ProductRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  String _productCodeDocumentId(String code) =>
+      '${ShopScope.requireShopId()}__${Uri.encodeComponent(code.trim().toUpperCase())}';
 
   final List<ProductModel> _fallbackProducts = [
     ProductModel(
@@ -20,6 +25,7 @@ class ProductRepository {
       stockQty: 48,
       unit: 'កំប៉ុង',
       lowStockThreshold: 10,
+      imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p2',
@@ -33,6 +39,7 @@ class ProductRepository {
       stockQty: 36,
       unit: 'ដប',
       lowStockThreshold: 10,
+      imageUrl: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p3',
@@ -46,6 +53,7 @@ class ProductRepository {
       stockQty: 24,
       unit: 'កំប៉ុង',
       lowStockThreshold: 10,
+      imageUrl: 'https://images.unsplash.com/photo-1543253687-c931c8e01820?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p4',
@@ -59,6 +67,7 @@ class ProductRepository {
       stockQty: 80,
       unit: 'ដប',
       lowStockThreshold: 20,
+      imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p5',
@@ -72,6 +81,7 @@ class ProductRepository {
       stockQty: 50,
       unit: 'កញ្ចប់',
       lowStockThreshold: 15,
+      imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p6',
@@ -85,6 +95,7 @@ class ProductRepository {
       stockQty: 18,
       unit: 'ប្រអប់',
       lowStockThreshold: 5,
+      imageUrl: 'https://images.unsplash.com/photo-1582293041079-7814c2f12063?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p7',
@@ -98,6 +109,7 @@ class ProductRepository {
       stockQty: 12,
       unit: 'ប្រអប់',
       lowStockThreshold: 5,
+      imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80',
     ),
     ProductModel(
       id: 'p8',
@@ -115,16 +127,19 @@ class ProductRepository {
   ];
 
   Stream<List<ProductModel>> watchProducts() {
-    return FirestoreCollections.products.snapshots().map((snapshot) {
-      if (snapshot.docs.isEmpty) {
-        seedDefaultProducts();
-        return _fallbackProducts;
-      }
-      return snapshot.docs.map((d) => d.data()).toList();
-    }).handleError((error) {
-      debugPrint('Firestore watchProducts error: $error');
-      return _fallbackProducts;
-    });
+    return ShopScope.query(FirestoreCollections.products)
+        .snapshots()
+        .map((snapshot) {
+          if (snapshot.docs.isEmpty) {
+            seedDefaultProducts();
+            return _fallbackProducts;
+          }
+          return snapshot.docs.map((d) => d.data()).toList();
+        })
+        .handleError((error) {
+          debugPrint('Firestore watchProducts error: $error');
+          return _fallbackProducts;
+        });
   }
 
   Future<void> seedDefaultProducts() async {
@@ -133,7 +148,9 @@ class ProductRepository {
       for (var product in _fallbackProducts) {
         batch.set(FirestoreCollections.products.doc(product.id), product);
         batch.set(
-          FirestoreCollections.productCodes.doc(product.code),
+          FirestoreCollections.productCodes.doc(
+            _productCodeDocumentId(product.code),
+          ),
           ProductCodeModel(code: product.code, productId: product.id),
         );
       }
@@ -144,13 +161,18 @@ class ProductRepository {
     }
   }
 
-  static bool validateCodeUniqueness(String code, Iterable<String> existingCodes, {String? currentCode}) {
+  static bool validateCodeUniqueness(
+    String code,
+    Iterable<String> existingCodes, {
+    String? currentCode,
+  }) {
     final normalized = code.trim().toUpperCase();
     if (normalized.isEmpty) return false;
     for (final c in existingCodes) {
       final normC = c.trim().toUpperCase();
       if (normC == normalized) {
-        if (currentCode != null && currentCode.trim().toUpperCase() == normalized) {
+        if (currentCode != null &&
+            currentCode.trim().toUpperCase() == normalized) {
           continue;
         }
         return false;
@@ -159,10 +181,15 @@ class ProductRepository {
     return true;
   }
 
-  Future<bool> isProductCodeTaken(String code, {String? excludeProductId}) async {
+  Future<bool> isProductCodeTaken(
+    String code, {
+    String? excludeProductId,
+  }) async {
     final cleanCode = code.trim().toUpperCase();
     if (cleanCode.isEmpty) return false;
-    final doc = await FirestoreCollections.productCodes.doc(cleanCode).get();
+    final doc = await FirestoreCollections.productCodes
+        .doc(_productCodeDocumentId(cleanCode))
+        .get();
     if (!doc.exists) return false;
     final data = doc.data();
     if (excludeProductId != null && data?.productId == excludeProductId) {
@@ -183,8 +210,13 @@ class ProductRepository {
     final docRef = FirestoreCollections.products.doc(normalized.id);
     batch.set(docRef, normalized);
 
-    final codeRef = FirestoreCollections.productCodes.doc(cleanCode);
-    batch.set(codeRef, ProductCodeModel(code: cleanCode, productId: normalized.id));
+    final codeRef = FirestoreCollections.productCodes.doc(
+      _productCodeDocumentId(cleanCode),
+    );
+    batch.set(
+      codeRef,
+      ProductCodeModel(code: cleanCode, productId: normalized.id),
+    );
 
     await batch.commit();
   }
@@ -194,27 +226,47 @@ class ProductRepository {
     final normalizedOldCode = oldCode?.trim().toUpperCase();
 
     if (normalizedOldCode != null && normalizedOldCode != cleanCode) {
-      final taken = await isProductCodeTaken(cleanCode, excludeProductId: product.id);
+      final taken = await isProductCodeTaken(
+        cleanCode,
+        excludeProductId: product.id,
+      );
       if (taken) {
         throw Exception('Product code "$cleanCode" is already in use.');
       }
 
       final batch = _db.batch();
       final normalized = product.copyWith(code: cleanCode);
-      batch.set(FirestoreCollections.products.doc(normalized.id), normalized, SetOptions(merge: true));
-      batch.delete(FirestoreCollections.productCodes.doc(normalizedOldCode));
-      batch.set(FirestoreCollections.productCodes.doc(cleanCode), ProductCodeModel(code: cleanCode, productId: normalized.id));
+      batch.set(
+        FirestoreCollections.products.doc(normalized.id),
+        normalized,
+        SetOptions(merge: true),
+      );
+      batch.delete(
+        FirestoreCollections.productCodes.doc(
+          _productCodeDocumentId(normalizedOldCode),
+        ),
+      );
+      batch.set(
+        FirestoreCollections.productCodes.doc(
+          _productCodeDocumentId(cleanCode),
+        ),
+        ProductCodeModel(code: cleanCode, productId: normalized.id),
+      );
       await batch.commit();
     } else {
       final normalized = product.copyWith(code: cleanCode);
-      await FirestoreCollections.products.doc(normalized.id).set(normalized, SetOptions(merge: true));
+      await FirestoreCollections.products
+          .doc(normalized.id)
+          .set(normalized, SetOptions(merge: true));
     }
   }
 
   Future<void> deleteProduct(String id, String code) async {
     final batch = _db.batch();
     batch.delete(FirestoreCollections.products.doc(id));
-    batch.delete(FirestoreCollections.productCodes.doc(code.trim().toUpperCase()));
+    batch.delete(
+      FirestoreCollections.productCodes.doc(_productCodeDocumentId(code)),
+    );
     await batch.commit();
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
 class EmptyState extends StatelessWidget {
@@ -42,7 +43,7 @@ class EmptyState extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: GoogleFonts.notoSansKhmer(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: isDark ? AppColors.darkText : AppColors.lightText,
@@ -53,8 +54,9 @@ class EmptyState extends StatelessWidget {
               Text(
                 subtitle!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: GoogleFonts.notoSansKhmer(
                   fontSize: 13,
+                  height: 1.5,
                   color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
                 ),
               ),

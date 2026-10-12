@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../data/firestore/firestore_collections.dart';
 import '../../../data/firestore/models/customer_model.dart';
+import '../../../data/firestore/shop_scope.dart';
 
 final customersStreamProvider = StreamProvider<List<CustomerModel>>((ref) {
-  return FirestoreCollections.customers
+  return ShopScope.query(FirestoreCollections.customers)
       .orderBy('name')
       .snapshots()
       .map((snap) => snap.docs.map((d) => d.data()).toList());
@@ -48,7 +50,7 @@ class CustomerRepository {
   }
 
   Future<bool> isCustomerInUse(String customerId) async {
-    final snap = await FirestoreCollections.sales
+    final snap = await ShopScope.query(FirestoreCollections.sales)
         .where('customerId', isEqualTo: customerId)
         .limit(1)
         .get();

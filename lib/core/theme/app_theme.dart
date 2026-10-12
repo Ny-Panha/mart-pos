@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'app_colors.dart';
 import 'app_radius.dart';
 
@@ -14,9 +15,15 @@ class AppTheme {
       secondary: AppColors.secondary,
       surface: AppColors.lightSurface,
       error: AppColors.danger,
+      onPrimary: Colors.white,
+      onSecondary: AppColors.lightText,
+      onSurface: AppColors.lightText,
     ),
     scaffoldBackgroundColor: AppColors.lightBg,
-    textTheme: GoogleFonts.notoSansKhmerTextTheme(),
+    textTheme: GoogleFonts.notoSansKhmerTextTheme().apply(
+      bodyColor: AppColors.lightText,
+      displayColor: AppColors.lightText,
+    ),
     cardTheme: CardThemeData(
       color: AppColors.lightCard,
       elevation: 2,
@@ -86,13 +93,19 @@ class AppTheme {
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.dark,
-      primary: AppColors.primaryLight,
-      secondary: AppColors.secondary,
+      primary: AppColors.darkPrimary,
+      secondary: AppColors.darkSecondary,
       surface: AppColors.darkSurface,
       error: AppColors.danger,
+      onPrimary: AppColors.darkBg,
+      onSecondary: AppColors.darkBg,
+      onSurface: AppColors.darkText,
     ),
     scaffoldBackgroundColor: AppColors.darkBg,
-    textTheme: GoogleFonts.notoSansKhmerTextTheme(),
+    textTheme: GoogleFonts.notoSansKhmerTextTheme().apply(
+      bodyColor: AppColors.darkText,
+      displayColor: AppColors.darkText,
+    ),
     cardTheme: CardThemeData(
       color: AppColors.darkCard,
       elevation: 0,
@@ -104,8 +117,8 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(64, 48),
-        backgroundColor: AppColors.primaryLight,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.darkPrimary,
+        foregroundColor: AppColors.darkBg,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.button),

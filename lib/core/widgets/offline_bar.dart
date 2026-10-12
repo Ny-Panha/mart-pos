@@ -49,30 +49,36 @@ class _OfflineBarState extends State<OfflineBar> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_isOnline && widget.pendingSyncCount == 0) {
       // Blue online bar
+      final barColor = isDark
+          ? const Color(0xFF0369A1).withValues(alpha: 0.25)
+          : const Color(0xFF0284C7).withValues(alpha: 0.12);
+      final accentColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1);
+
       return Container(
         height: 28,
         width: double.infinity,
-        color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+        color: barColor,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFF0284C7),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Online — Sync Active (Cloud Firestore Connected)',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF0369A1),
+                color: accentColor,
               ),
             ),
             const Spacer(),
@@ -80,12 +86,12 @@ class _OfflineBarState extends State<OfflineBar> {
               onTap: () {
                 setState(() => _isOnline = false);
               },
-              child: const Text(
+              child: Text(
                 'Test Offline',
                 style: TextStyle(
                   fontSize: 10,
                   decoration: TextDecoration.underline,
-                  color: Color(0xFF0369A1),
+                  color: accentColor,
                 ),
               ),
             ),

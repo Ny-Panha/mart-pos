@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -24,7 +25,8 @@ class UsersScreen extends ConsumerStatefulWidget {
   ConsumerState<UsersScreen> createState() => _UsersScreenState();
 }
 
-class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProviderStateMixin {
+class _UsersScreenState extends ConsumerState<UsersScreen>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
 
@@ -41,7 +43,10 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
     super.dispose();
   }
 
-  Future<void> _handleToggleActive(UserModel user, List<UserModel> allUsers) async {
+  Future<void> _handleToggleActive(
+    UserModel user,
+    List<UserModel> allUsers,
+  ) async {
     final newActive = !user.active;
 
     if (!newActive) {
@@ -103,13 +108,15 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
 
     try {
       final currentAdmin = ref.read(authProvider).value;
-      await ref.read(userRepositoryProvider).setUserActive(
-        user.id,
-        newActive,
-        adminId: currentAdmin?.id,
-        adminName: currentAdmin?.name,
-        targetUserName: user.name,
-      );
+      await ref
+          .read(userRepositoryProvider)
+          .setUserActive(
+            user.id,
+            newActive,
+            adminId: currentAdmin?.id,
+            adminName: currentAdmin?.name,
+            targetUserName: user.name,
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -118,7 +125,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                   ? 'បានបើកដំណើរការ "${user.name}" ឡើងវិញ'
                   : 'បានផ្អាកដំណើរការ "${user.name}" រួចរាល់',
             ),
-            backgroundColor: newActive ? AppColors.success : Colors.orange.shade800,
+            backgroundColor: newActive
+                ? AppColors.success
+                : Colors.orange.shade800,
           ),
         );
       }
@@ -148,7 +157,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
             PageHeader(
               eyebrow: 'Access Control & Shifts',
               title: 'បុគ្គលិក និងវេនលក់ (Staff & Shifts)',
-              description: 'គ្រប់គ្រងគណនីបុគ្គលិក កំណត់តួនាទី (Admin / Cashier) និងតាមដានប្រវត្តិបិទវេនលក់',
+              description: 'គ្រប់គ្រងគណនី Cashier និងតាមដានប្រវត្តិបិទវេនលក់',
               actions: [
                 SizedBox(
                   width: 170,
@@ -177,7 +186,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                   borderRadius: BorderRadius.circular(AppRadius.button),
                 ),
                 labelColor: Colors.white,
-                unselectedLabelColor: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                unselectedLabelColor: isDark
+                    ? AppColors.darkMutedText
+                    : AppColors.lightMutedText,
                 tabs: const [
                   Tab(
                     icon: Icon(Icons.people_alt_outlined, size: 18),
@@ -221,7 +232,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
             Expanded(
               child: TextField(
                 controller: _searchController,
-                onChanged: (val) => ref.read(userSearchQueryProvider.notifier).setQuery(val),
+                onChanged: (val) =>
+                    ref.read(userSearchQueryProvider.notifier).setQuery(val),
                 decoration: InputDecoration(
                   hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬ UID...',
                   prefixIcon: const Icon(Icons.search, size: 20),
@@ -230,7 +242,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                           icon: const Icon(Icons.clear, size: 18),
                           onPressed: () {
                             _searchController.clear();
-                            ref.read(userSearchQueryProvider.notifier).setQuery('');
+                            ref
+                                .read(userSearchQueryProvider.notifier)
+                                .setQuery('');
                           },
                         )
                       : null,
@@ -246,14 +260,18 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
           child: usersAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (err, _) => Center(
-              child: Text('Error: $err', style: const TextStyle(color: AppColors.danger)),
+              child: Text(
+                'Error: $err',
+                style: const TextStyle(color: AppColors.danger),
+              ),
             ),
             data: (allUsers) {
               if (filteredUsers.isEmpty) {
                 return const EmptyState(
                   icon: Icons.person_off_outlined,
                   title: 'រកមិនឃើញបុគ្គលិកទេ',
-                  subtitle: 'សូមចុចប៊ូតុង "+ ADD STAFF" ដើម្បីបង្កើតគណនីបុគ្គលិកថ្មី',
+                  subtitle:
+                      'សូមចុចប៊ូតុង "+ ADD STAFF" ដើម្បីបង្កើតគណនីបុគ្គលិកថ្មី',
                 );
               }
 
@@ -270,13 +288,18 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                       children: [
                         CircleAvatar(
                           radius: 22,
-                          backgroundColor: (isAdmin ? AppColors.primary : AppColors.secondary)
-                              .withValues(alpha: 0.12),
+                          backgroundColor:
+                              (isAdmin
+                                      ? AppColors.primary
+                                      : AppColors.secondary)
+                                  .withValues(alpha: 0.12),
                           child: Icon(
                             isAdmin
                                 ? Icons.admin_panel_settings_rounded
                                 : Icons.point_of_sale_rounded,
-                            color: isAdmin ? AppColors.primary : AppColors.secondary,
+                            color: isAdmin
+                                ? AppColors.primary
+                                : AppColors.secondary,
                             size: 22,
                           ),
                         ),
@@ -296,10 +319,16 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                                   ),
                                   const SizedBox(width: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: (isAdmin ? AppColors.primary : AppColors.secondary)
-                                          .withValues(alpha: 0.12),
+                                      color:
+                                          (isAdmin
+                                                  ? AppColors.primary
+                                                  : AppColors.secondary)
+                                              .withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -307,7 +336,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
-                                        color: isAdmin ? AppColors.primary : AppColors.secondary,
+                                        color: isAdmin
+                                            ? AppColors.primary
+                                            : AppColors.secondary,
                                       ),
                                     ),
                                   ),
@@ -318,7 +349,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                                 'UID: ${user.id}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                                  color: isDark
+                                      ? AppColors.darkMutedText
+                                      : AppColors.lightMutedText,
                                 ),
                               ),
                             ],
@@ -333,18 +366,23 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  user.active ? 'Active (សកម្ម)' : 'Inactive (អសកម្ម)',
+                                  user.active
+                                      ? 'Active (សកម្ម)'
+                                      : 'Inactive (អសកម្ម)',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: user.active ? AppColors.success : Colors.grey,
+                                    color: user.active
+                                        ? AppColors.success
+                                        : Colors.grey,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
                                 Switch(
                                   value: user.active,
                                   activeThumbColor: AppColors.success,
-                                  onChanged: (_) => _handleToggleActive(user, allUsers),
+                                  onChanged: (_) =>
+                                      _handleToggleActive(user, allUsers),
                                 ),
                               ],
                             ),
@@ -355,7 +393,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                         IconButton(
                           tooltip: 'Edit Profile',
                           icon: const Icon(Icons.edit_outlined, size: 20),
-                          onPressed: () => UserFormDialog.show(context, user: user),
+                          onPressed: () =>
+                              UserFormDialog.show(context, user: user),
                         ),
                       ],
                     );
@@ -377,20 +416,26 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
     String getCashierName(String cashierId) {
       final match = users.where((u) => u.id == cashierId);
       if (match.isNotEmpty) return match.first.name;
-      return cashierId.length > 8 ? '${cashierId.substring(0, 8)}...' : cashierId;
+      return cashierId.length > 8
+          ? '${cashierId.substring(0, 8)}...'
+          : cashierId;
     }
 
     return shiftsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, _) => Center(
-        child: Text('Error loading shifts: $err', style: const TextStyle(color: AppColors.danger)),
+        child: Text(
+          'Error loading shifts: $err',
+          style: const TextStyle(color: AppColors.danger),
+        ),
       ),
       data: (shifts) {
         if (shifts.isEmpty) {
           return const EmptyState(
             icon: Icons.history_toggle_off_rounded,
             title: 'មិនទាន់មានប្រវត្តិវេនលក់ទេ',
-            subtitle: 'នៅពេលអ្នកគិតលុយបើក និងបិទវេនលក់ ទិន្នន័យនឹងបង្ហាញនៅទីនេះ',
+            subtitle:
+                'នៅពេលអ្នកគិតលុយបើក និងបិទវេនលក់ ទិន្នន័យនឹងបង្ហាញនៅទីនេះ',
           );
         }
 
@@ -418,12 +463,15 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (isOpen ? AppColors.primary : Colors.grey).withValues(alpha: 0.12),
+                          color: (isOpen ? AppColors.primary : Colors.grey)
+                              .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
                           isOpen ? Icons.lock_open_rounded : Icons.lock_rounded,
-                          color: isOpen ? AppColors.primary : Colors.grey.shade700,
+                          color: isOpen
+                              ? AppColors.primary
+                              : Colors.grey.shade700,
                           size: 20,
                         ),
                       ),
@@ -443,10 +491,16 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: (isOpen ? AppColors.primary : AppColors.success)
-                                        .withValues(alpha: 0.12),
+                                    color:
+                                        (isOpen
+                                                ? AppColors.primary
+                                                : AppColors.success)
+                                            .withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -454,7 +508,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
-                                      color: isOpen ? AppColors.primary : AppColors.success,
+                                      color: isOpen
+                                          ? AppColors.primary
+                                          : AppColors.success,
                                     ),
                                   ),
                                 ),
@@ -467,7 +523,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                                   : 'Opened: ${dateFormatter.format(shift.openedAt)}  •  Closed: ${dateFormatter.format(shift.closedAt!)}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                                color: isDark
+                                    ? AppColors.darkMutedText
+                                    : AppColors.lightMutedText,
                               ),
                             ),
                           ],
@@ -477,26 +535,37 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                       // Difference highlight badge
                       if (!isOpen && difference != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: (difference < 0 ? AppColors.danger : AppColors.success)
-                                .withValues(alpha: 0.12),
+                            color:
+                                (difference < 0
+                                        ? AppColors.danger
+                                        : AppColors.success)
+                                    .withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: (difference < 0 ? AppColors.danger : AppColors.success)
-                                  .withValues(alpha: 0.3),
+                              color:
+                                  (difference < 0
+                                          ? AppColors.danger
+                                          : AppColors.success)
+                                      .withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
                             difference == 0
                                 ? '0 ៛ (Exact)'
                                 : (difference > 0
-                                    ? '+${MoneyUtils.formatRiel(difference)} (Surplus)'
-                                    : '${MoneyUtils.formatRiel(difference)} (Shortage)'),
+                                      ? '+${MoneyUtils.formatRiel(difference)} (Surplus)'
+                                      : '${MoneyUtils.formatRiel(difference)} (Shortage)'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: difference < 0 ? AppColors.danger : AppColors.success,
+                              color: difference < 0
+                                  ? AppColors.danger
+                                  : AppColors.success,
                             ),
                           ),
                         ),
@@ -506,7 +575,10 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
 
                   // Metrics summary row
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isDark ? AppColors.darkBg : AppColors.lightBg,
                       borderRadius: BorderRadius.circular(8),
@@ -515,9 +587,18 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
                       spacing: 24,
                       runSpacing: 8,
                       children: [
-                        _buildShiftStat('Opening Cash', MoneyUtils.formatRiel(shift.openingCash)),
-                        _buildShiftStat('Sales (${shift.salesCount} txns)', MoneyUtils.formatRiel(shift.totalSales)),
-                        _buildShiftStat('Expected Cash', MoneyUtils.formatRiel(expectedCash)),
+                        _buildShiftStat(
+                          'Opening Cash',
+                          MoneyUtils.formatRiel(shift.openingCash),
+                        ),
+                        _buildShiftStat(
+                          'Sales (${shift.salesCount} txns)',
+                          MoneyUtils.formatRiel(shift.totalSales),
+                        ),
+                        _buildShiftStat(
+                          'Expected Cash',
+                          MoneyUtils.formatRiel(expectedCash),
+                        ),
                         if (!isOpen)
                           _buildShiftStat(
                             'Actual Cash',
@@ -542,7 +623,10 @@ class _UsersScreenState extends ConsumerState<UsersScreen> with SingleTickerProv
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }

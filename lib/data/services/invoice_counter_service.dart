@@ -1,5 +1,8 @@
 import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../firestore/shop_scope.dart';
 
 class InvoiceCounterService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -9,19 +12,27 @@ class InvoiceCounterService {
   /// Falls back to offline random timestamp pattern: "INV-179136-7491"
   Future<String> getNextInvoiceNumber() async {
     try {
-      final counterRef = _firestore.collection('counters').doc('invoices');
-      final newSeq = await _firestore.runTransaction<int>((transaction) async {
-        final snapshot = await transaction.get(counterRef);
-        int currentSeq = 0;
-        if (snapshot.exists && snapshot.data() != null) {
-          currentSeq = (snapshot.data()!['seq'] is num)
-              ? (snapshot.data()!['seq'] as num).toInt()
-              : 0;
-        }
-        final nextSeq = currentSeq + 1;
-        transaction.set(counterRef, {'seq': nextSeq}, SetOptions(merge: true));
-        return nextSeq;
-      }).timeout(const Duration(seconds: 2));
+      final shopId = ShopScope.requireShopId();
+      final counterRef = _firestore
+          .collection('counters')
+          .doc('${shopId}_invoices');
+      final newSeq = await _firestore
+          .runTransaction<int>((transaction) async {
+            final snapshot = await transaction.get(counterRef);
+            int currentSeq = 0;
+            if (snapshot.exists && snapshot.data() != null) {
+              currentSeq = (snapshot.data()!['seq'] is num)
+                  ? (snapshot.data()!['seq'] as num).toInt()
+                  : 0;
+            }
+            final nextSeq = currentSeq + 1;
+            transaction.set(counterRef, {
+              'seq': nextSeq,
+              'shopId': shopId,
+            }, SetOptions(merge: true));
+            return nextSeq;
+          })
+          .timeout(const Duration(seconds: 2));
 
       return 'INV-${newSeq.toString().padLeft(6, '0')}';
     } catch (_) {

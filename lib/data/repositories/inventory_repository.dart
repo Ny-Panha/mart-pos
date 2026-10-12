@@ -1,20 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/stock_movement_model.dart';
+import '../firestore/shop_scope.dart';
 import '../services/audit_service.dart';
 
 class InventoryRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   /// Pure helper for adjustment diff calculation (tested in unit tests)
-  static int calculateAdjustmentDiff({required int currentQty, required int newQty}) {
+  static int calculateAdjustmentDiff({
+    required int currentQty,
+    required int newQty,
+  }) {
     return newQty - currentQty;
   }
 
   /// Stream stock movements, optionally filtered by productId. Limit to latest 100 entries.
   Stream<List<StockMovementModel>> watchStockMovements({String? productId}) {
-    Query<StockMovementModel> query = FirestoreCollections.stockMovements;
+    Query<StockMovementModel> query = ShopScope.query(
+      FirestoreCollections.stockMovements,
+    );
 
     if (productId != null && productId.isNotEmpty && productId != 'all') {
       query = query.where('productId', isEqualTo: productId);
@@ -26,9 +33,9 @@ class InventoryRepository {
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList())
         .handleError((error) {
-      debugPrint('watchStockMovements error: $error');
-      return <StockMovementModel>[];
-    });
+          debugPrint('watchStockMovements error: $error');
+          return <StockMovementModel>[];
+        });
   }
 
   /// Stock In: WriteBatch increment stockQty and create movement record (offline-safe)
@@ -153,7 +160,10 @@ class InventoryRepository {
       throw ArgumentError('A reason note is required for Stock Adjustment.');
     }
 
-    final diff = calculateAdjustmentDiff(currentQty: currentQty, newQty: newQty);
+    final diff = calculateAdjustmentDiff(
+      currentQty: currentQty,
+      newQty: newQty,
+    );
 
     final batch = _db.batch();
 
@@ -187,7 +197,8 @@ class InventoryRepository {
       action: 'stock.adjust',
       entityType: 'product',
       entityId: productId,
-      details: '${productName ?? "Product #$productId"} · $diffSign (to $newQty)',
+      details:
+          '${productName ?? "Product #$productId"} · $diffSign (to $newQty)',
     );
   }
 }

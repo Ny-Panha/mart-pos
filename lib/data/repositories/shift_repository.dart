@@ -3,11 +3,12 @@ import '../firestore/firestore_collections.dart';
 import '../firestore/models/daily_close_model.dart';
 import '../firestore/models/sale_model.dart';
 import '../services/audit_service.dart';
+import '../firestore/shop_scope.dart';
 
 class ShiftRepository {
   /// Watches the active open shift for a specific cashier
   Stream<DailyCloseModel?> watchOpenShift(String cashierId) {
-    return FirestoreCollections.dailyCloses
+    return ShopScope.query(FirestoreCollections.dailyCloses)
         .where('cashierId', isEqualTo: cashierId)
         .where('closedAt', isNull: true)
         .limit(1)
@@ -20,7 +21,7 @@ class ShiftRepository {
 
   /// Watches all closed and open shifts for history reporting
   Stream<List<DailyCloseModel>> watchAllShifts() {
-    return FirestoreCollections.dailyCloses
+    return ShopScope.query(FirestoreCollections.dailyCloses)
         .orderBy('openedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
@@ -32,7 +33,7 @@ class ShiftRepository {
     required int openingCash,
   }) async {
     // If cashier already has an active open shift, return it
-    final existing = await FirestoreCollections.dailyCloses
+    final existing = await ShopScope.query(FirestoreCollections.dailyCloses)
         .where('cashierId', isEqualTo: cashierId)
         .where('closedAt', isNull: true)
         .limit(1)
@@ -65,7 +66,7 @@ class ShiftRepository {
     final end = closedAt ?? DateTime.now();
 
     try {
-      final snapshot = await FirestoreCollections.sales
+      final snapshot = await ShopScope.query(FirestoreCollections.sales)
           .where('cashierId', isEqualTo: cashierId)
           .where('createdAt', isGreaterThanOrEqualTo: openedAt)
           .where('createdAt', isLessThanOrEqualTo: end)
@@ -73,7 +74,7 @@ class ShiftRepository {
       return snapshot.docs.map((d) => d.data()).toList();
     } catch (_) {
       // Graceful fallback for offline / index building
-      final snapshot = await FirestoreCollections.sales
+      final snapshot = await ShopScope.query(FirestoreCollections.sales)
           .where('createdAt', isGreaterThanOrEqualTo: openedAt)
           .where('createdAt', isLessThanOrEqualTo: end)
           .get();
@@ -144,7 +145,9 @@ class ShiftRepository {
 
     final diffStr = difference == 0
         ? '0 ៛'
-        : (difference > 0 ? '+${MoneyUtils.formatRiel(difference)}' : MoneyUtils.formatRiel(difference));
+        : (difference > 0
+              ? '+${MoneyUtils.formatRiel(difference)}'
+              : MoneyUtils.formatRiel(difference));
 
     // Fire-and-forget Audit Log
     AuditService.log(

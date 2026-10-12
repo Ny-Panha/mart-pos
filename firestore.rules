@@ -1,0 +1,330 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User profiles are the source of authorization truth. Custom claims are
+    // intentionally not used here so role changes take effect immediately.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function actor() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function actorRole() {
+      return actor().get('role', '');
+    }
+
+    function actorShopId() {
+      return actor().get('shopId', '');
+    }
+
+    function isManager() {
+      return signedIn() && (
+        actorRole() == 'ADMIN_MANAGER' || actorRole() == 'admin_manager' ||
+        actorRole() == 'MANAGER' || actorRole() == 'manager' ||
+        actorRole() == 'SUPER' || actorRole() == 'super'
+      );
+    }
+
+    function isAdmin() {
+      return signedIn() && (actorRole() == 'ADMIN' || actorRole() == 'admin');
+    }
+
+    function isCashier() {
+      return signedIn() && (actorRole() == 'CASHIER' || actorRole() == 'cashier');
+    }
+
+    function isShopStaff() {
+      return isAdmin() || isCashier();
+    }
+
+    function ownShop(data) {
+      return isShopStaff() && actorShopId() != '' && data.get('shopId', '') == actorShopId();
+    }
+
+    function ownShopDocument(shopId) {
+      return isShopStaff() && actorShopId() != '' && shopId == actorShopId();
+    }
+
+    function newInOwnShop() {
+      return ownShop(request.resource.data);
+    }
+
+    function existingAndNewInOwnShop() {
+      return ownShop(resource.data) && ownShop(request.resource.data);
+    }
+
+    function managerOrOwnShopRead() {
+      return isManager() || ownShop(resource.data);
+    }
+
+    function managerOrOwnShopCreate() {
+      return isManager() || newInOwnShop();
+    }
+
+    function managerOrOwnShopUpdate() {
+      return isManager() || existingAndNewInOwnShop();
+    }
+
+    function managerOrOwnShopDelete() {
+      return isManager() || ownShop(resource.data);
+    }
+
+    function userProfileFieldsAreSafe() {
+      // Role, shopId, active status, and timestamps are controlled by the
+      // Admin SDK functions. Clients may only edit the display name.
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']);
+    }
+
+    function ownCashierRecord(data) {
+      return isCashier() && ownShop(data) && data.get('cashierId', '') == request.auth.uid;
+    }
+
+    function ownCashierAttendance(data) {
+      return isCashier() && ownShop(data) && data.get('userId', '') == request.auth.uid;
+    }
+
+    function cashierStockDecrease() {
+      return isCashier() && ownShop(resource.data) && ownShop(request.resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stockQty', 'updatedAt']) &&
+        request.resource.data.stockQty is int && resource.data.stockQty is int &&
+        request.resource.data.stockQty <= resource.data.stockQty;
+    }
+
+    function cashierCustomerTotalUpdate() {
+      return isCashier() && existingAndNewInOwnShop() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalSpent']) &&
+        request.resource.data.totalSpent is number && resource.data.totalSpent is number &&
+        request.resource.data.totalSpent >= resource.data.totalSpent;
+    }
+
+    function linkedSaleAfter(saleId) {
+      return saleId != '' &&
+        existsAfter(/databases/$(database)/documents/sales/$(saleId)) &&
+        getAfter(/databases/$(database)/documents/sales/$(saleId)).data.get('shopId', '') == actorShopId() &&
+        getAfter(/databases/$(database)/documents/sales/$(saleId)).data.get('cashierId', '') == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (
+        isManager() ||
+        uid == request.auth.uid ||
+        (isAdmin() && ownShop(resource.data))
+      );
+      allow create: if false;
+      allow update: if signedIn() && uid == request.auth.uid && userProfileFieldsAreSafe();
+      allow delete: if false;
+    }
+
+    match /shops/{shopId} {
+      allow read: if isManager() || ownShopDocument(shopId);
+      // Platform records are mutated through callable Functions only.
+      allow write: if false;
+    }
+
+    match /locations/{locationId} {
+      allow read: if managerOrOwnShopRead();
+      allow write: if false;
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow write: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isManager() || ownShop(resource.data) || (isCashier() && ownShop(resource.data));
+      allow create: if managerOrOwnShopCreate();
+      allow update: if managerOrOwnShopUpdate();
+      allow delete: if managerOrOwnShopDelete();
+    }
+
+    match /products/{productId} {
+      allow read: if isManager() || ownShop(resource.data);
+      allow create: if isAdmin() && newInOwnShop();
+      // POS checkout may only decrement stock; product details remain admin-only.
+      allow update: if (isAdmin() && existingAndNewInOwnShop()) || cashierStockDecrease();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /productCodes/{code} {
+      allow read: if isManager() || ownShop(resource.data);
+      allow create: if isAdmin() && newInOwnShop();
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /customers/{customerId} {
+      allow read: if isManager() || ownShop(resource.data);
+      allow create: if managerOrOwnShopCreate();
+      allow update: if (isAdmin() && existingAndNewInOwnShop()) || cashierCustomerTotalUpdate();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /sales/{saleId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data)) || ownCashierRecord(resource.data);
+      allow create: if managerOrOwnShopCreate() && (
+        !isCashier() || request.resource.data.get('cashierId', '') == request.auth.uid
+      );
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /heldBills/{billId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data)) || ownCashierRecord(resource.data);
+      allow create: if managerOrOwnShopCreate() && (
+        !isCashier() || request.resource.data.get('cashierId', '') == request.auth.uid
+      );
+      allow update: if isManager() || (isAdmin() && existingAndNewInOwnShop()) || (
+        ownCashierRecord(resource.data) && ownCashierRecord(request.resource.data)
+      );
+      allow delete: if isManager() || (isAdmin() && ownShop(resource.data)) || ownCashierRecord(resource.data);
+    }
+
+    match /stockMovements/{movementId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow create: if managerOrOwnShopCreate() || (
+        ownShop(request.resource.data) &&
+        request.resource.data.get('type', '') == 'out' &&
+        request.resource.data.get('createdBy', '') == request.auth.uid &&
+        linkedSaleAfter(request.resource.data.get('refId', ''))
+      );
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /daily_closes/{shiftId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data)) || ownCashierRecord(resource.data);
+      allow create: if managerOrOwnShopCreate() && (
+        !isCashier() || request.resource.data.get('cashierId', '') == request.auth.uid
+      );
+      allow update: if (isAdmin() && existingAndNewInOwnShop()) || (
+        ownCashierRecord(resource.data) && ownCashierRecord(request.resource.data)
+      );
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /counters/{counterId} {
+      allow read: if isManager() || ownShop(resource.data);
+      allow create: if (isAdmin() && newInOwnShop()) || (
+        isCashier() && newInOwnShop() &&
+        request.resource.data.keys().hasOnly(['seq', 'shopId']) &&
+        request.resource.data.get('seq', 0) is int &&
+        request.resource.data.seq > 0
+      );
+      allow update: if (isAdmin() && existingAndNewInOwnShop()) || (
+        isCashier() && existingAndNewInOwnShop() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seq']) &&
+        request.resource.data.seq is int && resource.data.seq is int &&
+        request.resource.data.seq == resource.data.seq + 1
+      );
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow create: if isAdmin() && newInOwnShop();
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow create: if isAdmin() && newInOwnShop();
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow create: if managerOrOwnShopCreate() && (
+        isManager() || request.resource.data.get('userId', '') == request.auth.uid
+      );
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /reports/{reportId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow write: if isManager() || (isAdmin() && existingAndNewInOwnShop());
+    }
+
+    match /alerts/{alertId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow write: if isManager() || (isAdmin() && managerOrOwnShopUpdate());
+    }
+
+    match /notificationLogs/{logId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow write: if isManager();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow create: if isAdmin() && newInOwnShop();
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /shopSettings/{settingId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data));
+      allow create: if isAdmin() && newInOwnShop();
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /platformLogs/{logId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /platformAlerts/{alertId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /platformSettings/{settingId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /managerLogs/{logId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read: if isManager() ||
+        (isAdmin() && settingId == actorShopId()) ||
+        (isAdmin() && ownShop(resource.data));
+      allow create: if isAdmin() && settingId == actorShopId() && newInOwnShop();
+      allow update: if isAdmin() && settingId == actorShopId() && existingAndNewInOwnShop();
+      allow delete: if isManager();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data)) || ownCashierAttendance(resource.data);
+      allow create: if managerOrOwnShopCreate() && (
+        !isCashier() || request.resource.data.get('userId', '') == request.auth.uid
+      );
+      allow update: if (isAdmin() && existingAndNewInOwnShop()) || (
+        ownCashierAttendance(resource.data) && ownCashierAttendance(request.resource.data)
+      );
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isManager() || (isAdmin() && ownShop(resource.data)) || ownCashierRecord(resource.data);
+      allow create: if managerOrOwnShopCreate();
+      allow update: if isAdmin() && existingAndNewInOwnShop();
+      allow delete: if isAdmin() && ownShop(resource.data);
+    }
+
+    // Any collection not explicitly listed above is denied by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

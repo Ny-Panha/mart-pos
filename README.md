@@ -68,6 +68,24 @@
 
 ## 🚀 របៀប Run ដំណើរការកម្មវិធី (How to Run)
 
+### Firebase role setup and existing data migration
+
+The app uses `ADMIN_MANAGER`, `ADMIN`, and `CASHIER` profiles. Shop-owned documents carry a `shopId`; existing unscoped records are assigned to `default-shop` by the migration script.
+
+1. Install the Cloud Functions dependencies with `cd functions && npm install`.
+2. Create the intended first manager in Firebase Authentication. Copy `functions/.env.example` to `functions/.env.mart-pos-app` and set `BOOTSTRAP_MANAGER_UID` to that Auth UID, then deploy Functions. The login screen's **Initialize first platform manager** action calls the bootstrap function; it only works for that allowlisted UID while no manager profile exists. Existing shop users are allowed.
+3. Run the migration in dry-run mode from the project root: `node scripts/migrate-default-shop.js`. Review the planned paths and counts before applying it.
+4. Back up Firestore. Then apply with `ALLOW_LIVE_MIGRATION=1 node scripts/migrate-default-shop.js --apply`. The script checks document counts and confirms a second plan is empty. Do not deploy the shop-scoped rules until this verification succeeds.
+5. Deploy Firestore rules after migration: `firebase deploy --only firestore:rules`.
+
+The migration is idempotent and does not run during deploy. The script requires explicit apply flags before writing. Cloud Functions use the Admin SDK for shop provisioning, user role changes, subscriptions, and platform reports.
+
+#### Firebase Emulator checks
+
+Start the Auth, Firestore, and Functions emulators with `firebase emulators:start --only auth,firestore,functions`. Use a disposable emulator project when testing role access and callable workflows.
+
+Run the automated Firestore authorization and migration repeatability checks with `firebase emulators:exec --project demo-mart-pos --only firestore "cd functions && npm run test:rules"`.
+
 ### ជំហានទី ១៖ ចូលទៅកាន់ Folder គម្រោង
 ```bash
 cd /home/nha/Desktop/mart_pos

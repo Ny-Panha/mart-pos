@@ -39,6 +39,7 @@ dependencies:
   firebase_core: ^4.15.0
   cloud_firestore: ^6.10.0
   firebase_auth: ^6.7.0
+  cloud_functions: ^6.5.0
   intl: ^0.20.3
   qr_flutter: ^4.1.0
   uuid: ^4.6.0
@@ -49,6 +50,8 @@ dependencies:
   fl_chart: ^1.2.0
   connectivity_plus: ^7.3.2
   google_fonts: ^6.2.1
+  image_picker: ^1.2.4
+  firebase_storage: ^13.6.0
 
 dev_dependencies:
   flutter_test:

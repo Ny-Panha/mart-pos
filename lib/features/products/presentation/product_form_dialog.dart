@@ -6,8 +6,10 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/product_thumbnail.dart';
 import '../../../data/firestore/models/product_model.dart';
 import '../../../data/services/audit_service.dart';
+import '../../../data/services/storage_service.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
 
@@ -46,14 +48,27 @@ class ProductFormDialog extends ConsumerStatefulWidget {
 class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  late TextEditingController _nameController;
-  late TextEditingController _codeController;
-  late TextEditingController _barcodeController;
-  late TextEditingController _skuController;
-  late TextEditingController _costPriceController;
-  late TextEditingController _salePriceController;
-  late TextEditingController _stockQtyController;
-  late TextEditingController _lowStockThresholdController;
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.product?.name ?? '');
+  late final TextEditingController _codeController =
+      TextEditingController(text: widget.product?.code ?? '');
+  late final TextEditingController _barcodeController =
+      TextEditingController(text: widget.product?.barcode ?? '');
+  late final TextEditingController _skuController =
+      TextEditingController(text: widget.product?.sku ?? '');
+  late final TextEditingController _costPriceController = TextEditingController(
+      text: widget.product != null ? '${widget.product!.costPrice}' : '0');
+  late final TextEditingController _salePriceController = TextEditingController(
+      text: widget.product != null ? '${widget.product!.salePrice}' : '');
+  late final TextEditingController _stockQtyController = TextEditingController(
+      text: widget.product != null ? '${widget.product!.stockQty}' : '0');
+  late final TextEditingController _lowStockThresholdController =
+      TextEditingController(
+          text: widget.product != null
+              ? '${widget.product!.lowStockThreshold}'
+              : '5');
+  late final TextEditingController _imageUrlController =
+      TextEditingController(text: widget.product?.imageUrl ?? '');
 
   String? _selectedCategoryId;
   String _selectedUnit = 'កំប៉ុង';
@@ -61,6 +76,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   bool _isActive = true;
 
   bool _isLoading = false;
+  bool _isUploadingImage = false;
   String? _codeError;
 
   final List<String> _commonUnits = [
@@ -78,15 +94,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   void initState() {
     super.initState();
     final p = widget.product;
-    _nameController = TextEditingController(text: p?.name ?? '');
-    _codeController = TextEditingController(text: p?.code ?? '');
-    _barcodeController = TextEditingController(text: p?.barcode ?? '');
-    _skuController = TextEditingController(text: p?.sku ?? '');
-    _costPriceController = TextEditingController(text: p != null ? '${p.costPrice}' : '0');
-    _salePriceController = TextEditingController(text: p != null ? '${p.salePrice}' : '');
-    _stockQtyController = TextEditingController(text: p != null ? '${p.stockQty}' : '0');
-    _lowStockThresholdController = TextEditingController(text: p != null ? '${p.lowStockThreshold}' : '5');
-
     _selectedCategoryId = p?.categoryId;
     _selectedUnit = p?.unit ?? 'កំប៉ុង';
     _selectedTax = p?.tax ?? 0.0;
@@ -103,10 +110,59 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _salePriceController.dispose();
     _stockQtyController.dispose();
     _lowStockThresholdController.dispose();
+    _imageUrlController.dispose();
     super.dispose();
   }
 
   bool get _isEditing => widget.product != null;
+
+  Future<void> _handlePickAndUploadImage() async {
+    try {
+      final file = await StorageService.pickProductImage();
+      if (file == null) return; // User cancelled picker
+
+      setState(() {
+        _isUploadingImage = true;
+      });
+
+      final code = _codeController.text.trim();
+      final customName = code.isNotEmpty
+          ? 'prod_${code.toLowerCase().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}_${DateTime.now().millisecondsSinceEpoch}'
+          : null;
+
+      final downloadUrl = await StorageService.uploadProductImage(
+        file: file,
+        customName: customName,
+      );
+
+      if (mounted) {
+        setState(() {
+          _imageUrlController.text = downloadUrl;
+          _isUploadingImage = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('បាន Upload រូបភាពទៅ Firebase Storage ជោគជ័យ!'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('មិនអាច Upload រូបភាពបានទេ: $e'),
+            backgroundColor: AppColors.danger,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _handleSubmit() async {
     setState(() => _codeError = null);
@@ -147,6 +203,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       final salePrice = int.tryParse(_salePriceController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       final stockQty = int.tryParse(_stockQtyController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       final lowStock = int.tryParse(_lowStockThresholdController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 5;
+      final rawImageUrl = _imageUrlController.text.trim();
+      final imageUrl = rawImageUrl.isNotEmpty ? rawImageUrl : null;
 
       if (_isEditing) {
         // Update product
@@ -163,6 +221,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           lowStockThreshold: lowStock,
           tax: _selectedTax,
           status: _isActive ? 'active' : 'inactive',
+          imageUrl: imageUrl,
+          clearImageUrl: imageUrl == null,
           updatedAt: DateTime.now(),
         );
 
@@ -203,6 +263,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           lowStockThreshold: lowStock,
           tax: _selectedTax,
           status: _isActive ? 'active' : 'inactive',
+          imageUrl: imageUrl,
           updatedAt: DateTime.now(),
         );
 
@@ -544,6 +605,153 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 20),
+
+            // 4. Product Image Section (Upload from Device OR Paste URL)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'រូបភាពទំនិញ (Product Image)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
+                ),
+                if (_imageUrlController.text.isNotEmpty)
+                  InkWell(
+                    onTap: () => setState(() => _imageUrlController.clear()),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.delete_outline, size: 14, color: AppColors.danger),
+                        SizedBox(width: 4),
+                        Text(
+                          'លុបរូប (Clear)',
+                          style: TextStyle(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Card container for image actions
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkSurface
+                    : AppColors.lightBg,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.darkBorder
+                      : AppColors.lightBorder,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      // Thumbnail Preview with Loading Overlay
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          ProductThumbnail(
+                            imageUrl: _imageUrlController.text,
+                            width: 64,
+                            height: 64,
+                            borderRadius: AppRadius.md,
+                            fallbackIcon: Icons.add_photo_alternate_outlined,
+                          ),
+                          if (_isUploadingImage)
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                              ),
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Option A: Pick & Upload from Storage / Device
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _isUploadingImage ? null : _handlePickAndUploadImage,
+                              icon: _isUploadingImage
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.file_upload_outlined, size: 18),
+                              label: Text(
+                                _isUploadingImage ? 'កំពុង Upload...' : 'Upload ពីរូបភាព (Device)',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: const BorderSide(color: AppColors.primary),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _imageUrlController.text.isNotEmpty
+                                  ? '✓ ភ្ជាប់រូបភាពរួចរាល់'
+                                  : 'ជ្រើសរើសរូបពី Gallery / Computer',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: _imageUrlController.text.isNotEmpty
+                                    ? AppColors.success
+                                    : Colors.grey,
+                                fontWeight: _imageUrlController.text.isNotEmpty
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+
+                  // Option B: Paste Direct Link
+                  TextFormField(
+                    controller: _imageUrlController,
+                    decoration: InputDecoration(
+                      labelText: 'ឬ បិទភ្ជាប់តំណភ្ជាប់ (Or Paste Image URL)',
+                      hintText: 'https://...',
+                      prefixIcon: const Icon(Icons.link_rounded, size: 20),
+                      suffixIcon: _imageUrlController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () => setState(() => _imageUrlController.clear()),
+                            )
+                          : null,
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 

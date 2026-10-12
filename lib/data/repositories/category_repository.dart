@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/category_model.dart';
+import '../firestore/shop_scope.dart';
 
 class CategoryRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -10,23 +12,28 @@ class CategoryRepository {
     CategoryModel(id: 'cat_drinks', name: 'ភេសជ្ជៈ (Drinks)', sortOrder: 1),
     CategoryModel(id: 'cat_food', name: 'អាហារ និងមី (Food)', sortOrder: 2),
     CategoryModel(id: 'cat_snacks', name: 'នំចំណី (Snacks)', sortOrder: 3),
-    CategoryModel(id: 'cat_daily', name: 'សម្ភារៈប្រើប្រាស់ (Daily)', sortOrder: 4),
+    CategoryModel(
+      id: 'cat_daily',
+      name: 'សម្ភារៈប្រើប្រាស់ (Daily)',
+      sortOrder: 4,
+    ),
   ];
 
   Stream<List<CategoryModel>> watchCategories() {
-    return FirestoreCollections.categories
+    return ShopScope.query(FirestoreCollections.categories)
         .orderBy('sortOrder')
         .snapshots()
         .map((snapshot) {
-      if (snapshot.docs.isEmpty) {
-        seedDefaultCategories();
-        return _defaultCategories;
-      }
-      return snapshot.docs.map((d) => d.data()).toList();
-    }).handleError((error) {
-      debugPrint('Firestore watchCategories error: $error');
-      return _defaultCategories;
-    });
+          if (snapshot.docs.isEmpty) {
+            seedDefaultCategories();
+            return _defaultCategories;
+          }
+          return snapshot.docs.map((d) => d.data()).toList();
+        })
+        .handleError((error) {
+          debugPrint('Firestore watchCategories error: $error');
+          return _defaultCategories;
+        });
   }
 
   Future<void> seedDefaultCategories() async {
@@ -62,10 +69,12 @@ class CategoryRepository {
     return category;
   }
 
-  Future<void> updateCategory(String id, {required String name, int? sortOrder}) async {
-    final updateData = <String, dynamic>{
-      'name': name.trim(),
-    };
+  Future<void> updateCategory(
+    String id, {
+    required String name,
+    int? sortOrder,
+  }) async {
+    final updateData = <String, dynamic>{'name': name.trim()};
     if (sortOrder != null) {
       updateData['sortOrder'] = sortOrder;
     }
@@ -73,7 +82,7 @@ class CategoryRepository {
   }
 
   Future<bool> isCategoryInUse(String categoryId) async {
-    final snap = await FirestoreCollections.products
+    final snap = await ShopScope.query(FirestoreCollections.products)
         .where('categoryId', isEqualTo: categoryId)
         .limit(1)
         .get();
@@ -81,7 +90,7 @@ class CategoryRepository {
   }
 
   Future<int> countProductsInCategory(String categoryId) async {
-    final snap = await FirestoreCollections.products
+    final snap = await ShopScope.query(FirestoreCollections.products)
         .where('categoryId', isEqualTo: categoryId)
         .get();
     return snap.docs.length;
@@ -90,7 +99,9 @@ class CategoryRepository {
   Future<void> deleteCategory(String id) async {
     final inUse = await isCategoryInUse(id);
     if (inUse) {
-      throw Exception('Category is currently assigned to one or more products and cannot be deleted.');
+      throw Exception(
+        'Category is currently assigned to one or more products and cannot be deleted.',
+      );
     }
     await FirestoreCollections.categories.doc(id).delete();
   }

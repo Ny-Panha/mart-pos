@@ -4,7 +4,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
@@ -12,6 +11,7 @@ import '../../../data/firestore/models/product_model.dart';
 import '../../../data/services/audit_service.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
+import '../../../core/widgets/product_thumbnail.dart';
 import 'category_manager_dialog.dart';
 import 'product_form_dialog.dart';
 
@@ -106,15 +106,8 @@ class ProductsScreen extends ConsumerWidget {
     final selectedCategory = ref.watch(selectedCategoryProvider);
 
     return Scaffold(
-      floatingActionButton: !isDesktop
-          ? FloatingActionButton(
-              onPressed: () => ProductFormDialog.show(context),
-              backgroundColor: AppColors.primary,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -124,6 +117,15 @@ class ProductsScreen extends ConsumerWidget {
               title: 'គ្រប់គ្រងទំនិញ (Products & Categories)',
               description: 'Create, update, organize categories, and track retail pricing in Riel',
               actions: [
+                FilledButton.icon(
+                  onPressed: () => ProductFormDialog.show(context),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('+ NEW PRODUCT'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
                 OutlinedButton.icon(
                   onPressed: () => CategoryManagerDialog.show(context),
                   icon: const Icon(Icons.category_outlined, size: 16),
@@ -132,64 +134,133 @@ class ProductsScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                 ),
-                if (isDesktop) ...[
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 170,
-                    child: AppButton(
-                      text: '+ NEW PRODUCT',
-                      onPressed: () => ProductFormDialog.show(context),
-                      icon: Icons.add,
-                    ),
-                  ),
-                ],
               ],
             ),
 
             // Toolbar (Search + Category Filter + Total Count)
             AppCard(
               padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 260,
-                    child: TextField(
-                      onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
-                        prefixIcon: Icon(Icons.search, size: 20),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      ),
-                    ),
-                  ),
-                  DropdownButton<String>(
-                    value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
-                        ? selectedCategory
-                        : 'all',
-                    underline: const SizedBox(),
-                    items: [
-                      const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
-                      ...categories.map((cat) {
-                        return DropdownMenuItem(
-                          value: cat.id,
-                          child: Text(cat.name),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 560;
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            TextField(
+                              onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
+                                prefixIcon: const Icon(Icons.search, size: 20),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  borderSide: BorderSide(
+                                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                                border: Border.all(
+                                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
+                                      ? selectedCategory
+                                      : 'all',
+                                  isExpanded: true,
+                                  items: [
+                                    const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
+                                    ...categories.map((cat) {
+                                      return DropdownMenuItem(
+                                        value: cat.id,
+                                        child: Text(cat.name),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      ref.read(selectedCategoryProvider.notifier).setCategory(val);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
                         );
-                      }),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        ref.read(selectedCategoryProvider.notifier).setCategory(val);
                       }
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
+                                prefixIcon: const Icon(Icons.search, size: 20),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  borderSide: BorderSide(
+                                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              border: Border.all(
+                                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
+                                    ? selectedCategory
+                                    : 'all',
+                                items: [
+                                  const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
+                                  ...categories.map((cat) {
+                                    return DropdownMenuItem(
+                                      value: cat.id,
+                                      child: Text(cat.name),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    ref.read(selectedCategoryProvider.notifier).setCategory(val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
                     },
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 10),
                   Text(
-                    'Total: ${products.length} Items',
+                    'សរុប: ${products.length} មុខទំនិញ (Total: ${products.length} Items)',
                     style: TextStyle(
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
                     ),
@@ -251,7 +322,27 @@ class ProductsScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              DataCell(Text(p.name, style: const TextStyle(fontWeight: FontWeight.w600))),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ProductThumbnail(
+                      imageUrl: p.imageUrl,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 6,
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        p.name,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               DataCell(Text(MoneyUtils.formatRiel(p.costPrice))),
               DataCell(Text(
                 MoneyUtils.formatRiel(p.salePrice),
@@ -331,14 +422,11 @@ class ProductsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              Container(
+              ProductThumbnail(
+                imageUrl: p.imageUrl,
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                borderRadius: 8,
               ),
               const SizedBox(width: 14),
               Expanded(

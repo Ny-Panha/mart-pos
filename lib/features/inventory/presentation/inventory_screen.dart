@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
@@ -12,6 +12,7 @@ import '../../../data/firestore/models/product_model.dart';
 import '../../../data/firestore/models/stock_movement_model.dart';
 import '../../products/providers/product_provider.dart';
 import '../../purchases/presentation/purchase_form_dialog.dart';
+import '../../../core/widgets/product_thumbnail.dart';
 import '../providers/inventory_provider.dart';
 import 'stock_action_dialog.dart';
 
@@ -42,19 +43,8 @@ class InventoryScreen extends ConsumerWidget {
     final productMap = {for (var p in allProducts) p.id: p};
 
     return Scaffold(
-      floatingActionButton: !isDesktop
-          ? FloatingActionButton.extended(
-              onPressed: () => StockActionDialog.show(
-                context,
-                actionType: StockActionType.stockIn,
-              ),
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-              label: const Text('STOCK IN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          : null,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -64,6 +54,18 @@ class InventoryScreen extends ConsumerWidget {
               title: 'ស្តុកទំនិញ (Stock Movements)',
               description: 'Track incoming deliveries, stock adjustments, and sale deductions in real-time',
               actions: [
+                FilledButton.icon(
+                  onPressed: () => StockActionDialog.show(
+                    context,
+                    actionType: StockActionType.stockIn,
+                  ),
+                  icon: const Icon(Icons.add_circle_outline, size: 16),
+                  label: const Text('STOCK IN'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
                 OutlinedButton.icon(
                   onPressed: () => StockActionDialog.show(
                     context,
@@ -75,7 +77,6 @@ class InventoryScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                 ),
-                const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: () => StockActionDialog.show(
                     context,
@@ -87,97 +88,87 @@ class InventoryScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                 ),
-                if (isDesktop) ...[
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 160,
-                    child: AppButton(
-                      text: '+ STOCK IN',
-                      onPressed: () => StockActionDialog.show(
-                        context,
-                        actionType: StockActionType.stockIn,
-                      ),
-                      icon: Icons.add_circle_outline,
-                    ),
-                  ),
-                ],
               ],
             ),
 
             // 2. Low-Stock Alert Card (if any low/out of stock products exist)
             if (lowStockProducts.isNotEmpty) ...[
               _buildLowStockAlertCard(context, lowStockProducts, isDark),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
             ],
 
             // 3. Filter Toolbar
             AppCard(
               padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Row(
                     children: [
-                      Icon(Icons.filter_list_rounded, size: 20, color: AppColors.primary),
-                      SizedBox(width: 8),
-                      Text(
+                      const Icon(Icons.filter_list_rounded, size: 18, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      const Text(
                         'តម្រងតាមទំនិញ (Filter by Product):',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
+                      const Spacer(),
+                      if (selectedFilter != 'all')
+                        TextButton.icon(
+                          onPressed: () => ref.read(inventoryProductFilterProvider.notifier).setFilter('all'),
+                          icon: const Icon(Icons.close, size: 14),
+                          label: const Text('Reset', style: TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                          ),
+                        ),
                     ],
                   ),
-                  SizedBox(
-                    width: 280,
-                    child: DropdownButton<String>(
-                      value: (selectedFilter == 'all' || allProducts.any((p) => p.id == selectedFilter))
-                          ? selectedFilter
-                          : 'all',
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      items: [
-                        const DropdownMenuItem(value: 'all', child: Text('ចលនាទាំងអស់ (All Products)')),
-                        ...allProducts.map((p) {
-                          return DropdownMenuItem(
-                            value: p.id,
-                            child: Text(
-                              '${p.name} (${p.stockQty} ${p.unit})',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          ref.read(inventoryProductFilterProvider.notifier).setFilter(val);
-                        }
-                      },
-                    ),
-                  ),
-                  if (selectedFilter != 'all')
-                    TextButton.icon(
-                      onPressed: () => ref.read(inventoryProductFilterProvider.notifier).setFilter('all'),
-                      icon: const Icon(Icons.close, size: 16),
-                      label: const Text('Reset'),
-                    ),
-                  const Spacer(),
-                  movementsAsync.maybeWhen(
-                    data: (list) => Text(
-                      'Total: ${list.length} Movements',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(
+                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                       ),
                     ),
-                    orElse: () => const SizedBox.shrink(),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: (selectedFilter == 'all' || allProducts.any((p) => p.id == selectedFilter))
+                            ? selectedFilter
+                            : 'all',
+                        isExpanded: true,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        items: [
+                          const DropdownMenuItem(
+                            value: 'all',
+                            child: Text('ចលនាទាំងអស់ (All Products)'),
+                          ),
+                          ...allProducts.map((p) {
+                            return DropdownMenuItem(
+                              value: p.id,
+                              child: Text(
+                                '${p.name} (${p.stockQty} ${p.unit})',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            ref.read(inventoryProductFilterProvider.notifier).setFilter(val);
+                          }
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // 4. Movement History Card
             AppCard(
@@ -187,20 +178,42 @@ class InventoryScreen extends ConsumerWidget {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'ប្រវត្តិចលនាស្តុក (Stock Movement History)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ប្រវត្តិចលនាស្តុក',
+                              style: AppTextStyles.titleLG.copyWith(
+                                color: isDark ? AppColors.darkText : AppColors.lightText,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Stock Movement History',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
+                          color: (isDark ? AppColors.darkPrimary : AppColors.primary).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'Latest 100 entries',
-                          style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                        child: Text(
+                          '100 ថ្មីៗ (Recent)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -237,7 +250,15 @@ class InventoryScreen extends ConsumerWidget {
                     ),
                     error: (e, _) => Padding(
                       padding: const EdgeInsets.all(20.0),
-                      child: Text('Error loading movements: $e', style: const TextStyle(color: AppColors.danger)),
+                      child: e.toString().contains('shop account is required')
+                          ? const Center(
+                              child: EmptyState(
+                                icon: Icons.storefront_outlined,
+                                title: 'ត្រូវការគណនីហាង (Shop Required)',
+                                subtitle: 'គណនីនេះមិនទាន់ត្រូវបានកំណត់ Shop ID ក្នុង Firestore users collection នៅឡើយទេ',
+                              ),
+                            )
+                          : Text('Error loading movements: $e', style: const TextStyle(color: AppColors.danger)),
                     ),
                   ),
                 ],
@@ -294,57 +315,75 @@ class InventoryScreen extends ConsumerWidget {
                         : AppColors.warning.withValues(alpha: 0.5),
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          p.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ProductThumbnail(
+                          imageUrl: p.imageUrl,
+                          width: 32,
+                          height: 32,
+                          borderRadius: 6,
                         ),
-                        Text(
-                          p.isOutOfStock
-                              ? 'អស់ពីស្តុក (0 ${p.unit})'
-                              : 'សល់ ${p.stockQty} ${p.unit} (កម្រិត ${p.lowStockThreshold})',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: p.isOutOfStock ? AppColors.danger : AppColors.warning,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              p.isOutOfStock
+                                  ? 'អស់ពីស្តុក (0 ${p.unit})'
+                                  : 'សល់ ${p.stockQty} ${p.unit} (កម្រិត ${p.lowStockThreshold})',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: p.isOutOfStock ? AppColors.danger : AppColors.warning,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(width: 12),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        minimumSize: Size.zero,
-                        side: const BorderSide(color: AppColors.secondary),
-                        foregroundColor: AppColors.secondary,
-                      ),
-                      onPressed: () => PurchaseFormDialog.show(
-                        context,
-                        preselectedProduct: p,
-                      ),
-                      icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 14),
-                      label: const Text('ORDER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 6),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        minimumSize: Size.zero,
-                      ),
-                      onPressed: () => StockActionDialog.show(
-                        context,
-                        actionType: StockActionType.stockIn,
-                        preselectedProduct: p,
-                      ),
-                      icon: const Icon(Icons.add, size: 14, color: Colors.white),
-                      label: const Text('STOCK IN', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            minimumSize: Size.zero,
+                            side: const BorderSide(color: AppColors.secondary),
+                            foregroundColor: AppColors.secondary,
+                          ),
+                          onPressed: () => PurchaseFormDialog.show(
+                            context,
+                            preselectedProduct: p,
+                          ),
+                          icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 14),
+                          label: const Text('ORDER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 6),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            minimumSize: Size.zero,
+                          ),
+                          onPressed: () => StockActionDialog.show(
+                            context,
+                            actionType: StockActionType.stockIn,
+                            preselectedProduct: p,
+                          ),
+                          icon: const Icon(Icons.add, size: 14, color: Colors.white),
+                          label: const Text('STOCK IN', style: TextStyle(fontSize: 11, color: Colors.white)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -397,14 +436,30 @@ class InventoryScreen extends ConsumerWidget {
 
     return Row(
       children: [
-        // Movement Icon Badge
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: Icon(icon, color: color, size: 20),
+        // Movement Icon Badge / Thumbnail
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ProductThumbnail(
+              imageUrl: product?.imageUrl,
+              width: 40,
+              height: 40,
+              borderRadius: AppRadius.sm,
+              fallbackIcon: icon,
+            ),
+            Positioned(
+              right: -3,
+              bottom: -3,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.white, size: 10),
+              ),
+            ),
+          ],
         ),
         const SizedBox(width: 14),
 

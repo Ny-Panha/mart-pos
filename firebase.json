@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"mart-pos-app","appId":"1:1015671489262:android:0b215e960034072a83e9ff","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"mart-pos-app","configurations":{"android":"1:1015671489262:android:0b215e960034072a83e9ff","ios":"1:1015671489262:ios:31f3ce24b3a0cdae83e9ff","web":"1:1015671489262:web:fe46b0ab338ae0d683e9ff"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "mart-pos-app",
+          "appId": "1:1015671489262:android:0b215e960034072a83e9ff",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "mart-pos-app",
+          "configurations": {
+            "android": "1:1015671489262:android:0b215e960034072a83e9ff",
+            "ios": "1:1015671489262:ios:31f3ce24b3a0cdae83e9ff",
+            "web": "1:1015671489262:web:fe46b0ab338ae0d683e9ff"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20"
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "functions": { "port": 5001 },
+    "ui": { "enabled": false }
+  }
+}

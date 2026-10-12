@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/firestore/models/user_model.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../providers/user_provider.dart';
 
 class UserFormDialog extends ConsumerStatefulWidget {
@@ -36,9 +36,10 @@ class UserFormDialog extends ConsumerStatefulWidget {
 
 class _UserFormDialogState extends ConsumerState<UserFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _uidController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
   late final TextEditingController _nameController;
-  late String _role;
+  final String _role = UserModel.cashierRole;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -47,14 +48,15 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
   @override
   void initState() {
     super.initState();
-    _uidController = TextEditingController(text: widget.user?.id ?? '');
+    _emailController = TextEditingController(text: widget.user?.email ?? '');
+    _passwordController = TextEditingController();
     _nameController = TextEditingController(text: widget.user?.name ?? '');
-    _role = widget.user?.role.toLowerCase() ?? 'cashier';
   }
 
   @override
   void dispose() {
-    _uidController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -72,18 +74,10 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
       if (isEditing) {
         final targetUid = widget.user!.id;
         await repo.updateUserName(targetUid, _nameController.text.trim());
-        final currentAdmin = ref.read(authProvider).value;
-        if (_role != widget.user!.role.toLowerCase()) {
-          await repo.updateUserRole(
-            targetUid,
-            _role,
-            adminId: currentAdmin?.id,
-            adminName: currentAdmin?.name,
-          );
-        }
       } else {
         await repo.createUserDoc(
-          uid: _uidController.text.trim(),
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
           name: _nameController.text.trim(),
           role: _role,
         );
@@ -138,7 +132,9 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    isEditing ? Icons.manage_accounts_rounded : Icons.person_add_rounded,
+                    isEditing
+                        ? Icons.manage_accounts_rounded
+                        : Icons.person_add_rounded,
                     color: AppColors.primary,
                     size: 24,
                   ),
@@ -151,16 +147,18 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
                       Text(
                         isEditing
                             ? 'កែប្រែបុគ្គលិក (Edit Staff)'
-                            : 'បន្ថែមបុគ្គលិកថ្មី (Add Staff Profile)',
+                            : 'បន្ថែមបុគ្គលិកថ្មី (Create Cashier Account)',
                         style: AppTextStyles.titleLG,
                       ),
                       const SizedBox(height: 2),
                       Text(
                         isEditing
                             ? 'Manage staff role and details'
-                            : 'Link Firebase Auth UID with Firestore profile',
+                            : 'Create a sign-in account for this shop cashier',
                         style: AppTextStyles.caption.copyWith(
-                          color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                          color: isDark
+                              ? AppColors.darkMutedText
+                              : AppColors.lightMutedText,
                         ),
                       ),
                     ],
@@ -180,7 +178,9 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
                 decoration: BoxDecoration(
                   color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppColors.danger.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Text(
                   _errorMessage!,
@@ -190,33 +190,48 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
               const SizedBox(height: 16),
             ],
 
-            // Auth UID field (editable only on creation)
-            Text(
-              'Firebase Auth UID *',
-              style: AppTextStyles.bodyBold.copyWith(
-                color: isDark ? AppColors.darkText : AppColors.lightText,
+            if (!isEditing) ...[
+              Text(
+                'Email *',
+                style: AppTextStyles.bodyBold.copyWith(
+                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _uidController,
-              enabled: !isEditing,
-              decoration: InputDecoration(
-                hintText: 'Paste UID from Firebase Console',
-                prefixIcon: const Icon(Icons.fingerprint_rounded),
-                helperText: isEditing
-                    ? 'UID cannot be changed once created'
-                    : 'Get this from Firebase Console > Authentication > Users',
-                helperMaxLines: 2,
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  hintText: 'cashier@example.com',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+                validator: (value) =>
+                    value == null || !value.trim().contains('@')
+                    ? 'Enter a valid email address'
+                    : null,
               ),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Please enter Firebase Auth UID';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+              Text(
+                'Temporary password *',
+                style: AppTextStyles.bodyBold.copyWith(
+                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'At least 8 characters',
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                validator: (value) =>
+                    !isEditing && (value == null || value.length < 8)
+                    ? 'Use at least 8 characters'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Staff Name field
             Text(
@@ -241,54 +256,25 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Role selection
-            Text(
-              'តួនាទី (Role) *',
-              style: AppTextStyles.bodyBold.copyWith(
-                color: isDark ? AppColors.darkText : AppColors.lightText,
-              ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _role,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.security_rounded),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'admin',
-                  child: Row(
-                    children: [
-                      Icon(Icons.admin_panel_settings_rounded, size: 20, color: AppColors.primary),
-                      SizedBox(width: 8),
-                      Text('Admin (អ្នកគ្រប់គ្រងប្រព័ន្ធ)'),
-                    ],
-                  ),
+            if (!isEditing)
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.point_of_sale_rounded,
+                  color: AppColors.secondary,
                 ),
-                DropdownMenuItem(
-                  value: 'cashier',
-                  child: Row(
-                    children: [
-                      Icon(Icons.point_of_sale_rounded, size: 20, color: AppColors.secondary),
-                      SizedBox(width: 8),
-                      Text('Cashier (អ្នកគិតលុយ)'),
-                    ],
-                  ),
-                ),
-              ],
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => _role = val);
-                }
-              },
-            ),
+                title: Text('Role'),
+                subtitle: Text('Cashier'),
+              ),
             const SizedBox(height: 24),
 
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -316,10 +302,7 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
     );
 
     if (isDesktop || Responsive.isTablet(context)) {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        child: content,
-      );
+      return Dialog(backgroundColor: Colors.transparent, child: content);
     }
 
     return Padding(

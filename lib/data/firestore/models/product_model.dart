@@ -60,7 +60,9 @@ class ProductModel {
           : 5,
       tax: (data?['tax'] is num) ? (data!['tax'] as num).toDouble() : 0.0,
       status: data?['status']?.toString() ?? 'active',
-      imageUrl: data?['imageUrl']?.toString(),
+      imageUrl: (data?['imageUrl'] != null && data!['imageUrl'].toString().trim().isNotEmpty)
+          ? data['imageUrl'].toString().trim()
+          : null,
       updatedAt: (data?['updatedAt'] is Timestamp)
           ? (data!['updatedAt'] as Timestamp).toDate()
           : DateTime.now(),
@@ -81,7 +83,8 @@ class ProductModel {
       'lowStockThreshold': lowStockThreshold,
       'tax': tax,
       'status': status,
-      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (imageUrl != null && imageUrl!.trim().isNotEmpty)
+        'imageUrl': imageUrl!.trim(),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
@@ -101,6 +104,7 @@ class ProductModel {
     double? tax,
     String? status,
     String? imageUrl,
+    bool clearImageUrl = false,
     DateTime? updatedAt,
   }) {
     return ProductModel(
@@ -117,7 +121,7 @@ class ProductModel {
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       tax: tax ?? this.tax,
       status: status ?? this.status,
-      imageUrl: imageUrl ?? this.imageUrl,
+      imageUrl: clearImageUrl ? null : (imageUrl ?? this.imageUrl),
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

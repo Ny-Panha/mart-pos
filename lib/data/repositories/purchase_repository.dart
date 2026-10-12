@@ -1,17 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+
 import '../../core/utils/money.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/purchase_model.dart';
 import '../firestore/models/stock_movement_model.dart';
 import '../services/audit_service.dart';
+import '../firestore/shop_scope.dart';
 
 class PurchaseRepository {
   final FirebaseFirestore _db = FirestoreCollections.db;
 
   /// Pure helper for calculating total purchase cost in Riel.
   static int calculateTotalCost(List<PurchaseItem> items) {
-    return items.fold<int>(0, (total, item) => total + (item.qty * item.costPrice));
+    return items.fold<int>(
+      0,
+      (total, item) => total + (item.qty * item.costPrice),
+    );
   }
 
   /// Pure helper for validating purchase input guards.
@@ -30,17 +35,21 @@ class PurchaseRepository {
         throw ArgumentError('Product ID cannot be empty');
       }
       if (item.qty <= 0) {
-        throw ArgumentError('Quantity must be greater than zero for item "${item.name}"');
+        throw ArgumentError(
+          'Quantity must be greater than zero for item "${item.name}"',
+        );
       }
       if (item.costPrice < 0) {
-        throw ArgumentError('Cost price must be non-negative for item "${item.name}"');
+        throw ArgumentError(
+          'Cost price must be non-negative for item "${item.name}"',
+        );
       }
     }
   }
 
   /// Watch purchases stream (orderBy createdAt desc, limit 100)
   Stream<List<PurchaseModel>> watchPurchases() {
-    return FirestoreCollections.purchases
+    return ShopScope.query(FirestoreCollections.purchases)
         .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
@@ -53,7 +62,7 @@ class PurchaseRepository {
 
   /// Watch purchases stream for a specific supplier
   Stream<List<PurchaseModel>> watchPurchasesBySupplier(String supplierId) {
-    return FirestoreCollections.purchases
+    return ShopScope.query(FirestoreCollections.purchases)
         .where('supplierId', isEqualTo: supplierId)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -76,17 +85,16 @@ class PurchaseRepository {
     String? userName,
   }) async {
     // 1. Verify supplier exists and is active
-    final supplierDoc = await FirestoreCollections.suppliers.doc(supplierId).get();
+    final supplierDoc = await FirestoreCollections.suppliers
+        .doc(supplierId)
+        .get();
     if (!supplierDoc.exists || supplierDoc.data() == null) {
       throw Exception('Supplier not found');
     }
     final supplier = supplierDoc.data()!;
 
     // 2. Validate input guards
-    validatePurchaseInput(
-      isSupplierActive: supplier.active,
-      items: items,
-    );
+    validatePurchaseInput(isSupplierActive: supplier.active, items: items);
 
     final totalCost = calculateTotalCost(items);
     final now = DateTime.now();
@@ -143,7 +151,8 @@ class PurchaseRepository {
       action: 'purchase.create',
       entityType: 'purchase',
       entityId: purchaseId,
-      details: '${supplier.name} · ${items.length} items · ${MoneyUtils.formatRiel(totalCost)}',
+      details:
+          '${supplier.name} · ${items.length} items · ${MoneyUtils.formatRiel(totalCost)}',
     );
 
     return purchaseId;

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/supplier_model.dart';
+import '../firestore/shop_scope.dart';
 
 class SupplierRepository {
   /// Pure helper for checking whether a supplier can be safely deactivated.
@@ -11,7 +13,7 @@ class SupplierRepository {
 
   /// Watch suppliers stream: sorted active first, then alphabetically by name.
   Stream<List<SupplierModel>> watchSuppliers() {
-    return FirestoreCollections.suppliers
+    return ShopScope.query(FirestoreCollections.suppliers)
         .snapshots()
         .map((snapshot) {
           final list = snapshot.docs.map((d) => d.data()).toList();
@@ -92,24 +94,22 @@ class SupplierRepository {
 
   /// Deactivate a supplier: blocked if any purchase has this supplierId
   Future<void> deactivateSupplier(String id) async {
-    final purchaseSnap = await FirestoreCollections.purchases
+    final purchaseSnap = await ShopScope.query(FirestoreCollections.purchases)
         .where('supplierId', isEqualTo: id)
         .limit(1)
         .get();
 
     if (!canDeactivateSupplier(purchaseCount: purchaseSnap.docs.length)) {
-      throw Exception('Cannot deactivate supplier with existing purchase history');
+      throw Exception(
+        'Cannot deactivate supplier with existing purchase history',
+      );
     }
 
-    await FirestoreCollections.suppliers.doc(id).update({
-      'active': false,
-    });
+    await FirestoreCollections.suppliers.doc(id).update({'active': false});
   }
 
   /// Activate a supplier
   Future<void> activateSupplier(String id) async {
-    await FirestoreCollections.suppliers.doc(id).update({
-      'active': true,
-    });
+    await FirestoreCollections.suppliers.doc(id).update({'active': true});
   }
 }

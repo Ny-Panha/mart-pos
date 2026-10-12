@@ -10,6 +10,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/offline_bar.dart';
+import '../../../core/widgets/product_thumbnail.dart';
 import '../../../core/widgets/qty_stepper.dart';
 import '../../../data/firestore/models/product_model.dart';
 import 'package:intl/intl.dart';
@@ -634,43 +635,61 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. Scan Bar & Shift status chip in top area
-          Row(
-            children: [
-              _buildShiftStatusChip(context, openShift, isDark),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _scanController,
-                  focusNode: _scanFocusNode,
-                  autofocus: true,
-                  onSubmitted: _onBarcodeSubmitted,
-                  decoration: InputDecoration(
-                    hintText: 'ស្កេនបារកូដ ឬវាយលេខកូដ (Enter to add)...',
-                    prefixIcon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward_rounded, color: AppColors.primary),
-                      onPressed: () => _onBarcodeSubmitted(_scanController.text),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 560;
+              return Row(
+                children: [
+                  _buildShiftStatusChip(context, openShift, isDark),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _scanController,
+                      focusNode: _scanFocusNode,
+                      autofocus: true,
+                      onSubmitted: _onBarcodeSubmitted,
+                      decoration: InputDecoration(
+                        hintText: isNarrow ? 'ស្កេន ឬវាយកូដ...' : 'ស្កេនបារកូដ ឬវាយលេខកូដ (Enter to add)...',
+                        prefixIcon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.arrow_forward_rounded, color: AppColors.primary),
+                          onPressed: () => _onBarcodeSubmitted(_scanController.text),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: _openCameraScanner,
-                  icon: const Icon(Icons.camera_alt_outlined, size: 20),
-                  label: const Text('CAMERA SCAN'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
-                    backgroundColor: AppColors.secondary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                    ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    height: 48,
+                    child: isNarrow
+                        ? ElevatedButton(
+                            onPressed: _openCameraScanner,
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(48, 48),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              backgroundColor: AppColors.secondary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.button),
+                              ),
+                            ),
+                            child: const Icon(Icons.camera_alt_outlined, size: 20),
+                          )
+                        : ElevatedButton.icon(
+                            onPressed: _openCameraScanner,
+                            icon: const Icon(Icons.camera_alt_outlined, size: 20),
+                            label: const Text('CAMERA SCAN'),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              backgroundColor: AppColors.secondary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.button),
+                              ),
+                            ),
+                          ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
 
@@ -687,12 +706,11 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           ],
 
           // 4. Product Catalog Header & Filter
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('បញ្ជីទំនិញទាំងអស់ (All Products)', style: AppTextStyles.titleLG),
-              SizedBox(
-                width: 240,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 560;
+              final searchWidget = SizedBox(
+                width: isNarrow ? double.infinity : 240,
                 child: TextField(
                   onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
                   decoration: const InputDecoration(
@@ -702,8 +720,27 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('បញ្ជីទំនិញទាំងអស់ (All Products)', style: AppTextStyles.titleLG),
+                    const SizedBox(height: 10),
+                    searchWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('បញ្ជីទំនិញទាំងអស់ (All Products)', style: AppTextStyles.titleLG),
+                  searchWidget,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
 
@@ -769,16 +806,12 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
       border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
       child: Row(
         children: [
-          Container(
+          ProductThumbnail(
+            imageUrl: product.imageUrl,
             width: 80,
             height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: const Center(
-              child: Icon(Icons.inventory_2_rounded, color: AppColors.primary, size: 40),
-            ),
+            borderRadius: AppRadius.md,
+            fallbackIcon: Icons.inventory_2_rounded,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -905,16 +938,12 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
             },
             child: Row(
               children: [
-                Container(
+                ProductThumbnail(
+                  imageUrl: p.imageUrl,
                   width: 38,
                   height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.inventory_2_outlined, size: 20, color: AppColors.primary),
-                  ),
+                  borderRadius: 8,
+                  fallbackIcon: Icons.fastfood_outlined,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1032,7 +1061,15 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                   ],
                 ),
                 const Spacer(),
-                const Icon(Icons.fastfood_outlined, color: AppColors.primary, size: 28),
+                Center(
+                  child: ProductThumbnail(
+                    imageUrl: p.imageUrl,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 8,
+                    fallbackIcon: Icons.fastfood_outlined,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   p.name,
@@ -1128,61 +1165,76 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                     final item = cart.items[index];
                     return AppCard(
                       padding: const EdgeInsets.all(12),
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Row 1: Name + Remove
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item.product.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ProductThumbnail(
+                            imageUrl: item.product.imageUrl,
+                            width: 44,
+                            height: 44,
+                            borderRadius: 8,
+                            fallbackIcon: Icons.fastfood_outlined,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Row 1: Name + Remove
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.product.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ),
+                                    InkWell(
+                                      onTap: () => ref.read(posCartProvider.notifier).removeItem(item.product.id),
+                                      child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              InkWell(
-                                onTap: () => ref.read(posCartProvider.notifier).removeItem(item.product.id),
-                                child: const Icon(Icons.close, size: 18, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
+                                const SizedBox(height: 4),
 
-                          // Row 2: Unit Price
-                          Text(
-                            MoneyUtils.formatRiel(item.product.salePrice),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                                // Row 2: Unit Price
+                                Text(
+                                  MoneyUtils.formatRiel(item.product.salePrice),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                // Row 3: Stepper + Line Total
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    QtyStepper(
+                                      qty: item.qty,
+                                      maxQty: item.product.stockQty,
+                                      onDecrease: () => ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty - 1),
+                                      onIncrease: () {
+                                        final err = ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty + 1);
+                                        if (err != null) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                    Text(
+                                      MoneyUtils.formatRiel(item.lineTotal),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 8),
-
-                          // Row 3: Stepper + Line Total
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              QtyStepper(
-                                qty: item.qty,
-                                maxQty: item.product.stockQty,
-                                onDecrease: () => ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty - 1),
-                                onIncrease: () {
-                                  final err = ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty + 1);
-                                  if (err != null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(err), backgroundColor: AppColors.danger),
-                                    );
-                                  }
-                                },
-                              ),
-                              Text(
-                                MoneyUtils.formatRiel(item.lineTotal),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
-                            ],
                           ),
                         ],
                       ),

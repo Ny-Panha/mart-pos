@@ -1,22 +1,50 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
+  static const String adminManagerRole = 'ADMIN_MANAGER';
+  static const String adminRole = 'ADMIN';
+  static const String cashierRole = 'CASHIER';
+  static const String defaultShopId = 'default-shop';
+
   final String id; // auth uid
   final String name;
-  final String role; // 'admin' | 'cashier'
+  final String? email;
+  final String role; // ADMIN_MANAGER | ADMIN | CASHIER
+  final String? shopId; // null only for platform managers
   final bool active;
   final DateTime createdAt;
 
   UserModel({
     required this.id,
     required this.name,
+    this.email,
     required this.role,
+    this.shopId,
     this.active = true,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  bool get isAdmin => role.toLowerCase() == 'admin';
-  bool get isCashier => role.toLowerCase() == 'cashier';
+  String get normalizedRole {
+    return normalizeRole(role);
+  }
+
+  bool get isManager => normalizedRole == adminManagerRole;
+  bool get isAdmin => normalizedRole == adminRole;
+  bool get isCashier => normalizedRole == cashierRole;
+  bool get canManageShop => isAdmin || isManager;
+
+  static String normalizeRole(String value) {
+    final normalized = value.trim().toUpperCase();
+    if (normalized == 'MANAGER' || normalized == 'SUPER') {
+      return adminManagerRole;
+    }
+    return normalized;
+  }
+
+  static String? shopIdForProfile({required String role, String? shopId}) {
+    if (shopId != null && shopId.isNotEmpty) return shopId;
+    return normalizeRole(role) == adminManagerRole ? null : defaultShopId;
+  }
 
   factory UserModel.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> snapshot, [
@@ -26,7 +54,12 @@ class UserModel {
     return UserModel(
       id: snapshot.id,
       name: data?['name']?.toString() ?? '',
-      role: data?['role']?.toString().toLowerCase() ?? 'cashier',
+      email: data?['email']?.toString(),
+      role: normalizeRole(data?['role']?.toString() ?? cashierRole),
+      shopId: shopIdForProfile(
+        role: data?['role']?.toString() ?? cashierRole,
+        shopId: data?['shopId']?.toString(),
+      ),
       active: data?['active'] ?? true,
       createdAt: (data?['createdAt'] is Timestamp)
           ? (data!['createdAt'] as Timestamp).toDate()
@@ -37,7 +70,9 @@ class UserModel {
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,
-      'role': role.toLowerCase(),
+      if (email != null && email!.isNotEmpty) 'email': email,
+      'role': normalizedRole,
+      if (shopId != null) 'shopId': shopId,
       'active': active,
       'createdAt': Timestamp.fromDate(createdAt),
     };
@@ -46,14 +81,18 @@ class UserModel {
   UserModel copyWith({
     String? id,
     String? name,
+    String? email,
     String? role,
+    String? shopId,
     bool? active,
     DateTime? createdAt,
   }) {
     return UserModel(
       id: id ?? this.id,
       name: name ?? this.name,
+      email: email ?? this.email,
       role: role ?? this.role,
+      shopId: shopId ?? this.shopId,
       active: active ?? this.active,
       createdAt: createdAt ?? this.createdAt,
     );

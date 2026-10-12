@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/product_model.dart';
 import '../firestore/models/sale_model.dart';
+import '../firestore/shop_scope.dart';
 
 class ReportRepository {
   /// Pure profit calculation helper (tested in unit tests)
@@ -25,28 +27,28 @@ class ReportRepository {
 
   /// Watch sales within a specific date range
   Stream<List<SaleModel>> watchSalesRange(DateTime start, DateTime end) {
-    return FirestoreCollections.sales
+    return ShopScope.query(FirestoreCollections.sales)
         .where('createdAt', isGreaterThanOrEqualTo: start)
         .where('createdAt', isLessThanOrEqualTo: end)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
         .handleError((error) {
-      debugPrint('watchSalesRange error: $error');
-      return <SaleModel>[];
-    });
+          debugPrint('watchSalesRange error: $error');
+          return <SaleModel>[];
+        });
   }
 
   /// Watch latest recent sales (default 200) for general dashboard and reporting
   Stream<List<SaleModel>> watchAllRecentSales({int limit = 200}) {
-    return FirestoreCollections.sales
+    return ShopScope.query(FirestoreCollections.sales)
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
         .handleError((error) {
-      debugPrint('watchAllRecentSales error: $error');
-      return <SaleModel>[];
-    });
+          debugPrint('watchAllRecentSales error: $error');
+          return <SaleModel>[];
+        });
   }
 }

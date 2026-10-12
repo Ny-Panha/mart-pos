@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../features/auth/providers/auth_provider.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/audit_log_model.dart';
+import '../firestore/shop_scope.dart';
 
 class AuditService {
   /// Fire-and-forget logging to `auditLogs` collection.
@@ -78,7 +80,7 @@ class AuditService {
 
   /// Watch audit logs stream ordered by `createdAt` desc with limit (default 200).
   static Stream<List<AuditLogModel>> watchLogs({int limit = 200}) {
-    return FirestoreCollections.auditLogs
+    return ShopScope.query(FirestoreCollections.auditLogs)
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()

@@ -1,22 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/held_bill_model.dart';
 import '../firestore/models/sale_model.dart';
 import '../firestore/models/stock_movement_model.dart';
+import '../firestore/shop_scope.dart';
 
 class SaleRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   Stream<List<SaleModel>> watchSales() {
-    return FirestoreCollections.sales
+    var query = ShopScope.query(FirestoreCollections.sales);
+    if (ShopScope.isCashier && ShopScope.userId != null) {
+      query = query.where('cashierId', isEqualTo: ShopScope.userId);
+    }
+    return query
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
         .handleError((error) {
-      debugPrint('watchSales error: $error');
-      return <SaleModel>[];
-    });
+          debugPrint('watchSales error: $error');
+          return <SaleModel>[];
+        });
   }
 
   /// Critical Rule: Checkout MUST use WriteBatch (works offline, queues in cache):
@@ -68,7 +74,11 @@ class SaleRepository {
 
   // Held Bills
   Stream<List<HeldBillModel>> watchHeldBills() {
-    return FirestoreCollections.heldBills
+    var query = ShopScope.query(FirestoreCollections.heldBills);
+    if (ShopScope.isCashier && ShopScope.userId != null) {
+      query = query.where('cashierId', isEqualTo: ShopScope.userId);
+    }
+    return query
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((d) => d.data()).toList());

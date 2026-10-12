@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mart_pos/core/role_route_guard.dart';
 import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/audit_log_model.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
@@ -31,6 +32,40 @@ void main() {
 
     test('Riel to USD conversion', () {
       expect(MoneyUtils.rielToUsd(4100), 1.0);
+    });
+  });
+
+  group('UserModel role and shop scope', () {
+    test('normalizes manager role and identifies access levels', () {
+      final manager = UserModel(id: 'm1', name: 'Manager', role: 'manager');
+      final admin = UserModel(id: 'a1', name: 'Admin', role: 'ADMIN', shopId: 'shop-a');
+      final cashier = UserModel(id: 'c1', name: 'Cashier', role: 'CASHIER', shopId: 'shop-a');
+      expect(manager.isManager, true);
+      expect(manager.canManageShop, true);
+      expect(admin.isAdmin, true);
+      expect(admin.canManageShop, true);
+      expect(cashier.isCashier, true);
+      expect(cashier.canManageShop, false);
+    });
+
+    test('uses the migration shop for legacy staff profiles', () {
+      expect(UserModel.shopIdForProfile(role: 'ADMIN'), UserModel.defaultShopId);
+      expect(UserModel.shopIdForProfile(role: 'SUPER'), isNull);
+    });
+  });
+
+  group('Role route guard', () {
+    test('sends roles home and blocks cross-role destinations', () {
+      final manager = UserModel(id: 'm1', name: 'Manager', role: 'ADMIN_MANAGER');
+      final admin = UserModel(id: 'a1', name: 'Admin', role: 'ADMIN', shopId: 'shop-a');
+      final cashier = UserModel(id: 'c1', name: 'Cashier', role: 'CASHIER', shopId: 'shop-a');
+      expect(RoleRouteGuard.redirect(manager, '/login'), '/manager');
+      expect(RoleRouteGuard.redirect(manager, '/admin'), '/manager');
+      expect(RoleRouteGuard.redirect(admin, '/manager/reports'), '/admin');
+      expect(RoleRouteGuard.redirect(admin, '/cashier/history'), '/admin');
+      expect(RoleRouteGuard.redirect(cashier, '/manager'), '/pos');
+      expect(RoleRouteGuard.redirect(cashier, '/admin'), '/pos');
+      expect(RoleRouteGuard.redirect(cashier, '/cashier/history'), isNull);
     });
   });
 
