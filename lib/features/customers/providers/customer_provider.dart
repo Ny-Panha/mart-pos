@@ -5,11 +5,17 @@ import '../../../data/firestore/firestore_collections.dart';
 import '../../../data/firestore/models/customer_model.dart';
 import '../../../data/firestore/shop_scope.dart';
 
+import '../../auth/providers/auth_provider.dart';
+
 final customersStreamProvider = StreamProvider<List<CustomerModel>>((ref) {
+  ref.watch(authProvider);
   return ShopScope.query(FirestoreCollections.customers)
-      .orderBy('name')
       .snapshots()
-      .map((snap) => snap.docs.map((d) => d.data()).toList());
+      .map((snap) {
+        final list = snap.docs.map((d) => d.data()).toList();
+        list.sort((a, b) => a.name.compareTo(b.name));
+        return list;
+      });
 });
 
 final customerRepositoryProvider = Provider<CustomerRepository>((ref) {

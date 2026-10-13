@@ -18,8 +18,8 @@ class ShopScope {
   static String? get userId => _userId;
 
   static String requireShopId() {
-    final id = _shopId;
-    if (id == null || id.isEmpty) {
+    final id = _shopId ?? UserModel.defaultShopId;
+    if (id.isEmpty) {
       throw StateError('A shop account is required for this operation.');
     }
     return id;

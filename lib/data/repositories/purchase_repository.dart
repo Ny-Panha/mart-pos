@@ -50,10 +50,13 @@ class PurchaseRepository {
   /// Watch purchases stream (orderBy createdAt desc, limit 100)
   Stream<List<PurchaseModel>> watchPurchases() {
     return ShopScope.query(FirestoreCollections.purchases)
-        .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        })
         .handleError((error) {
           debugPrint('watchPurchases error: $error');
           return <PurchaseModel>[];
@@ -64,9 +67,12 @@ class PurchaseRepository {
   Stream<List<PurchaseModel>> watchPurchasesBySupplier(String supplierId) {
     return ShopScope.query(FirestoreCollections.purchases)
         .where('supplierId', isEqualTo: supplierId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        })
         .handleError((error) {
           debugPrint('watchPurchasesBySupplier error: $error');
           return <PurchaseModel>[];

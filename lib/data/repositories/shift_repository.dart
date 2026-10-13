@@ -22,9 +22,12 @@ class ShiftRepository {
   /// Watches all closed and open shifts for history reporting
   Stream<List<DailyCloseModel>> watchAllShifts() {
     return ShopScope.query(FirestoreCollections.dailyCloses)
-        .orderBy('openedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => doc.data()).toList();
+          list.sort((a, b) => b.openedAt.compareTo(a.openedAt));
+          return list;
+        });
   }
 
   /// Opens a new cashier shift with opening float cash

@@ -2,11 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/firestore/models/product_model.dart';
 import '../../../data/repositories/product_repository.dart';
 
+import '../../auth/providers/auth_provider.dart';
+
 final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepository();
 });
 
 final productsStreamProvider = StreamProvider<List<ProductModel>>((ref) {
+  ref.watch(authProvider);
   final repo = ref.watch(productRepositoryProvider);
   return repo.watchProducts();
 });

@@ -81,10 +81,13 @@ class AuditService {
   /// Watch audit logs stream ordered by `createdAt` desc with limit (default 200).
   static Stream<List<AuditLogModel>> watchLogs({int limit = 200}) {
     return ShopScope.query(FirestoreCollections.auditLogs)
-        .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        })
         .handleError((error) {
           debugPrint('watchLogs error: $error');
           return <AuditLogModel>[];

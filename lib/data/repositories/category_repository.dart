@@ -21,14 +21,15 @@ class CategoryRepository {
 
   Stream<List<CategoryModel>> watchCategories() {
     return ShopScope.query(FirestoreCollections.categories)
-        .orderBy('sortOrder')
         .snapshots()
         .map((snapshot) {
           if (snapshot.docs.isEmpty) {
             seedDefaultCategories();
             return _defaultCategories;
           }
-          return snapshot.docs.map((d) => d.data()).toList();
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+          return list;
         })
         .handleError((error) {
           debugPrint('Firestore watchCategories error: $error');

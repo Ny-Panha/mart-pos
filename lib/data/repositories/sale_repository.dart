@@ -16,9 +16,12 @@ class SaleRepository {
       query = query.where('cashierId', isEqualTo: ShopScope.userId);
     }
     return query
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        })
         .handleError((error) {
           debugPrint('watchSales error: $error');
           return <SaleModel>[];

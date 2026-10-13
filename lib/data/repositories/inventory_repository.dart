@@ -28,10 +28,13 @@ class InventoryRepository {
     }
 
     return query
-        .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => doc.data()).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        })
         .handleError((error) {
           debugPrint('watchStockMovements error: $error');
           return <StockMovementModel>[];
