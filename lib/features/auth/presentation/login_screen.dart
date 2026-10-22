@@ -335,7 +335,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   child: const Text(
-                    'Admin (បញ្ញា)',
+                    'Admin (ផ្កាយ)',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -352,7 +352,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   child: const Text(
-                    'Cashier (ស្រីផ្កាយ)',
+                    'Cashier (បញ្ញា)',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -445,7 +445,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 8),
                     Text(
                       '១. នី បញ្ញា (Team Lead & Full-Stack Developer)\n'
-                      '២. គក់ ស្រីផ្កាយ (UI/UX & Frontend Developer)\n'
+                      '២. ផ្កាយ (UI/UX & Frontend Developer)\n'
                       '៣. គុយ ដាលី (Database & QA Engineer)',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.85),

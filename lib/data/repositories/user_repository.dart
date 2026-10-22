@@ -17,7 +17,16 @@ class UserRepository {
     return ShopScope.query(FirestoreCollections.users)
         .snapshots()
         .map((snapshot) {
-          final list = snapshot.docs.map((doc) => doc.data()).toList();
+          final list = snapshot.docs.map((doc) {
+            final data = doc.data();
+            final email = (data.email ?? '').toLowerCase().trim();
+            if (email == 'admin@bbu.edu.kh' && data.name != 'ផ្កាយ') {
+              return data.copyWith(name: 'ផ្កាយ');
+            } else if (email == 'cashier@bbu.edu.kh' && data.name != 'នី បញ្ញា') {
+              return data.copyWith(name: 'នី បញ្ញា');
+            }
+            return data;
+          }).toList();
           list.sort(
             (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
           );

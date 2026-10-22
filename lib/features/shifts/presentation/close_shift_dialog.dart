@@ -113,14 +113,14 @@ class _CloseShiftDialogState extends ConsumerState<CloseShiftDialog> {
 
     final timeFormatter = DateFormat('dd/MM/yyyy HH:mm');
 
-    final content = Container(
-      constraints: const BoxConstraints(maxWidth: 520),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(isDesktop ? AppRadius.card : 20),
-      ),
-      child: summaryAsync.when(
+    final content = Material(
+      color: isDark ? AppColors.darkCard : Colors.white,
+      borderRadius: BorderRadius.circular(isDesktop ? AppRadius.card : 20),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 520),
+        padding: const EdgeInsets.all(24),
+        child: summaryAsync.when(
         loading: () => const SizedBox(
           height: 250,
           child: Center(child: CircularProgressIndicator()),
@@ -338,6 +338,7 @@ class _CloseShiftDialogState extends ConsumerState<CloseShiftDialog> {
             ),
           );
         },
+      ),
       ),
     );
 

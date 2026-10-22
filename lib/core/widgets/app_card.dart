@@ -52,15 +52,29 @@ class AppCard extends StatelessWidget {
         ? effectiveRadius
         : BorderRadius.circular(AppRadius.card);
 
-    Widget container = Container(
+    Widget body = Container(
       width: width,
       height: height,
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
         gradient: gradient,
         borderRadius: effectiveRadius,
         border: border ?? Border.all(color: borderColor, width: 1),
+      ),
+      child: child,
+    );
+
+    if (onTap != null) {
+      body = InkWell(
+        borderRadius: br,
+        onTap: onTap,
+        child: body,
+      );
+    }
+
+    Widget container = Container(
+      decoration: BoxDecoration(
+        borderRadius: effectiveRadius,
         boxShadow: boxShadow ?? [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
@@ -75,7 +89,12 @@ class AppCard extends StatelessWidget {
           ),
         ],
       ),
-      child: child,
+      child: Material(
+        color: gradient != null ? Colors.transparent : cardColor,
+        borderRadius: effectiveRadius,
+        clipBehavior: Clip.antiAlias,
+        child: body,
+      ),
     );
 
     if (isFrosted) {
@@ -83,18 +102,6 @@ class AppCard extends StatelessWidget {
         borderRadius: br,
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: container,
-        ),
-      );
-    }
-
-    if (onTap != null) {
-      return Material(
-        color: Colors.transparent,
-        borderRadius: effectiveRadius,
-        child: InkWell(
-          borderRadius: br,
-          onTap: onTap,
           child: container,
         ),
       );

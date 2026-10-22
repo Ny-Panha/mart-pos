@@ -103,14 +103,14 @@ class _OpenShiftDialogState extends ConsumerState<OpenShiftDialog> {
     final user = ref.watch(authProvider).value;
     final isDesktop = Responsive.isDesktop(context);
 
-    final content = Container(
-      constraints: const BoxConstraints(maxWidth: 480),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(isDesktop ? AppRadius.card : 20),
-      ),
-      child: Column(
+    final content = Material(
+      color: isDark ? AppColors.darkCard : Colors.white,
+      borderRadius: BorderRadius.circular(isDesktop ? AppRadius.card : 20),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480),
+        padding: const EdgeInsets.all(24),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -235,6 +235,7 @@ class _OpenShiftDialogState extends ConsumerState<OpenShiftDialog> {
             ],
           ),
         ],
+      ),
       ),
     );
 

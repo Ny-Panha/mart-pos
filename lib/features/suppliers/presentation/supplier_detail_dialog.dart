@@ -267,13 +267,14 @@ class SupplierDetailDialog extends ConsumerWidget {
         ),
       );
     } else {
-      return Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      return Material(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(child: content),
         ),
-        padding: const EdgeInsets.all(20),
-        child: SingleChildScrollView(child: content),
       );
     }
   }

@@ -29,8 +29,12 @@ class ProductsScreen extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.7,
+        return Material(
+          color: Colors.black,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.7,
           child: Column(
             children: [
               Padding(
@@ -74,6 +78,7 @@ class ProductsScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
         );
       },
     );

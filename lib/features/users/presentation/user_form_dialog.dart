@@ -175,14 +175,14 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop = Responsive.isDesktop(context);
 
-    final content = Container(
-      constraints: const BoxConstraints(maxWidth: 480),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(isDesktop ? AppRadius.card : 20),
-      ),
-      child: Form(
+    final content = Material(
+      color: isDark ? AppColors.darkCard : Colors.white,
+      borderRadius: BorderRadius.circular(isDesktop ? AppRadius.card : 20),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480),
+        padding: const EdgeInsets.all(24),
+        child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           child: Column(
@@ -401,7 +401,7 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
-                hintText: 'ឧ. នី បញ្ញា, គក់ ស្រីផ្កាយ...',
+                hintText: 'ឧ. នី បញ្ញា, ផ្កាយ...',
                 prefixIcon: Icon(Icons.badge_outlined),
               ),
               validator: (val) {
@@ -456,6 +456,7 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
           ],
         ),
         ),
+      ),
       ),
     );
 

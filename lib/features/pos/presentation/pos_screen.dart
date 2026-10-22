@@ -47,6 +47,12 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
   }
 
   @override
+  void deactivate() {
+    _scanFocusNode.unfocus();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _scanController.dispose();
     _discountController.dispose();
@@ -96,7 +102,9 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
     }
 
     _scanController.clear();
-    _scanFocusNode.requestFocus();
+    if (Responsive.isDesktop(context)) {
+      _scanFocusNode.requestFocus();
+    }
   }
 
   void _openCameraScanner() {
@@ -108,42 +116,47 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Scan Product Barcode',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  child: MobileScanner(
-                    onDetect: (capture) {
-                      final barcodes = capture.barcodes;
-                      if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-                        final scanned = barcodes.first.rawValue!;
-                        Navigator.pop(ctx);
-                        _onBarcodeSubmitted(scanned);
-                      }
-                    },
+        return Material(
+          color: Colors.black,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.7,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Scan Product Barcode',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    child: MobileScanner(
+                      onDetect: (capture) {
+                        final barcodes = capture.barcodes;
+                        if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                          final scanned = barcodes.first.rawValue!;
+                          Navigator.pop(ctx);
+                          _onBarcodeSubmitted(scanned);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -557,7 +570,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                     child: TextField(
                       controller: _scanController,
                       focusNode: _scanFocusNode,
-                      autofocus: true,
+                      autofocus: false,
                       onSubmitted: _onBarcodeSubmitted,
                       decoration: InputDecoration(
                         hintText: isNarrow ? 'ស្កេន ឬវាយកូដ...' : 'ស្កេនបារកូដ ឬវាយលេខកូដ (Enter to add)...',

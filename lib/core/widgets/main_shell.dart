@@ -277,6 +277,7 @@ class MainShell extends ConsumerWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: activeTabIndex >= 0 ? activeTabIndex : primaryTabs.length,
         onDestinationSelected: (index) {
+          FocusManager.instance.primaryFocus?.unfocus();
           if (index < primaryTabs.length) {
             context.go(primaryTabs[index].path);
           } else {
@@ -327,12 +328,12 @@ class MainShell extends ConsumerWidget {
             final textColor = isDark ? AppColors.darkText : AppColors.lightText;
             final mutedColor = isDark ? AppColors.darkMutedText : AppColors.lightMutedText;
             final primaryColor = isDark ? AppColors.darkPrimary : AppColors.primary;
+            final liveUser = ref.watch(authProvider).value ?? user;
 
-            return Container(
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
+            return Material(
+              color: surfaceColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              clipBehavior: Clip.antiAlias,
               child: DraggableScrollableSheet(
                 initialChildSize: 0.85,
                 maxChildSize: 0.95,
@@ -369,10 +370,12 @@ class MainShell extends ConsumerWidget {
                                 ),
                                 child: Center(
                                   child: Text(
-                                    (user?.email?.isNotEmpty ?? false)
-                                        ? user!.email[0].toUpperCase()
-                                        : 'M',
-                                    style: const TextStyle(
+                                    (liveUser?.name != null && liveUser!.name.isNotEmpty)
+                                        ? liveUser.name[0]
+                                        : ((liveUser?.email?.isNotEmpty ?? false)
+                                            ? liveUser!.email![0].toUpperCase()
+                                            : 'M'),
+                                    style: GoogleFonts.notoSansKhmer(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 18,
@@ -386,7 +389,9 @@ class MainShell extends ConsumerWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      user?.name ?? user?.email ?? 'Mart User',
+                                      (liveUser?.name != null && liveUser!.name.isNotEmpty)
+                                          ? liveUser.name
+                                          : (liveUser?.email ?? 'Mart User'),
                                       style: GoogleFonts.notoSansKhmer(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15,
@@ -397,7 +402,7 @@ class MainShell extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${user?.normalizedRole ?? "Staff"} • Mart POS',
+                                      '${liveUser?.normalizedRole ?? "Staff"} • Mart POS',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: mutedColor,

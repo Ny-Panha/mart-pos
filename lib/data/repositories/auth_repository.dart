@@ -11,6 +11,31 @@ class AuthRepository {
 
   User? get currentFirebaseUser => _auth.currentUser;
 
+  Future<UserModel> _syncUserProfile(UserModel profile, User user) async {
+    UserModel updated = profile;
+    if ((updated.email == null || updated.email!.isEmpty) && user.email != null) {
+      updated = updated.copyWith(email: user.email);
+    }
+
+    final email = (updated.email ?? user.email ?? '').toLowerCase().trim();
+    if (email == 'admin@bbu.edu.kh') {
+      if (updated.name != 'ផ្កាយ') {
+        try {
+          await FirestoreCollections.users.doc(user.uid).update({'name': 'ផ្កាយ'});
+        } catch (_) {}
+        updated = updated.copyWith(name: 'ផ្កាយ');
+      }
+    } else if (email == 'cashier@bbu.edu.kh') {
+      if (updated.name != 'នី បញ្ញា') {
+        try {
+          await FirestoreCollections.users.doc(user.uid).update({'name': 'នី បញ្ញា'});
+        } catch (_) {}
+        updated = updated.copyWith(name: 'នី បញ្ញា');
+      }
+    }
+    return updated;
+  }
+
   Future<UserModel?> getCurrentUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -20,7 +45,9 @@ class AuthRepository {
       throw Exception('Account not set up — contact admin');
     }
 
-    final profile = doc.data()!;
+    var profile = doc.data()!;
+    profile = await _syncUserProfile(profile, user);
+
     if (!profile.isManager &&
         (profile.shopId == null || profile.shopId!.isEmpty)) {
       await signOut();
@@ -44,7 +71,8 @@ class AuthRepository {
       email: email,
       password: password,
     );
-    final uid = credential.user!.uid;
+    final user = credential.user!;
+    final uid = user.uid;
 
     final doc = await FirestoreCollections.users.doc(uid).get();
     if (!doc.exists || doc.data() == null) {
@@ -52,7 +80,9 @@ class AuthRepository {
       throw Exception('Account not set up — contact admin');
     }
 
-    final profile = doc.data()!;
+    var profile = doc.data()!;
+    profile = await _syncUserProfile(profile, user);
+
     if (!profile.isManager &&
         (profile.shopId == null || profile.shopId!.isEmpty)) {
       await _auth.signOut();

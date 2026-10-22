@@ -93,13 +93,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0A1222) : const Color(0xFFF8FAFC),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          MediaQuery.sizeOf(context).width < 600 ? 14.0 : 22.0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 600 ? 14.0 : 22.0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // 1. Tavola Header Row: Big Service Title + Horizontal Metric Pills
             _buildTavolaHeader(
               context: context,
@@ -213,6 +214,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -1570,6 +1572,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         isDark: isDark,
                         sale: recentSales[index],
                         cardIndex: index,
+                        isTwoCol: true,
                       );
                     },
                   );
@@ -1587,6 +1590,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         isDark: isDark,
                         sale: recentSales[index],
                         cardIndex: index,
+                        isTwoCol: false,
                       ),
                     );
                   },
@@ -1609,6 +1613,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required bool isDark,
     required SaleModel sale,
     required int cardIndex,
+    bool isTwoCol = true,
   }) {
     final isKhqr = sale.paymentMethod.toLowerCase() == 'khqr';
     // Alternate or use payment method to give Tavola pastel look
@@ -1712,49 +1717,95 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 8),
 
               // Itemized Preview (1x ..., 2x ...)
-              Expanded(
-                child: ListView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  children: [
-                    if (sale.items.isEmpty)
-                      Text(
-                        'No item detail',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? Colors.white54 : Colors.black45,
-                        ),
-                      )
-                    else
-                      ...sale.items.take(3).map((item) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 3.0),
-                          child: Text(
-                            '${item.qty}x ${item.name}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: isDark
-                                  ? const Color(0xFFE2E8F0)
-                                  : const Color(0xFF334155),
-                            ),
+              if (isTwoCol)
+                Expanded(
+                  child: ListView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    children: [
+                      if (sale.items.isEmpty)
+                        Text(
+                          'No item detail',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white54 : Colors.black45,
                           ),
-                        );
-                      }),
-                    if (sale.items.length > 3)
-                      Text(
-                        '+ ${sale.items.length - 3} more items',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontStyle: FontStyle.italic,
-                          color: titleColor,
+                        )
+                      else
+                        ...sale.items.take(3).map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 3.0),
+                            child: Text(
+                              '${item.qty}x ${item.name}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
+                          );
+                        }),
+                      if (sale.items.length > 3)
+                        Text(
+                          '+ ${sale.items.length - 3} more items',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: titleColor,
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (sale.items.isEmpty)
+                        Text(
+                          'No item detail',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
+                        )
+                      else
+                        ...sale.items.take(3).map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 3.0),
+                            child: Text(
+                              '${item.qty}x ${item.name}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
+                          );
+                        }),
+                      if (sale.items.length > 3)
+                        Text(
+                          '+ ${sale.items.length - 3} more items',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: titleColor,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
 
               const Divider(height: 12, thickness: 0.8),
 
