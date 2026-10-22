@@ -114,7 +114,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             )
           : null,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

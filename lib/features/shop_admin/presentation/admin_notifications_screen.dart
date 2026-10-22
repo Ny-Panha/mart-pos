@@ -16,14 +16,16 @@ class AdminNotificationsScreen extends ConsumerWidget {
     final notifications = ref.watch(adminNotificationsProvider);
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const PageHeader(
-              eyebrow: 'Shop admin',
-              title: 'Notification channels',
-              description: 'Review operational messages and notification channels for your shop.',
+              eyebrow: 'Alerts & Messages',
+              title: 'ការជូនដំណឹង (Notifications)',
+              description: 'តាមដានសារដំណឹងប្រតិបត្តិការ និងការជូនដំណឹងសំខាន់ៗក្នុងហាង',
             ),
             notifications.when(
               loading: () => const Center(

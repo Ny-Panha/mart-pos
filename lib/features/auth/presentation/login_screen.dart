@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/role_route_guard.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -51,7 +52,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .read(authProvider.notifier)
           .signIn(email: email, password: password);
       if (mounted) {
-        context.go('/pos');
+        final user = ref.read(authProvider).value;
+        if (user != null) {
+          final target = RoleRouteGuard.redirect(user, '/login') ?? '/admin';
+          context.go(target);
+        } else {
+          context.go('/admin');
+        }
       }
     } catch (e) {
       setState(() => _errorMessage = 'Sign in failed: ${e.toString()}');
@@ -289,19 +296,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isLoading: isLoading,
             onPressed: _handleSignIn,
           ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: isLoading ? null : _handleManagerBootstrap,
-            icon: const Icon(Icons.admin_panel_settings_outlined),
-            label: const Text('Initialize first platform manager'),
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton.icon(
+              onPressed: isLoading ? null : _handleManagerBootstrap,
+              icon: const Icon(Icons.admin_panel_settings_outlined, size: 16),
+              label: const Text(
+                'Initialize platform manager (First run only)',
+                style: TextStyle(fontSize: 11),
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Works only for the allowlisted UID, once, while no manager profile exists.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 10, color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Quick Demo Users
           const Divider(),
@@ -330,7 +336,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   child: const Text(
                     'Admin (បញ្ញា)',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -347,7 +353,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   child: const Text(
                     'Cashier (ស្រីផ្កាយ)',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),

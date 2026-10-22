@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../features/auth/providers/auth_provider.dart';
+import '../../features/inventory/providers/inventory_provider.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_radius.dart';
 import '../theme/theme_mode_provider.dart';
 import '../utils/responsive.dart';
 import 'ios_theme_toggle.dart';
+import 'mesh_background.dart';
 export 'ios_theme_toggle.dart';
+export 'mesh_background.dart';
 
 class MainShell extends ConsumerWidget {
   final Widget child;
@@ -86,17 +88,17 @@ class MainShell extends ConsumerWidget {
     if (admin) {
       return const [
         _NavItem(
-          path: '/pos',
-          label: 'POS Checkout',
-          khmerLabel: 'បញ្ជរគិតលុយ',
-          icon: Icons.point_of_sale_rounded,
-          category: 'ចម្បង (CORE)',
-        ),
-        _NavItem(
           path: '/admin',
           label: 'Dashboard',
           khmerLabel: 'ផ្ទាំងគ្រប់គ្រង',
           icon: Icons.dashboard_rounded,
+          category: 'ចម្បង (CORE)',
+        ),
+        _NavItem(
+          path: '/pos',
+          label: 'POS Checkout',
+          khmerLabel: 'បញ្ជរគិតលុយ',
+          icon: Icons.point_of_sale_rounded,
           category: 'ចម្បង (CORE)',
         ),
         _NavItem(
@@ -227,7 +229,15 @@ class MainShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authProvider).value;
+    final authState = ref.watch(authProvider);
+    if (authState.isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    final user = authState.value;
     final manager = user?.isManager ?? false;
     final admin = user?.isAdmin ?? false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -249,7 +259,7 @@ class MainShell extends ConsumerWidget {
               isDark: isDark,
             ),
             const VerticalDivider(thickness: 1, width: 1),
-            Expanded(child: child),
+            Expanded(child: MeshBackground(child: child)),
           ],
         ),
       );
@@ -263,7 +273,7 @@ class MainShell extends ConsumerWidget {
     final activeTabIndex = _findActiveIndex(primaryTabs, location);
 
     return Scaffold(
-      body: child,
+      body: MeshBackground(child: child),
       bottomNavigationBar: NavigationBar(
         selectedIndex: activeTabIndex >= 0 ? activeTabIndex : primaryTabs.length,
         onDestinationSelected: (index) {
@@ -640,6 +650,36 @@ class MainShell extends ConsumerWidget {
   }
 }
 
+class SidebarCollapsedNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void toggle() => state = !state;
+}
+
+final sidebarCollapsedProvider =
+    NotifierProvider<SidebarCollapsedNotifier, bool>(SidebarCollapsedNotifier.new);
+
+class CollapsedNavGroupsNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => {};
+
+  void toggle(String group) {
+    final next = Set<String>.from(state);
+    if (next.contains(group)) {
+      next.remove(group);
+    } else {
+      next.add(group);
+    }
+    state = next;
+  }
+}
+
+final collapsedNavGroupsProvider =
+    NotifierProvider<CollapsedNavGroupsNotifier, Set<String>>(
+  CollapsedNavGroupsNotifier.new,
+);
+
 class _DesktopSidebar extends ConsumerWidget {
   final List<_NavItem> items;
   final String currentPath;
@@ -651,171 +691,293 @@ class _DesktopSidebar extends ConsumerWidget {
   const _DesktopSidebar({
     required this.items,
     required this.currentPath,
-    required this.user,
-    required this.manager,
-    required this.admin,
+    this.user,
+    this.manager = false,
+    this.admin = false,
     required this.isDark,
   });
 
+  bool _isItemActive(_NavItem item, String currentPath) {
+    if (currentPath == item.path) return true;
+    if (item.path == '/admin' ||
+        item.path == '/manager' ||
+        item.path == '/' ||
+        item.path == '/pos') {
+      return false;
+    }
+    return currentPath.startsWith('${item.path}/');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isCollapsed = ref.watch(sidebarCollapsedProvider);
+    final collapsedGroups = ref.watch(collapsedNavGroupsProvider);
+    final lowStockCount = ref.watch(lowStockProductsProvider).length;
+
     // Group items by category
     final Map<String, List<_NavItem>> groups = {};
     for (final item in items) {
       groups.putIfAbsent(item.category, () => []).add(item);
     }
 
-    return Container(
-      width: 250,
-      color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeInOutCubic,
+      width: isCollapsed ? 74 : 260,
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0D1526) : Colors.white,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? const Color(0xFF1E2D4A) : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+        ),
+      ),
       child: Column(
         children: [
           // Branding Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.secondary],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.28),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+            padding: EdgeInsets.fromLTRB(isCollapsed ? 8 : 14, 16, isCollapsed ? 8 : 12, 12),
+            child: isCollapsed
+                ? Center(
+                    child: Tooltip(
+                      message: 'Mart POS (ចុចដើម្បីពង្រីកមឺនុយ)',
+                      child: InkWell(
+                        onTap: () => ref.read(sidebarCollapsedProvider.notifier).toggle(),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'M',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'M',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  )
+                : Row(
                     children: [
-                      Text(
-                        manager ? 'PLATFORM ADMIN' : 'MINI-MART POS',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.6,
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'M',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
+                          ),
                         ),
                       ),
-                      Text(
-                        'Management System',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Mart POS',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              'ប្រព័ន្ធគ្រប់គ្រងម៉ាត',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        tooltip: 'បង្រួមមឺនុយ (Collapse Menu)',
+                        icon: Icon(
+                          Icons.menu_open_rounded,
+                          size: 19,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                        onPressed: () {
+                          ref.read(sidebarCollapsedProvider.notifier).toggle();
+                        },
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
           ),
 
-          // User Info Pill Card
-          if (user != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkCard : AppColors.lightCard,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: (isDark ? AppColors.darkPrimary : AppColors.primary).withValues(alpha: 0.15),
-                      child: Text(
-                        (user.email?.isNotEmpty ?? false)
-                            ? user.email[0].toUpperCase()
-                            : 'U',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? AppColors.darkPrimary : AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.name ?? user.email ?? 'User',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            user.normalizedRole,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 8),
           const Divider(height: 1),
 
-          // Scrollable Navigation Groups
+          // Scrollable Navigation Groups (Collapsible Accordion)
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 8 : 10, vertical: 8),
               children: [
                 for (final entry in groups.entries) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
-                    child: Text(
-                      entry.key,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.9,
-                        color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                      ),
+                  if (isCollapsed) ...[
+                    // Collapsed mode: icon-only items
+                    const SizedBox(height: 6),
+                    for (final item in entry.value) ...[
+                      Builder(builder: (context) {
+                        String? badgeText;
+                        Color? badgeColor;
+                        if (item.path == '/admin/inventory' && lowStockCount > 0) {
+                          badgeText = '$lowStockCount';
+                          badgeColor = const Color(0xFFE06D53); // Tavola coral
+                        } else if (item.path == '/admin/reports') {
+                          badgeText = 'LIVE';
+                          badgeColor = const Color(0xFF10B981); // Mint green
+                        }
+                        return _buildDesktopNavItem(
+                          context: context,
+                          item: item,
+                          isActive: _isItemActive(item, currentPath),
+                          isCollapsed: isCollapsed,
+                          isDark: isDark,
+                          badgeText: badgeText,
+                          badgeColor: badgeColor,
+                        );
+                      }),
+                      const SizedBox(height: 2),
+                    ],
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Divider(height: 1),
                     ),
-                  ),
-                  for (final item in entry.value) ...[
-                    _buildDesktopNavItem(
-                      context: context,
-                      item: item,
-                      isActive: currentPath == item.path ||
-                          (item.path != '/' && currentPath.startsWith('${item.path}/')),
+                  ] else ...[
+                    // Expanded mode: Clickable Collapsible Section Group (បិទបើក)
+                    Builder(
+                      builder: (context) {
+                        final isGroupCollapsed = collapsedGroups.contains(entry.key);
+                        final hasActiveItem = entry.value.any((item) => _isItemActive(item, currentPath));
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  ref.read(collapsedNavGroupsProvider.notifier).toggle(entry.key);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(10, 12, 8, 6),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          entry.key,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.9,
+                                            color: hasActiveItem
+                                                ? (isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5))
+                                                : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      AnimatedRotation(
+                                        turns: isGroupCollapsed ? 0.0 : 0.25,
+                                        duration: const Duration(milliseconds: 200),
+                                        child: Icon(
+                                          Icons.chevron_right_rounded,
+                                          size: 16,
+                                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            ClipRect(
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOutCubic,
+                                child: isGroupCollapsed
+                                    ? const SizedBox.shrink()
+                                    : Column(
+                                        children: [
+                                          for (final item in entry.value) ...[
+                                            Builder(builder: (context) {
+                                              String? badgeText;
+                                              Color? badgeColor;
+                                              if (item.path == '/admin/inventory' && lowStockCount > 0) {
+                                                badgeText = '$lowStockCount';
+                                                badgeColor = const Color(0xFFE06D53);
+                                              } else if (item.path == '/admin/reports') {
+                                                badgeText = 'LIVE';
+                                                badgeColor = const Color(0xFF10B981);
+                                              }
+                                              return _buildDesktopNavItem(
+                                                context: context,
+                                                item: item,
+                                                isActive: _isItemActive(item, currentPath),
+                                                isCollapsed: isCollapsed,
+                                                isDark: isDark,
+                                                badgeText: badgeText,
+                                                badgeColor: badgeColor,
+                                              );
+                                            }),
+                                            const SizedBox(height: 2),
+                                          ],
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                    const SizedBox(height: 2),
                   ],
                 ],
               ],
@@ -824,38 +986,78 @@ class _DesktopSidebar extends ConsumerWidget {
 
           const Divider(height: 1),
 
-          // Footer (iPhone-style Theme Switch & Logout)
+          // Footer (Theme Switch & Logout)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                IosThemeToggle(
-                  value: isDark,
-                  onChanged: (_) => ref.read(themeModeProvider.notifier).toggle(),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isDark ? 'Dark' : 'Light',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+            padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 8 : 12, vertical: 10),
+            child: isCollapsed
+                ? Column(
+                    children: [
+                      IconButton(
+                        tooltip: isDark ? 'ប្តូរទៅ Light Mode' : 'ប្តូរទៅ Dark Mode',
+                        icon: Icon(
+                          isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                          size: 18,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                        onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+                      ),
+                      const SizedBox(height: 4),
+                      IconButton(
+                        tooltip: 'ចាកចេញពីគណនី (Log Out)',
+                        icon: const Icon(Icons.logout_rounded, size: 18, color: Color(0xFFEF4444)),
+                        onPressed: () async {
+                          await ref.read(authProvider.notifier).signOut();
+                          if (context.mounted) context.go('/login');
+                        },
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      IosThemeToggle(
+                        value: isDark,
+                        onChanged: (_) => ref.read(themeModeProvider.notifier).toggle(),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isDark ? 'Dark' : 'Light',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                      const Spacer(),
+                      Tooltip(
+                        message: 'ចាកចេញពីគណនី (Log Out)',
+                        child: InkWell(
+                          onTap: () async {
+                            await ref.read(authProvider.notifier).signOut();
+                            if (context.mounted) context.go('/login');
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.logout_rounded, size: 16, color: Color(0xFFEF4444)),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Logout',
+                                  style: TextStyle(
+                                    color: Color(0xFFEF4444),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () async {
-                    await ref.read(authProvider.notifier).signOut();
-                    if (context.mounted) context.go('/login');
-                  },
-                  icon: const Icon(Icons.logout_rounded, size: 16, color: AppColors.danger),
-                  label: const Text('Log out', style: TextStyle(color: AppColors.danger, fontSize: 12)),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -866,72 +1068,179 @@ class _DesktopSidebar extends ConsumerWidget {
     required BuildContext context,
     required _NavItem item,
     required bool isActive,
+    required bool isCollapsed,
+    required bool isDark,
+    String? badgeText,
+    Color? badgeColor,
   }) {
     final activeBg = isDark
-        ? AppColors.darkPrimary.withValues(alpha: 0.16)
-        : AppColors.primary.withValues(alpha: 0.10);
-    final activeBorder = (isDark ? AppColors.darkPrimary : AppColors.primary).withValues(alpha: 0.35);
+        ? const Color(0xFF1E2D4A)
+        : const Color(0xFFEEF2FF);
+    final activeBorder = isDark
+        ? const Color(0xFF818CF8)
+        : const Color(0xFF6366F1);
 
-    return InkWell(
-      onTap: () => context.go(item.path),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? activeBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? activeBorder : Colors.transparent,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              item.icon,
-              size: 19,
-              color: isActive
-                  ? (isDark ? AppColors.darkPrimary : AppColors.primary)
-                  : (isDark ? AppColors.darkMutedText : AppColors.lightMutedText),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    if (isCollapsed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Tooltip(
+          message: '${item.label}\n${item.khmerLabel}',
+          child: InkWell(
+            onTap: () => context.go(item.path),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isActive ? activeBg : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isActive ? activeBorder : Colors.transparent,
+                  width: 1.2,
+                ),
+                boxShadow: isActive
+                    ? [
+                        BoxShadow(
+                          color: (isDark ? const Color(0xFF6366F1) : const Color(0xFF818CF8))
+                              .withValues(alpha: 0.28),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
                 children: [
-                  Text(
-                    item.label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                      color: isActive
-                          ? (isDark ? AppColors.darkPrimary : AppColors.primary)
-                          : (isDark ? AppColors.darkText : AppColors.lightText),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Icon(
+                    item.icon,
+                    size: 20,
+                    color: isActive
+                        ? (isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5))
+                        : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                   ),
-                  Text(
-                    item.khmerLabel,
-                    style: GoogleFonts.notoSansKhmer(
-                      fontSize: 10,
-                      color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                  if (badgeText != null)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: badgeColor ?? const Color(0xFFE06D53),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF0D1526) : Colors.white,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          badgeText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ],
               ),
             ),
-            if (isActive)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDark ? AppColors.darkPrimary : AppColors.primary,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1.5),
+      child: InkWell(
+        onTap: () => context.go(item.path),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive ? activeBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isActive ? activeBorder.withValues(alpha: 0.5) : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                item.icon,
+                size: 19,
+                color: isActive
+                    ? (isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5))
+                    : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                        color: isActive
+                            ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                            : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      item.khmerLabel,
+                      style: GoogleFonts.notoSansKhmer(
+                        fontSize: 10,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-          ],
+              if (badgeText != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: (badgeColor ?? const Color(0xFFE06D53)).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: badgeColor ?? const Color(0xFFE06D53),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              if (isActive)
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFECD29A),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFFECD29A),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

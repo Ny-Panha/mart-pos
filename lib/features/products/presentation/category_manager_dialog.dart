@@ -35,7 +35,10 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
 
   Future<void> _handleAddCategory() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      setState(() => _errorMessage = 'សូមបញ្ចូលឈ្មោះប្រភេទទំនិញជាមុនសិន (Please enter category name)');
+      return;
+    }
 
     setState(() {
       _isAdding = true;
@@ -51,8 +54,23 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
 
       await repo.createCategory(name: name, sortOrder: nextSortOrder);
       _nameController.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('បានបង្កើតប្រភេទទំនិញ "$name" ជោគជ័យ!'),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
-      setState(() => _errorMessage = 'Failed to create category: $e');
+      setState(() {
+        if (e.toString().contains('permission-denied')) {
+          _errorMessage = 'គ្មានសិទ្ធិបង្កើតប្រភេទទេ (Permission denied: គណនីត្រូវតែជា Admin/Manager)';
+        } else {
+          _errorMessage = 'បរាជ័យក្នុងការបង្កើតប្រភេទ: $e';
+        }
+      });
     } finally {
       if (mounted) {
         setState(() => _isAdding = false);
@@ -226,6 +244,7 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
                 AppButton(
                   text: '+ បន្ថែម (ADD)',
                   isLoading: _isAdding,
+                  fullWidth: false,
                   onPressed: _handleAddCategory,
                 ),
               ],
@@ -254,12 +273,16 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
 
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        onTap: () {
+                          ref.read(selectedCategoryProvider.notifier).setCategory(cat.id);
+                          Navigator.pop(context);
+                        },
                         leading: CircleAvatar(
                           backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                           child: const Icon(Icons.category_outlined, size: 18, color: AppColors.primary),
                         ),
                         title: Text(cat.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                        subtitle: Text('$productCount products', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        subtitle: Text('$productCount products • ចុចដើម្បីចម្រាញ់ (Click to filter)', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +16,10 @@ final customersStreamProvider = StreamProvider<List<CustomerModel>>((ref) {
         final list = snap.docs.map((d) => d.data()).toList();
         list.sort((a, b) => a.name.compareTo(b.name));
         return list;
+      })
+      .handleError((error) {
+        debugPrint('customersStreamProvider error: $error');
+        return <CustomerModel>[];
       });
 });
 

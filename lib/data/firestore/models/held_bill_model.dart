@@ -21,14 +21,20 @@ class HeldBillModel {
     SnapshotOptions? options,
   ]) {
     final data = snapshot.data();
-    final rawItems = (data?['items'] as List<dynamic>?) ?? [];
+    final rawItems = (data?['items'] is List) ? (data!['items'] as List) : [];
+    final items = <SaleItem>[];
+    for (final raw in rawItems) {
+      if (raw is Map) {
+        try {
+          items.add(SaleItem.fromMap(raw));
+        } catch (_) {}
+      }
+    }
 
     return HeldBillModel(
       id: snapshot.id,
       cashierId: data?['cashierId']?.toString() ?? '',
-      items: rawItems
-          .map((item) => SaleItem.fromMap(item as Map<String, dynamic>))
-          .toList(),
+      items: items,
       note: data?['note']?.toString(),
       createdAt: (data?['createdAt'] is Timestamp)
           ? (data!['createdAt'] as Timestamp).toDate()

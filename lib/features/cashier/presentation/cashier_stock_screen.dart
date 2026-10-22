@@ -16,14 +16,16 @@ class CashierStockScreen extends ConsumerWidget {
     final products = ref.watch(filteredCashierStockProvider);
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const PageHeader(
-              eyebrow: 'Cashier',
-              title: 'Stock check',
-              description: 'Search current stock before accepting an order.',
+              eyebrow: 'Cashier Operations',
+              title: 'ពិនិត្យស្តុកទំនិញ (Stock Check)',
+              description: 'ស្វែងរកចំនួនស្តុកទំនិញជាក់ស្តែងក្នុងហាង មុនពេលទទួលការកុម្ម៉ង់',
             ),
             TextField(
               onChanged: (value) =>

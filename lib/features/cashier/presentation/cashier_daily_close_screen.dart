@@ -18,19 +18,21 @@ class CashierDailyCloseScreen extends ConsumerWidget {
     final shift = ref.watch(currentOpenShiftProvider);
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             PageHeader(
-              eyebrow: 'Cashier',
-              title: 'Daily close',
-              description: 'Open, reconcile and close your current shift.',
+              eyebrow: 'Cashier Shifts',
+              title: 'បិទវេនលក់ប្រចាំថ្ងៃ (Daily Shift Close)',
+              description: 'បើកវេន, ផ្ទៀងផ្ទាត់ទឹកប្រាក់លក់បាន និងបិទវេនលក់ជាក់ស្តែង',
               actions: [
                 OutlinedButton.icon(
                   onPressed: () => OpenShiftDialog.show(context),
                   icon: const Icon(Icons.play_arrow_outlined),
-                  label: const Text('Open shift'),
+                  label: const Text('បើកវេនថ្មី (Open Shift)'),
                 ),
               ],
             ),

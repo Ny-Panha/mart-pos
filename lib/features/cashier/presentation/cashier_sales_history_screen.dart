@@ -19,14 +19,16 @@ class CashierSalesHistoryScreen extends ConsumerWidget {
     final filtered = ref.watch(filteredCashierSalesProvider);
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const PageHeader(
-              eyebrow: 'Cashier',
-              title: 'Sales history',
-              description: 'Review your completed invoices and open a printable receipt.',
+              eyebrow: 'Cashier Operations',
+              title: 'ប្រវត្តិវិក្កយបត្រលក់ (Sales History)',
+              description: 'ពិនិត្យមើល និងបោះពុម្ពឡើងវិញនូវរាល់វិក្កយបត្រដែលបានគិតលុយរួច',
             ),
             TextField(
               onChanged: (value) =>

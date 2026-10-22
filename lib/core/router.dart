@@ -63,11 +63,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => MainShell(child: child),
         routes: [
-          GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
+          GoRoute(
+            path: '/',
+            redirect: (context, state) => '/admin',
+          ),
+          GoRoute(
+            path: '/dashboard',
+            redirect: (context, state) => '/admin',
+          ),
           GoRoute(
             path: '/admin',
             builder: (context, state) => const DashboardScreen(),
           ),
+          GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
           GoRoute(
             path: '/admin/products',
             builder: (context, state) => const ProductsScreen(),

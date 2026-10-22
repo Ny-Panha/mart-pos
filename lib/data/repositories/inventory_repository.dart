@@ -19,20 +19,17 @@ class InventoryRepository {
 
   /// Stream stock movements, optionally filtered by productId. Limit to latest 100 entries.
   Stream<List<StockMovementModel>> watchStockMovements({String? productId}) {
-    Query<StockMovementModel> query = ShopScope.query(
-      FirestoreCollections.stockMovements,
-    );
-
-    if (productId != null && productId.isNotEmpty && productId != 'all') {
-      query = query.where('productId', isEqualTo: productId);
-    }
-
-    return query
-        .limit(100)
+    return ShopScope.query(FirestoreCollections.stockMovements)
         .snapshots()
         .map((snapshot) {
-          final list = snapshot.docs.map((doc) => doc.data()).toList();
+          var list = snapshot.docs.map((doc) => doc.data()).toList();
+          if (productId != null && productId.isNotEmpty && productId != 'all') {
+            list = list.where((m) => m.productId == productId).toList();
+          }
           list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          if (list.length > 100) {
+            return list.sublist(0, 100);
+          }
           return list;
         })
         .handleError((error) {
@@ -58,10 +55,10 @@ class InventoryRepository {
 
     // 1. Increment product stock
     final productDocRef = _db.collection('products').doc(productId);
-    batch.update(productDocRef, {
+    batch.set(productDocRef, {
       'stockQty': FieldValue.increment(qty),
       'updatedAt': Timestamp.now(),
-    });
+    }, SetOptions(merge: true));
 
     // 2. Add stock movement doc
     final movementRef = FirestoreCollections.stockMovements.doc();
@@ -115,10 +112,10 @@ class InventoryRepository {
 
     // 1. Decrement product stock
     final productDocRef = _db.collection('products').doc(productId);
-    batch.update(productDocRef, {
+    batch.set(productDocRef, {
       'stockQty': FieldValue.increment(-qty),
       'updatedAt': Timestamp.now(),
-    });
+    }, SetOptions(merge: true));
 
     // 2. Add stock movement doc
     final movementRef = FirestoreCollections.stockMovements.doc();
@@ -172,10 +169,10 @@ class InventoryRepository {
 
     // 1. Set explicit new stockQty
     final productDocRef = _db.collection('products').doc(productId);
-    batch.update(productDocRef, {
+    batch.set(productDocRef, {
       'stockQty': newQty,
       'updatedAt': Timestamp.now(),
-    });
+    }, SetOptions(merge: true));
 
     // 2. Add stock movement doc with diff as qty
     final movementRef = FirestoreCollections.stockMovements.doc();

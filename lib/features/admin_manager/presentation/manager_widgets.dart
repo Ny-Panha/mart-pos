@@ -37,7 +37,7 @@ class ManagerPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'KAMBUJA PLATFORM',
+                            'MINI-MART PLATFORM',
                             style: AppTextStyles.eyebrow.copyWith(
                               color: AppColors.primary,
                             ),

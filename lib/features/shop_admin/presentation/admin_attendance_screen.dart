@@ -16,15 +16,17 @@ class AdminAttendanceScreen extends ConsumerWidget {
     final attendance = ref.watch(adminAttendanceProvider);
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const PageHeader(
-              eyebrow: 'Shop admin',
-              title: 'Attendance records',
+              eyebrow: 'Staff Management',
+              title: 'វត្តមានបុគ្គលិក (Attendance Records)',
               description:
-                  'Review staff check-in and check-out records for this shop.',
+                  'តាមដានវត្តមាន ម៉ោងចូល និងចេញបម្រើការងាររបស់បុគ្គលិកក្នុងហាង',
             ),
             attendance.when(
               loading: () => const Center(

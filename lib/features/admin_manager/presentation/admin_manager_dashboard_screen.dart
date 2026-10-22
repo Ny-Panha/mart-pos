@@ -15,9 +15,9 @@ class AdminManagerDashboardScreen extends ConsumerWidget {
     final shops = ref.watch(managerShopsProvider);
     final alerts = ref.watch(managerAlertsProvider);
     return ManagerPage(
-      title: 'Platform dashboard',
+      title: 'ផ្ទាំងគ្រប់គ្រងប្រព័ន្ធ (Platform Dashboard)',
       description:
-          'A cross shop view of operations, subscriptions, and system health.',
+          'ទិដ្ឋភាពទូទៅនៃប្រតិបត្តិការហាងទាំងអស់ កញ្ចប់សេវា និងស្ថានភាពប្រព័ន្ធ',
       actions: [
         OutlinedButton.icon(
           onPressed: () => ref.invalidate(managerDashboardProvider),

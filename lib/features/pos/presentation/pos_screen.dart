@@ -8,6 +8,7 @@ import '../../../core/utils/money.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/capsule_tab_bar.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/offline_bar.dart';
 import '../../../core/widgets/product_thumbnail.dart';
@@ -17,6 +18,7 @@ import 'package:intl/intl.dart';
 import '../../../data/firestore/models/daily_close_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../customers/providers/customer_provider.dart';
+import '../../products/providers/category_provider.dart';
 import '../../products/providers/product_provider.dart';
 import '../../shifts/presentation/close_shift_dialog.dart';
 import '../../shifts/presentation/open_shift_dialog.dart';
@@ -33,6 +35,8 @@ class PosScreen extends ConsumerStatefulWidget {
 
 class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _scanController = TextEditingController();
+  final TextEditingController _discountController = TextEditingController();
+  final TextEditingController _taxController = TextEditingController();
   final FocusNode _scanFocusNode = FocusNode();
   TabController? _mobileTabController;
 
@@ -45,6 +49,8 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
   @override
   void dispose() {
     _scanController.dispose();
+    _discountController.dispose();
+    _taxController.dispose();
     _scanFocusNode.dispose();
     _mobileTabController?.dispose();
     super.dispose();
@@ -150,45 +156,47 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
 
     final user = ref.read(authProvider).value;
     final cashierId = user?.id ?? 'cashier_unknown';
+    final totalAmount = cart.total;
 
-    showDialog(
+    String? completedInvoice;
+    int? finalPaidAmount;
+    int? finalChangeAmount;
+    String? finalPaymentMethod;
+
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => PaymentDialog(
-        totalAmount: cart.total,
+        totalAmount: totalAmount,
         customerName: cart.customerName,
         onConfirmPayment: ({
           required String paymentMethod,
           required int paidAmount,
           required int changeAmount,
         }) async {
-          try {
-            final invoiceNum = await ref.read(posCartProvider.notifier).checkout(
-                  cashierId: cashierId,
-                  paymentMethod: paymentMethod,
-                  paidAmount: paidAmount,
-                  changeAmount: changeAmount,
-                );
-
-            if (mounted) {
-              _showReceiptDialog(
-                invoiceNum: invoiceNum,
-                totalAmount: cart.total,
+          final invoiceNum = await ref.read(posCartProvider.notifier).checkout(
+                cashierId: cashierId,
+                paymentMethod: paymentMethod,
                 paidAmount: paidAmount,
                 changeAmount: changeAmount,
-                paymentMethod: paymentMethod,
               );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Checkout failed: $e'), backgroundColor: AppColors.danger),
-              );
-            }
-          }
+          completedInvoice = invoiceNum;
+          finalPaidAmount = paidAmount;
+          finalChangeAmount = changeAmount;
+          finalPaymentMethod = paymentMethod;
         },
       ),
     );
+
+    if (mounted && completedInvoice != null) {
+      _showReceiptDialog(
+        invoiceNum: completedInvoice!,
+        totalAmount: totalAmount,
+        paidAmount: finalPaidAmount ?? totalAmount,
+        changeAmount: finalChangeAmount ?? 0,
+        paymentMethod: finalPaymentMethod ?? 'cash',
+      );
+    }
   }
 
   void _showReceiptDialog({
@@ -427,128 +435,6 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
     );
   }
 
-  Future<void> _showDiscountDialog() async {
-    final cart = ref.read(posCartProvider);
-    final controller = TextEditingController(text: cart.discount > 0 ? '${cart.discount}' : '');
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
-        title: const Text('បញ្ចុះតម្លៃ (Cart Discount)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'ចំនួនទឹកប្រាក់បញ្ចុះ (Discount in Riel)',
-                suffixText: '៛',
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                ActionChip(
-                  label: const Text('0៛ (Clear)'),
-                  onPressed: () => controller.text = '0',
-                ),
-                ActionChip(
-                  label: const Text('1,000៛'),
-                  onPressed: () => controller.text = '1000',
-                ),
-                ActionChip(
-                  label: const Text('2,000៛'),
-                  onPressed: () => controller.text = '2000',
-                ),
-                ActionChip(
-                  label: const Text('5,000៛'),
-                  onPressed: () => controller.text = '5000',
-                ),
-                ActionChip(
-                  label: const Text('10,000៛'),
-                  onPressed: () => controller.text = '10000',
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('បោះបង់'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final discount = int.tryParse(controller.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-              ref.read(posCartProvider.notifier).setDiscount(discount);
-              Navigator.pop(ctx);
-            },
-            child: const Text('អនុវត្ត (Apply)'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showTaxDialog() async {
-    final cart = ref.read(posCartProvider);
-    await showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
-        title: const Text('ជ្រើសរើសអត្រាពន្ធ (Tax Rate / VAT)'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              ref.read(posCartProvider.notifier).setTaxRate(0.0);
-              Navigator.pop(ctx);
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('គ្មានពន្ធ (No Tax - 0%)'),
-                if (cart.taxRate == 0.0) const Icon(Icons.check, color: AppColors.primary),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              ref.read(posCartProvider.notifier).setTaxRate(0.05);
-              Navigator.pop(ctx);
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('ពន្ធ 5% (Service Tax)'),
-                if ((cart.taxRate - 0.05).abs() < 0.001) const Icon(Icons.check, color: AppColors.primary),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              ref.read(posCartProvider.notifier).setTaxRate(0.10);
-              Navigator.pop(ctx);
-            },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('អាករលើតម្លៃបន្ថែម 10% (VAT)'),
-                if ((cart.taxRate - 0.10).abs() < 0.001) const Icon(Icons.check, color: AppColors.primary),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDesktop = Responsive.isDesktop(context);
@@ -556,6 +442,31 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
     final cart = ref.watch(posCartProvider);
     final openShiftAsync = ref.watch(currentOpenShiftProvider);
     final openShift = openShiftAsync.value;
+
+    ref.listen<PosCartState>(posCartProvider, (prev, next) {
+      if (next.discount == 0 &&
+          _discountController.text.isNotEmpty &&
+          _discountController.text != '0') {
+        _discountController.text = '';
+      } else if (next.discount > 0 &&
+          int.tryParse(_discountController.text.replaceAll(RegExp(r'[^0-9]'), '')) !=
+              next.discount) {
+        _discountController.text = '${next.discount}';
+      }
+
+      if (next.taxRate == 0.0 &&
+          _taxController.text.isNotEmpty &&
+          _taxController.text != '0') {
+        _taxController.text = '';
+      } else if (next.taxRate > 0) {
+        final currentVal = double.tryParse(_taxController.text) ?? -1.0;
+        final nextPct = next.taxRate * 100.0;
+        if ((currentVal - nextPct).abs() > 0.01) {
+          _taxController.text = nextPct.toStringAsFixed(
+              nextPct.truncateToDouble() == nextPct ? 0 : 1);
+        }
+      }
+    });
 
     return Scaffold(
       body: Column(
@@ -742,12 +653,47 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
               );
             },
           ),
+          const SizedBox(height: 12),
+
+          // 5. Category Chips Filter (connected to Admin Products Categories)
+          _buildCategoryChips(isDark),
           const SizedBox(height: 14),
 
-          // 5. Product Grid
+          // 6. Product Grid
           _buildProductGrid(filteredProducts, cart, isDark),
         ],
       ),
+    );
+  }
+
+  Widget _buildCategoryChips(bool isDark) {
+    final categories = ref.watch(categoriesStreamProvider).value ?? [];
+    final selectedCategory = ref.watch(selectedCategoryProvider);
+
+    final items = [
+      const CapsuleTabItem(label: 'ទាំងអស់ (All)', icon: Icons.grid_view_rounded),
+      for (final cat in categories)
+        CapsuleTabItem(label: cat.name, icon: Icons.category_outlined),
+    ];
+
+    int selectedIdx = 0;
+    if (selectedCategory != 'all') {
+      final found = categories.indexWhere((c) => c.id == selectedCategory);
+      if (found >= 0) selectedIdx = found + 1;
+    }
+
+    return CapsuleTabBar(
+      items: items,
+      selectedIndex: selectedIdx,
+      isDense: true,
+      onTabSelected: (idx) {
+        if (idx == 0) {
+          ref.read(selectedCategoryProvider.notifier).setCategory('all');
+        } else {
+          final cat = categories[idx - 1];
+          ref.read(selectedCategoryProvider.notifier).setCategory(cat.id);
+        }
+      },
     );
   }
 
@@ -801,113 +747,161 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
 
     final inCartQty = cart.getQtyForProduct(product.id);
 
-    return AppCard(
-      padding: const EdgeInsets.all(18),
-      border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
-      child: Row(
-        children: [
-          ProductThumbnail(
-            imageUrl: product.imageUrl,
-            width: 80,
-            height: 80,
-            borderRadius: AppRadius.md,
-            fallbackIcon: Icons.inventory_2_rounded,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+        final thumb = ProductThumbnail(
+          imageUrl: product.imageUrl,
+          productId: product.id,
+          productName: product.name,
+          barcode: product.barcode,
+          width: isNarrow ? 68 : 88,
+          height: isNarrow ? 68 : 88,
+          borderRadius: AppRadius.md,
+          fallbackIcon: Icons.inventory_2_rounded,
+        );
+
+        final details = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'LAST SCANNED',
+                    style: AppTextStyles.eyebrow.copyWith(color: AppColors.primary, fontSize: 10),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (inCartQty > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'In Cart: $inCartQty ${product.unit}',
+                      style: const TextStyle(
+                        color: AppColors.success,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(product.name, style: AppTextStyles.titleLG, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text('Barcode: ${product.barcode}', style: AppTextStyles.caption),
+                Text('SKU: ${product.sku}', style: AppTextStyles.caption),
+                Text(
+                  'Stock: ${product.stockQty} ${product.unit}',
+                  style: AppTextStyles.caption.copyWith(
+                    color: product.isLowStock ? AppColors.warning : AppColors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+
+        final priceAndAdd = Column(
+          crossAxisAlignment: isNarrow ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              MoneyUtils.formatRiel(product.salePrice),
+              style: TextStyle(
+                fontSize: isNarrow ? 18 : 22,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            Text(
+              MoneyUtils.formatUSD(MoneyUtils.rielToUsd(product.salePrice)),
+              style: AppTextStyles.caption,
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 32,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final err = ref.read(posCartProvider.notifier).addProduct(product);
+                  if (err != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('+1 ADD', style: TextStyle(fontSize: 11)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+              ),
+            ),
+          ],
+        );
+
+        if (isNarrow) {
+          return AppCard(
+            isFrosted: true,
+            padding: const EdgeInsets.all(14),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'LAST SCANNED',
-                        style: AppTextStyles.eyebrow.copyWith(color: AppColors.primary, fontSize: 10),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (inCartQty > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'In Cart: $inCartQty ${product.unit}',
-                          style: const TextStyle(
-                            color: AppColors.success,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    thumb,
+                    const SizedBox(width: 12),
+                    Expanded(child: details),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(product.name, style: AppTextStyles.titleLG),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Barcode: ${product.barcode}', style: AppTextStyles.caption),
-                    Text('SKU: ${product.sku}', style: AppTextStyles.caption),
-                    Text(
-                      'Stock: ${product.stockQty} ${product.unit}',
-                      style: AppTextStyles.caption.copyWith(
-                        color: product.isLowStock ? AppColors.warning : AppColors.success,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('Price:', style: AppTextStyles.caption),
+                    priceAndAdd,
                   ],
                 ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          );
+        }
+
+        return AppCard(
+          isFrosted: true,
+          padding: const EdgeInsets.all(18),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
+          child: Row(
             children: [
-              Text(
-                MoneyUtils.formatRiel(product.salePrice),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              Text(
-                MoneyUtils.formatUSD(MoneyUtils.rielToUsd(product.salePrice)),
-                style: AppTextStyles.caption,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 32,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    final err = ref.read(posCartProvider.notifier).addProduct(product);
-                    if (err != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(err), backgroundColor: AppColors.danger),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+1 ADD', style: TextStyle(fontSize: 11)),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                ),
-              ),
+              thumb,
+              const SizedBox(width: 16),
+              Expanded(child: details),
+              const SizedBox(width: 12),
+              priceAndAdd,
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -940,8 +934,11 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
               children: [
                 ProductThumbnail(
                   imageUrl: p.imageUrl,
-                  width: 38,
-                  height: 38,
+                  productId: p.id,
+                  productName: p.name,
+                  barcode: p.barcode,
+                  width: 44,
+                  height: 44,
                   borderRadius: 8,
                   fallbackIcon: Icons.fastfood_outlined,
                 ),
@@ -987,6 +984,8 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
 
     return LayoutBuilder(builder: (context, constraints) {
       final crossAxisCount = constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 500 ? 3 : 2);
+      final ratio = constraints.maxWidth > 900 ? 0.74 : (constraints.maxWidth > 500 ? 0.72 : 0.70);
+
       return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -994,7 +993,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 14,
           mainAxisSpacing: 14,
-          childAspectRatio: 1.05,
+          childAspectRatio: ratio,
         ),
         itemCount: products.length,
         itemBuilder: (context, index) {
@@ -1002,7 +1001,8 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           final inCart = cart.getQtyForProduct(p.id);
 
           return AppCard(
-            padding: const EdgeInsets.all(14),
+            isFrosted: true,
+            padding: const EdgeInsets.all(12),
             onTap: p.isOutOfStock
                 ? null
                 : () {
@@ -1060,14 +1060,26 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                       ),
                   ],
                 ),
-                const Spacer(),
-                Center(
-                  child: ProductThumbnail(
-                    imageUrl: p.imageUrl,
-                    width: 48,
-                    height: 48,
-                    borderRadius: 8,
-                    fallbackIcon: Icons.fastfood_outlined,
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black.withValues(alpha: 0.15) : AppColors.lightBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    child: ProductThumbnail(
+                      imageUrl: p.imageUrl,
+                      productId: p.id,
+                      productName: p.name,
+                      barcode: p.barcode,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
+                      borderRadius: 8,
+                      fallbackIcon: Icons.fastfood_outlined,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1075,7 +1087,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                   p.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, height: 1.25),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1084,6 +1096,13 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                     color: AppColors.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
+                  ),
+                ),
+                Text(
+                  MoneyUtils.formatUSD(MoneyUtils.rielToUsd(p.salePrice)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
                   ),
                 ),
               ],
@@ -1163,81 +1182,10 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = cart.items[index];
-                    return AppCard(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ProductThumbnail(
-                            imageUrl: item.product.imageUrl,
-                            width: 44,
-                            height: 44,
-                            borderRadius: 8,
-                            fallbackIcon: Icons.fastfood_outlined,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Row 1: Name + Remove
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        item.product.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                      ),
-                                    ),
-                                    InkWell(
-                                      onTap: () => ref.read(posCartProvider.notifier).removeItem(item.product.id),
-                                      child: const Icon(Icons.close, size: 18, color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-
-                                // Row 2: Unit Price
-                                Text(
-                                  MoneyUtils.formatRiel(item.product.salePrice),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-
-                                // Row 3: Stepper + Line Total
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    QtyStepper(
-                                      qty: item.qty,
-                                      maxQty: item.product.stockQty,
-                                      onDecrease: () => ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty - 1),
-                                      onIncrease: () {
-                                        final err = ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty + 1);
-                                        if (err != null) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text(err), backgroundColor: AppColors.danger),
-                                          );
-                                        }
-                                      },
-                                    ),
-                                    Text(
-                                      MoneyUtils.formatRiel(item.lineTotal),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    return _CartItemTile(
+                      key: ValueKey(item.product.id),
+                      item: item,
+                      isDark: isDark,
                     );
                   },
                 ),
@@ -1269,50 +1217,118 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                   Text(MoneyUtils.formatRiel(cart.subtotal), style: const TextStyle(fontWeight: FontWeight.w600)),
                 ],
               ),
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: _showDiscountDialog,
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Row(
-                        children: [
-                          Text('Discount:', style: TextStyle(fontSize: 13)),
-                          SizedBox(width: 4),
-                          Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                        ],
+              const SizedBox(height: 8),
+
+              // Direct Input: Discount
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Discount (បញ្ចុះតម្លៃ):', style: TextStyle(fontSize: 13)),
+                  SizedBox(
+                    width: 120,
+                    height: 34,
+                    child: TextField(
+                      controller: _discountController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.danger,
                       ),
-                      Text(
-                        cart.discount > 0 ? '-${MoneyUtils.formatRiel(cart.discount)}' : '0៛',
-                        style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        hintText: '0',
+                        suffixText: '៛',
+                        suffixStyle: const TextStyle(fontSize: 12, color: AppColors.danger),
+                        filled: true,
+                        fillColor: isDark ? AppColors.darkCard : AppColors.lightBg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          borderSide: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          borderSide: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                        ),
                       ),
-                    ],
+                      onChanged: (val) {
+                        final clean = val.replaceAll(RegExp(r'[^0-9]'), '');
+                        final discount = int.tryParse(clean) ?? 0;
+                        ref.read(posCartProvider.notifier).setDiscount(discount);
+                      },
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: _showTaxDialog,
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              const SizedBox(height: 8),
+
+              // Direct Input: Tax
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Tax / អាករ:', style: TextStyle(fontSize: 13)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Text('Tax (${(cart.taxRate * 100).toStringAsFixed(0)}%):', style: const TextStyle(fontSize: 13)),
-                          SizedBox(width: 4),
-                          const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                        ],
+                      SizedBox(
+                        width: 80,
+                        height: 34,
+                        child: TextField(
+                          controller: _taxController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.darkText : AppColors.lightText,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            hintText: '0',
+                            suffixText: '%',
+                            suffixStyle: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                            ),
+                            filled: true,
+                            fillColor: isDark ? AppColors.darkCard : AppColors.lightBg,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              borderSide: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              borderSide: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                            ),
+                          ),
+                          onChanged: (val) {
+                            final clean = val.replaceAll(RegExp(r'[^0-9.]'), '');
+                            final parsed = double.tryParse(clean) ?? 0.0;
+                            final rate = (parsed / 100.0).clamp(0.0, 1.0);
+                            ref.read(posCartProvider.notifier).setTaxRate(rate);
+                          },
+                        ),
                       ),
-                      Text(MoneyUtils.formatRiel(cart.totalTax), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text(
+                        MoneyUtils.formatRiel(cart.totalTax),
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
                     ],
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 8),
               const Divider(height: 1),
@@ -1420,10 +1436,22 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isOpen ? Icons.check_circle_rounded : Icons.schedule_rounded,
-              size: 18,
-              color: isOpen ? AppColors.success : (isDark ? AppColors.darkMutedText : Colors.grey.shade600),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isOpen ? AppColors.success : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
+                boxShadow: isOpen
+                    ? [
+                        BoxShadow(
+                          color: AppColors.success.withValues(alpha: 0.6),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -1438,6 +1466,262 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CartItemTile extends ConsumerStatefulWidget {
+  final CartItemState item;
+  final bool isDark;
+
+  const _CartItemTile({
+    super.key,
+    required this.item,
+    required this.isDark,
+  });
+
+  @override
+  ConsumerState<_CartItemTile> createState() => _CartItemTileState();
+}
+
+class _CartItemTileState extends ConsumerState<_CartItemTile> {
+  late TextEditingController _priceController;
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _priceController = TextEditingController(text: '${widget.item.unitPrice}');
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      final clean = _priceController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final val = int.tryParse(clean);
+      if (val == null || val < 0) {
+        // Reset to original sale price if invalid
+        ref.read(posCartProvider.notifier).updateItemPrice(widget.item.product.id, null);
+        _priceController.text = '${widget.item.product.salePrice}';
+      } else {
+        ref.read(posCartProvider.notifier).updateItemPrice(
+              widget.item.product.id,
+              val == widget.item.product.salePrice ? null : val,
+            );
+        _priceController.text = '$val';
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _CartItemTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && widget.item.unitPrice != oldWidget.item.unitPrice) {
+      _priceController.text = '${widget.item.unitPrice}';
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final isDark = widget.isDark;
+    final hasCustomPrice = item.customPrice != null;
+
+    return AppCard(
+      isFrosted: true,
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ProductThumbnail(
+            imageUrl: item.product.imageUrl,
+            productId: item.product.id,
+            productName: item.product.name,
+            barcode: item.product.barcode,
+            width: 48,
+            height: 48,
+            borderRadius: 8,
+            fallbackIcon: Icons.fastfood_outlined,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: Name + Remove
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => ref.read(posCartProvider.notifier).removeItem(item.product.id),
+                      child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+
+                // Row 2: Strikethrough original price if modified
+                if (hasCustomPrice) ...[
+                  Row(
+                    children: [
+                      Text(
+                        'ដើម: ${MoneyUtils.formatRiel(item.product.salePrice)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () {
+                          ref.read(posCartProvider.notifier).updateItemPrice(item.product.id, null);
+                          _priceController.text = '${item.product.salePrice}';
+                        },
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
+
+                // Row 3: Stepper + Direct Price Input + Line Total
+                Row(
+                  children: [
+                    QtyStepper(
+                      qty: item.qty,
+                      maxQty: item.product.stockQty,
+                      onDecrease: () => ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty - 1),
+                      onIncrease: () {
+                        final err = ref.read(posCartProvider.notifier).updateQty(item.product.id, item.qty + 1);
+                        if (err != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      },
+                      onQtyChanged: (newQty) {
+                        final err = ref.read(posCartProvider.notifier).updateQty(item.product.id, newQty);
+                        if (err != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      },
+                    ),
+                    const Spacer(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Direct Inline Price Input Field
+                        SizedBox(
+                          width: 100,
+                          height: 32,
+                          child: TextField(
+                            focusNode: _focusNode,
+                            controller: _priceController,
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: hasCustomPrice
+                                  ? AppColors.warning
+                                  : (isDark ? AppColors.darkText : AppColors.lightText),
+                            ),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              suffixText: '៛',
+                              suffixStyle: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: hasCustomPrice
+                                    ? AppColors.warning
+                                    : (isDark ? AppColors.darkMutedText : AppColors.lightMutedText),
+                              ),
+                              filled: true,
+                              fillColor: hasCustomPrice
+                                  ? AppColors.warning.withValues(alpha: 0.1)
+                                  : (isDark ? AppColors.darkSurface : AppColors.lightBg),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                                borderSide: BorderSide(
+                                  color: hasCustomPrice
+                                      ? AppColors.warning
+                                      : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                                borderSide: BorderSide(
+                                  color: hasCustomPrice
+                                      ? AppColors.warning
+                                      : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                              ),
+                            ),
+                            onChanged: (val) {
+                              final clean = val.replaceAll(RegExp(r'[^0-9]'), '');
+                              final newPrice = int.tryParse(clean);
+                              if (newPrice != null && newPrice >= 0) {
+                                ref.read(posCartProvider.notifier).updateItemPrice(
+                                      item.product.id,
+                                      newPrice == item.product.salePrice ? null : newPrice,
+                                    );
+                              }
+                            },
+                          ),
+                        ),
+                        if (item.qty > 1) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '= ${MoneyUtils.formatRiel(item.lineTotal)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -149,7 +149,9 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
 
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

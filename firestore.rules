@@ -113,8 +113,14 @@ service cloud.firestore {
         uid == request.auth.uid ||
         (isAdmin() && ownShop(resource.data))
       );
-      allow create: if false;
-      allow update: if signedIn() && uid == request.auth.uid && userProfileFieldsAreSafe();
+      allow create: if signedIn() && (
+        isManager() ||
+        (isAdmin() && ownShop(request.resource.data) && request.resource.data.get('role', '') == 'CASHIER')
+      );
+      allow update: if signedIn() && (
+        (uid == request.auth.uid && userProfileFieldsAreSafe()) ||
+        (isAdmin() && ownShop(resource.data) && ownShop(request.resource.data))
+      );
       allow delete: if false;
     }
 

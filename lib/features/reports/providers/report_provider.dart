@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/firestore/models/sale_model.dart';
 import '../../../data/repositories/report_repository.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../products/providers/product_provider.dart';
 
 final reportRepositoryProvider = Provider<ReportRepository>((ref) {
@@ -48,12 +49,14 @@ final reportDateRangeProvider =
 );
 
 final reportSalesProvider = StreamProvider<List<SaleModel>>((ref) {
+  ref.watch(authProvider);
   final repo = ref.watch(reportRepositoryProvider);
   final range = ref.watch(reportDateRangeProvider);
   return repo.watchSalesRange(range.start, range.end);
 });
 
 final allRecentSalesProvider = StreamProvider<List<SaleModel>>((ref) {
+  ref.watch(authProvider);
   final repo = ref.watch(reportRepositoryProvider);
   return repo.watchAllRecentSales(limit: 200);
 });

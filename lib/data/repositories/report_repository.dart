@@ -28,11 +28,16 @@ class ReportRepository {
   /// Watch sales within a specific date range
   Stream<List<SaleModel>> watchSalesRange(DateTime start, DateTime end) {
     return ShopScope.query(FirestoreCollections.sales)
-        .where('createdAt', isGreaterThanOrEqualTo: start)
-        .where('createdAt', isLessThanOrEqualTo: end)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          final filtered = list.where((s) =>
+            (s.createdAt.isAfter(start) || s.createdAt.isAtSameMomentAs(start)) &&
+            (s.createdAt.isBefore(end) || s.createdAt.isAtSameMomentAs(end))
+          ).toList();
+          filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return filtered;
+        })
         .handleError((error) {
           debugPrint('watchSalesRange error: $error');
           return <SaleModel>[];
@@ -42,10 +47,15 @@ class ReportRepository {
   /// Watch latest recent sales (default 200) for general dashboard and reporting
   Stream<List<SaleModel>> watchAllRecentSales({int limit = 200}) {
     return ShopScope.query(FirestoreCollections.sales)
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((d) => d.data()).toList())
+        .map((snapshot) {
+          final list = snapshot.docs.map((d) => d.data()).toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          if (list.length > limit) {
+            return list.sublist(0, limit);
+          }
+          return list;
+        })
         .handleError((error) {
           debugPrint('watchAllRecentSales error: $error');
           return <SaleModel>[];

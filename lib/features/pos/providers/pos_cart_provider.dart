@@ -5,6 +5,7 @@ import '../../../data/firestore/models/sale_model.dart';
 import '../../../data/repositories/sale_repository.dart';
 import '../../../data/services/audit_service.dart';
 import '../../../data/services/invoice_counter_service.dart';
+import '../../auth/providers/auth_provider.dart';
 
 final saleRepositoryProvider = Provider<SaleRepository>((ref) {
   return SaleRepository();
@@ -13,18 +14,26 @@ final saleRepositoryProvider = Provider<SaleRepository>((ref) {
 class CartItemState {
   final ProductModel product;
   final int qty;
+  final int? customPrice;
 
   CartItemState({
     required this.product,
     required this.qty,
+    this.customPrice,
   });
 
-  int get lineTotal => product.salePrice * qty;
+  int get unitPrice => customPrice ?? product.salePrice;
+  int get lineTotal => unitPrice * qty;
 
-  CartItemState copyWith({int? qty}) {
+  CartItemState copyWith({
+    int? qty,
+    int? customPrice,
+    bool clearCustomPrice = false,
+  }) {
     return CartItemState(
       product: product,
       qty: qty ?? this.qty,
+      customPrice: clearCustomPrice ? null : (customPrice ?? this.customPrice),
     );
   }
 }
@@ -169,6 +178,19 @@ class PosCartNotifier extends Notifier<PosCartState> {
     return null;
   }
 
+  void updateItemPrice(String productId, int? customPrice) {
+    final updatedList = List<CartItemState>.from(state.items);
+    final index = updatedList.indexWhere((i) => i.product.id == productId);
+
+    if (index >= 0) {
+      updatedList[index] = updatedList[index].copyWith(
+        customPrice: customPrice,
+        clearCustomPrice: customPrice == null,
+      );
+      state = state.copyWith(items: updatedList);
+    }
+  }
+
   void removeItem(String productId) {
     final updatedList = List<CartItemState>.from(state.items)
       ..removeWhere((i) => i.product.id == productId);
@@ -223,7 +245,8 @@ class PosCartNotifier extends Notifier<PosCartState> {
           productId: i.product.id,
           name: i.product.name,
           qty: i.qty,
-          unitPrice: i.product.salePrice,
+          unitPrice: i.unitPrice,
+          originalPrice: i.product.salePrice,
           totalPrice: i.lineTotal,
           tax: i.product.tax,
         );
@@ -232,11 +255,14 @@ class PosCartNotifier extends Notifier<PosCartState> {
       final actualPaid = paidAmount ?? state.total;
       final actualChange = changeAmount ?? (actualPaid > state.total ? actualPaid - state.total : 0);
 
+      final user = ref.read(authProvider).value;
       final sale = SaleModel(
         id: saleId,
         invoiceNumber: invoiceNum,
         cashierId: cashierId,
+        cashierName: user?.name,
         customerId: state.customerId,
+        customerName: state.customerName,
         items: saleItems,
         subtotal: state.subtotal,
         discount: state.discount,

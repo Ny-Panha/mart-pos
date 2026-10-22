@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/date.dart';
 import '../../../../core/utils/money.dart';
 import '../../../../data/firestore/models/sale_model.dart';
+import '../../../customers/providers/customer_provider.dart';
+import '../../../products/providers/product_provider.dart';
+import '../../../users/providers/user_provider.dart';
 
-class SaleDetailDialog extends StatelessWidget {
+class SaleDetailDialog extends ConsumerWidget {
   final SaleModel sale;
 
   const SaleDetailDialog({super.key, required this.sale});
@@ -19,9 +23,37 @@ class SaleDetailDialog extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isKhqr = sale.paymentMethod.toLowerCase() == 'khqr';
+
+    // Products lookup for catalog prices
+    final products = ref.watch(productsStreamProvider).asData?.value ?? [];
+    final productsMap = <String, dynamic>{};
+    for (final p in products) {
+      productsMap[p.id] = p;
+    }
+
+    // Cashier name lookup
+    String cashierDisplayName = sale.cashierName ?? '';
+    if (cashierDisplayName.isEmpty) {
+      final users = ref.watch(usersStreamProvider).asData?.value ?? [];
+      final cashierUser = users.where((u) => u.id == sale.cashierId).firstOrNull;
+      cashierDisplayName = cashierUser?.name ??
+          (sale.cashierId.length > 10 ? '${sale.cashierId.substring(0, 8)}...' : sale.cashierId);
+    }
+
+    // Customer name lookup
+    String customerDisplayName = sale.customerName ?? '';
+    if (customerDisplayName.isEmpty) {
+      if (sale.customerId != null && sale.customerId!.isNotEmpty) {
+        final customers = ref.watch(customersStreamProvider).asData?.value ?? [];
+        final matchedCust = customers.where((c) => c.id == sale.customerId).firstOrNull;
+        customerDisplayName = matchedCust?.name ?? 'អតិថិជនទូទៅ (Walk-in)';
+      } else {
+        customerDisplayName = 'អតិថិជនទូទៅ (Walk-in)';
+      }
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
@@ -71,9 +103,20 @@ class SaleDetailDialog extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      const Text('អតិថិជន (Customer):', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        customerDisplayName,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                       const Text('បេឡា (Cashier):', style: TextStyle(fontSize: 12, color: Colors.grey)),
                       Text(
-                        sale.cashierId.length > 10 ? '${sale.cashierId.substring(0, 8)}...' : sale.cashierId,
+                        cashierDisplayName,
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -115,23 +158,70 @@ class SaleDetailDialog extends StatelessWidget {
                 separatorBuilder: (_, _) => const Divider(height: 12),
                 itemBuilder: (context, index) {
                   final item = sale.items[index];
+                  final product = productsMap[item.productId];
+                  final origUnitPrice = item.originalPrice ?? product?.salePrice;
+                  final hasPriceChanged = origUnitPrice != null && origUnitPrice != item.unitPrice;
+
                   return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                            Text(
-                              '${item.qty} x ${MoneyUtils.formatRiel(item.unitPrice)}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Text(
+                                  '${item.qty} x ${MoneyUtils.formatRiel(item.unitPrice)}',
+                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                                if (hasPriceChanged) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'ដើម ${MoneyUtils.formatRiel(origUnitPrice)}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.warning,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        MoneyUtils.formatRiel(item.totalPrice),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (hasPriceChanged)
+                            Text(
+                              MoneyUtils.formatRiel(origUnitPrice * item.qty),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                          Text(
+                            MoneyUtils.formatRiel(item.totalPrice),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: hasPriceChanged ? AppColors.warning : null,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );

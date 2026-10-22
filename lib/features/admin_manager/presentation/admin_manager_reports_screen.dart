@@ -31,12 +31,14 @@ class AdminManagerReportsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GridView.count(
-              crossAxisCount: MediaQuery.sizeOf(context).width > 850 ? 4 : 2,
+              crossAxisCount: MediaQuery.sizeOf(context).width > 850
+                  ? 4
+                  : (MediaQuery.sizeOf(context).width < 550 ? 1 : 2),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              childAspectRatio: 2.3,
+              childAspectRatio: MediaQuery.sizeOf(context).width < 550 ? 2.5 : 2.3,
               children: [
                 ManagerMetricCard(
                   label: 'Revenue',

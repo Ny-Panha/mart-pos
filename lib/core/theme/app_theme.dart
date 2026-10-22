@@ -5,9 +5,12 @@ import 'app_colors.dart';
 import 'app_radius.dart';
 
 class AppTheme {
+  static final String? khmerFontFamily = GoogleFonts.notoSansKhmer().fontFamily;
+
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    fontFamily: khmerFontFamily,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.light,
@@ -16,7 +19,7 @@ class AppTheme {
       surface: AppColors.lightSurface,
       error: AppColors.danger,
       onPrimary: Colors.white,
-      onSecondary: AppColors.lightText,
+      onSecondary: Colors.white,
       onSurface: AppColors.lightText,
     ),
     scaffoldBackgroundColor: AppColors.lightBg,
@@ -26,12 +29,58 @@ class AppTheme {
     ),
     cardTheme: CardThemeData(
       color: AppColors.lightCard,
-      elevation: 2,
+      elevation: 0,
       shadowColor: Colors.black.withValues(alpha: 0.04),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.card),
         side: const BorderSide(color: AppColors.lightBorder, width: 1),
       ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: Colors.white,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      titleTextStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: AppColors.lightText,
+      ),
+      contentTextStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 14,
+        color: AppColors.lightText,
+        height: 1.5,
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      contentTextStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: AppColors.lightBorder),
+      ),
+      labelStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppColors.lightText,
+      ),
+      selectedColor: AppColors.primary.withValues(alpha: 0.15),
+      backgroundColor: Colors.white,
+    ),
+    dividerTheme: const DividerThemeData(
+      color: AppColors.lightBorder,
+      thickness: 1,
+      space: 1,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -43,9 +92,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.button),
         ),
         textStyle: GoogleFonts.notoSansKhmer(
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: FontWeight.bold,
-          letterSpacing: 1.0,
+          letterSpacing: 0.5,
         ),
       ),
     ),
@@ -57,8 +106,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.button),
         ),
         textStyle: GoogleFonts.notoSansKhmer(
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
         ),
       ),
     ),
@@ -66,6 +116,15 @@ class AppTheme {
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      hintStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 13,
+        color: AppColors.lightMutedText,
+      ),
+      labelStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppColors.lightText,
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
         borderSide: const BorderSide(color: AppColors.lightBorder),
@@ -90,6 +149,7 @@ class AppTheme {
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    fontFamily: khmerFontFamily,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.dark,
@@ -114,6 +174,53 @@ class AppTheme {
         side: const BorderSide(color: AppColors.darkBorder, width: 1),
       ),
     ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppColors.darkSurface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: const BorderSide(color: AppColors.darkBorder, width: 1),
+      ),
+      titleTextStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: AppColors.darkText,
+      ),
+      contentTextStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 14,
+        color: AppColors.darkText,
+        height: 1.5,
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      contentTextStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: AppColors.darkBorder),
+      ),
+      labelStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppColors.darkText,
+      ),
+      selectedColor: AppColors.darkPrimary.withValues(alpha: 0.2),
+      backgroundColor: AppColors.darkSurface,
+    ),
+    dividerTheme: const DividerThemeData(
+      color: AppColors.darkBorder,
+      thickness: 1,
+      space: 1,
+    ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(64, 48),
@@ -124,9 +231,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.button),
         ),
         textStyle: GoogleFonts.notoSansKhmer(
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: FontWeight.bold,
-          letterSpacing: 1.0,
+          letterSpacing: 0.5,
         ),
       ),
     ),
@@ -137,12 +244,26 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.button),
         ),
+        textStyle: GoogleFonts.notoSansKhmer(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+        ),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.darkCard,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      hintStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 13,
+        color: AppColors.darkMutedText,
+      ),
+      labelStyle: GoogleFonts.notoSansKhmer(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppColors.darkText,
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
         borderSide: const BorderSide(color: AppColors.darkBorder),

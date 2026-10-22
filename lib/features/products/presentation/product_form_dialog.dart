@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -69,10 +70,21 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
               : '5');
   late final TextEditingController _imageUrlController =
       TextEditingController(text: widget.product?.imageUrl ?? '');
+  late final TextEditingController _taxController = TextEditingController(
+      text: widget.product != null
+          ? ((widget.product!.tax > 0)
+              ? (widget.product!.tax < 1.0
+                  ? ((widget.product!.tax * 100) % 1 == 0
+                      ? (widget.product!.tax * 100).toInt().toString()
+                      : (widget.product!.tax * 100).toString())
+                  : (widget.product!.tax % 1 == 0
+                      ? widget.product!.tax.toInt().toString()
+                      : widget.product!.tax.toString()))
+              : '0')
+          : '0');
 
   String? _selectedCategoryId;
   String _selectedUnit = 'កំប៉ុង';
-  double _selectedTax = 0.0;
   bool _isActive = true;
 
   bool _isLoading = false;
@@ -96,7 +108,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     final p = widget.product;
     _selectedCategoryId = p?.categoryId;
     _selectedUnit = p?.unit ?? 'កំប៉ុង';
-    _selectedTax = p?.tax ?? 0.0;
     _isActive = p?.isActive ?? true;
   }
 
@@ -111,6 +122,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _stockQtyController.dispose();
     _lowStockThresholdController.dispose();
     _imageUrlController.dispose();
+    _taxController.dispose();
     super.dispose();
   }
 
@@ -164,19 +176,126 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     }
   }
 
+  void _openBarcodeScanner() {
+    final isDesktop = Responsive.isDesktop(context);
+
+    Widget scannerBody(BuildContext ctx) {
+      return SizedBox(
+        width: isDesktop ? 480 : double.infinity,
+        height: isDesktop ? 420 : MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        'ស្កេនបារកូដទំនិញ (Scan Barcode)',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    tooltip: 'បិទ',
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(isDesktop ? 16 : 0),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    MobileScanner(
+                      onDetect: (capture) {
+                        final barcodes = capture.barcodes;
+                        if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                          final scanned = barcodes.first.rawValue!.trim();
+                          if (scanned.isNotEmpty) {
+                            Navigator.pop(ctx);
+                            setState(() {
+                              _barcodeController.text = scanned;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('បានស្កេនបារកូដជោគជ័យ: $scanned'),
+                                backgroundColor: AppColors.success,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    Container(
+                      width: 250,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.primary, width: 2.5),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 20,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'ដាក់កាមេរ៉ាតម្រង់លើបារកូដទំនិញ',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          clipBehavior: Clip.antiAlias,
+          child: scannerBody(ctx),
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.black,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) => scannerBody(ctx),
+      );
+    }
+  }
+
   Future<void> _handleSubmit() async {
     setState(() => _codeError = null);
 
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('សូមជ្រើសរើសប្រភេទទំនិញ (Please select a category)'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-      return;
-    }
+    final categories = ref.read(categoriesStreamProvider).value ?? [];
+    final categoryIdToUse = _selectedCategoryId ??
+        (categories.isNotEmpty ? categories.first.id : 'cat_drinks');
 
     final code = _codeController.text.trim().toUpperCase();
     final repo = ref.read(productRepositoryProvider);
@@ -206,6 +325,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
       final rawImageUrl = _imageUrlController.text.trim();
       final imageUrl = rawImageUrl.isNotEmpty ? rawImageUrl : null;
 
+      final parsedTax = double.tryParse(_taxController.text.trim()) ?? 0.0;
+      final taxRate = parsedTax >= 1.0 ? parsedTax / 100.0 : (parsedTax > 0 ? parsedTax : 0.0);
+
       if (_isEditing) {
         // Update product
         final updated = widget.product!.copyWith(
@@ -213,13 +335,13 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           code: code,
           barcode: _barcodeController.text.trim(),
           sku: _skuController.text.trim(),
-          categoryId: _selectedCategoryId!,
+          categoryId: categoryIdToUse,
           costPrice: costPrice,
           salePrice: salePrice,
           stockQty: stockQty,
           unit: _selectedUnit,
           lowStockThreshold: lowStock,
-          tax: _selectedTax,
+          tax: taxRate,
           status: _isActive ? 'active' : 'inactive',
           imageUrl: imageUrl,
           clearImageUrl: imageUrl == null,
@@ -255,13 +377,13 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           code: code,
           barcode: _barcodeController.text.trim(),
           sku: _skuController.text.trim(),
-          categoryId: _selectedCategoryId!,
+          categoryId: categoryIdToUse,
           costPrice: costPrice,
           salePrice: salePrice,
           stockQty: stockQty,
           unit: _selectedUnit,
           lowStockThreshold: lowStock,
-          tax: _selectedTax,
+          tax: taxRate,
           status: _isActive ? 'active' : 'inactive',
           imageUrl: imageUrl,
           updatedAt: DateTime.now(),
@@ -401,7 +523,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                         onChanged: (val) {
                           setState(() => _selectedCategoryId = val);
                         },
-                        validator: (v) => v == null ? 'Category is required' : null,
+                        validator: (v) => (v == null && (currentValue == null || currentValue.isEmpty)) ? 'Category is required' : null,
                       );
                     },
                     loading: () => const LinearProgressIndicator(),
@@ -418,11 +540,32 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                 Expanded(
                   child: TextFormField(
                     controller: _barcodeController,
-                    decoration: const InputDecoration(
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
                       labelText: 'បារកូដ (Barcode)',
                       hintText: 'e.g. 884000109',
                       isDense: true,
-                      prefixIcon: Icon(Icons.qr_code, size: 18),
+                      prefixIcon: const Icon(Icons.qr_code, size: 18),
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_barcodeController.text.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              tooltip: 'លុប',
+                              onPressed: () {
+                                setState(() {
+                                  _barcodeController.clear();
+                                });
+                              },
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.camera_alt_outlined, color: AppColors.primary, size: 20),
+                            tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                            onPressed: _openBarcodeScanner,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -490,20 +633,25 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
             ),
             const SizedBox(height: 14),
 
-            // Tax Rate Dropdown
-            DropdownButtonFormField<double>(
-              initialValue: _selectedTax,
+            // Tax Rate Input Field
+            TextFormField(
+              controller: _taxController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'អត្រាពន្ធ (Tax / VAT Rate)',
+                hintText: 'e.g. 0, 5, 10',
+                suffixText: '%',
                 isDense: true,
+                prefixIcon: Icon(Icons.percent, size: 18),
               ),
-              items: const [
-                DropdownMenuItem(value: 0.0, child: Text('0% - គ្មានពន្ធ (No Tax)')),
-                DropdownMenuItem(value: 0.05, child: Text('5% - ពន្ធសេវា (Service Tax)')),
-                DropdownMenuItem(value: 0.10, child: Text('10% - អាករលើតម្លៃបន្ថែម (VAT)')),
-              ],
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedTax = val);
+              validator: (v) {
+                if (v != null && v.trim().isNotEmpty) {
+                  final parsed = double.tryParse(v.trim());
+                  if (parsed == null || parsed < 0 || parsed > 100) {
+                    return 'សូមបញ្ចូលភាគរយពន្ធត្រឹមត្រូវ (0-100%)';
+                  }
+                }
+                return null;
               },
             ),
             const SizedBox(height: 20),
@@ -660,6 +808,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                         children: [
                           ProductThumbnail(
                             imageUrl: _imageUrlController.text,
+                            productId: widget.product?.id,
+                            productName: _nameController.text,
+                            barcode: _barcodeController.text,
                             width: 64,
                             height: 64,
                             borderRadius: AppRadius.md,

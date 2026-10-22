@@ -37,15 +37,55 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+<body style="margin: 0; padding: 0; background-color: #0A1222; overflow: hidden;">
+  <div id="flutter_splash" style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0A1222; z-index: 999999; font-family: sans-serif;">
+    <div style="width: 44px; height: 44px; border: 3px solid rgba(99, 102, 241, 0.2); border-top-color: #6366F1; border-radius: 50%; animation: martSpin 0.9s linear infinite;"></div>
+    <div style="margin-top: 16px; color: #94A3B8; font-size: 13px; font-weight: 500; letter-spacing: 0.5px;">Mart POS Loading...</div>
+  </div>
+  <style>
+    @keyframes martSpin { to { transform: rotate(360deg); } }
+  </style>
+  <script>
+    // Remove splash once flutter-view mounts
+    (function monitorSplash() {
+      const splash = document.getElementById('flutter_splash');
+      if (!splash) return;
+      const interval = setInterval(() => {
+        if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane')) {
+          splash.style.transition = 'opacity 0.25s ease';
+          splash.style.opacity = '0';
+          setTimeout(() => splash.remove(), 250);
+          clearInterval(interval);
+        }
+      }, 100);
+      setTimeout(() => { if (splash) splash.remove(); }, 15000);
+    })();
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+    // Auto-run fallback for Flutter Web in debug mode (DDC)
+    // When the browser is refreshed (F5/Ctrl+R), DWDS may not automatically invoke $dartRunMain.
+    (function autoRunFlutter() {
+      let launched = false;
+      function checkAndRun() {
+        if (launched) return;
+        if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane')) {
+          launched = true;
+          return;
+        }
+        if (typeof window.$dartRunMain === 'function') {
+          console.log('[AutoRun] Launching Flutter app via $dartRunMain...');
+          launched = true;
+          try {
+            window.$dartRunMain();
+          } catch (e) {
+            console.error('[AutoRun] Error executing $dartRunMain:', e);
+          }
+        }
+      }
+      const interval = setInterval(checkAndRun, 200);
+      window.addEventListener('load', checkAndRun);
+      setTimeout(() => clearInterval(interval), 30000);
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

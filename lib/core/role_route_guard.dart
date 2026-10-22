@@ -9,7 +9,7 @@ class RoleRouteGuard {
       return path == '/login' ? null : '/login?error=deactivated';
     }
 
-    if (path == '/login') {
+    if (path == '/login' || path == '/' || path == '/dashboard') {
       if (user.isManager) return '/manager';
       if (user.isAdmin) return '/admin';
       if (user.isCashier) return '/pos';

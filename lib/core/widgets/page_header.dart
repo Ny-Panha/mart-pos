@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -41,11 +42,12 @@ class PageHeader extends ConsumerWidget {
               ),
         ),
         if (description != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             description!,
-            style: TextStyle(
+            style: GoogleFonts.notoSansKhmer(
               fontSize: 13,
+              height: 1.45,
               color: isDark
                   ? AppColors.darkMutedText
                   : AppColors.lightMutedText,

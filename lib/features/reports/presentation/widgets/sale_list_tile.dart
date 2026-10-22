@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/utils/date.dart';
 import '../../../../core/utils/money.dart';
 import '../../../../data/firestore/models/sale_model.dart';
+import '../../../customers/providers/customer_provider.dart';
+import '../../../users/providers/user_provider.dart';
 import 'sale_detail_dialog.dart';
 
-class SaleListTile extends StatelessWidget {
+class SaleListTile extends ConsumerWidget {
   final SaleModel sale;
 
   const SaleListTile({super.key, required this.sale});
@@ -22,11 +25,29 @@ class SaleListTile extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isKhqr = sale.paymentMethod.toLowerCase() == 'khqr';
-    final cashierShort = sale.cashierId.length > 8
-        ? '${sale.cashierId.substring(0, 6)}...'
-        : sale.cashierId;
+
+    // Resolve Cashier name
+    String cashierName = sale.cashierName ?? '';
+    if (cashierName.isEmpty) {
+      final users = ref.watch(usersStreamProvider).asData?.value ?? [];
+      final cashierUser = users.where((u) => u.id == sale.cashierId).firstOrNull;
+      cashierName = cashierUser?.name ??
+          (sale.cashierId.length > 8 ? '${sale.cashierId.substring(0, 6)}...' : sale.cashierId);
+    }
+
+    // Resolve Customer name
+    String customerName = sale.customerName ?? '';
+    if (customerName.isEmpty) {
+      if (sale.customerId != null && sale.customerId!.isNotEmpty) {
+        final customers = ref.watch(customersStreamProvider).asData?.value ?? [];
+        final matchedCust = customers.where((c) => c.id == sale.customerId).firstOrNull;
+        customerName = matchedCust?.name ?? 'Walk-in';
+      } else {
+        customerName = 'Walk-in';
+      }
+    }
 
     return InkWell(
       onTap: () => SaleDetailDialog.show(context, sale),
@@ -81,7 +102,7 @@ class SaleListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${sale.items.length} items • By: $cashierShort • ${_formatRelativeDate(sale.createdAt)}',
+                    '${sale.items.length} items • By: $cashierName • $customerName • ${_formatRelativeDate(sale.createdAt)}',
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ],

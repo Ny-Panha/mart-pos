@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../firestore/firestore_collections.dart';
@@ -12,9 +15,18 @@ class UserRepository {
 
   Stream<List<UserModel>> watchUsers() {
     return ShopScope.query(FirestoreCollections.users)
-        .orderBy('name')
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+        .map((snapshot) {
+          final list = snapshot.docs.map((doc) => doc.data()).toList();
+          list.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
+          return list;
+        })
+        .handleError((error) {
+          debugPrint('watchUsers error: $error');
+          return <UserModel>[];
+        });
   }
 
   Future<void> createUserDoc({
@@ -27,13 +39,84 @@ class UserRepository {
     if (normalizedRole != UserModel.cashierRole) {
       throw ArgumentError('Shop admins may provision cashier accounts only.');
     }
-    await _functions.httpsCallable('provisionUser').call({
-      'email': email.trim(),
-      'password': password,
-      'name': name.trim(),
-      'role': normalizedRole,
-      'shopId': ShopScope.requireShopId(),
-    });
+
+    try {
+      await _functions.httpsCallable('provisionUser').call({
+        'email': email.trim(),
+        'password': password,
+        'name': name.trim(),
+        'role': normalizedRole,
+        'shopId': ShopScope.requireShopId(),
+      });
+      return;
+    } on FirebaseFunctionsException catch (e) {
+      // If Cloud Functions are not deployed to Firebase (404/internal), use client fallback
+      if (e.code == 'internal' ||
+          e.code == 'not-found' ||
+          e.code == 'unavailable') {
+        try {
+          await _fallbackCreateCashier(
+            email: email.trim(),
+            password: password,
+            name: name.trim(),
+            shopId: ShopScope.requireShopId(),
+          );
+          return;
+        } catch (fallbackError) {
+          if (fallbackError is FirebaseAuthException) {
+            rethrow;
+          }
+          throw FirebaseFunctionsException(
+            message:
+                'Firebase Cloud Functions មិនទាន់បាន Deploy (Functions not deployed to Firebase). '
+                'ព័ត៌មានលម្អិត: $fallbackError',
+            code: 'internal',
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _fallbackCreateCashier({
+    required String email,
+    required String password,
+    required String name,
+    required String shopId,
+  }) async {
+    final defaultApp = Firebase.app();
+    final tempName =
+        'cashier_creator_${DateTime.now().millisecondsSinceEpoch}';
+    final tempApp = await Firebase.initializeApp(
+      name: tempName,
+      options: defaultApp.options,
+    );
+    try {
+      final auth = FirebaseAuth.instanceFor(app: tempApp);
+      final cred = await auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final uid = cred.user?.uid;
+      if (uid == null) {
+        throw Exception('Failed to obtain new cashier UID.');
+      }
+      await cred.user?.updateDisplayName(name);
+
+      final newCashier = UserModel(
+        id: uid,
+        name: name,
+        email: email,
+        role: UserModel.cashierRole,
+        shopId: shopId,
+        active: true,
+        createdAt: DateTime.now(),
+      );
+
+      await FirestoreCollections.users.doc(uid).set(newCashier);
+    } finally {
+      await tempApp.delete();
+    }
   }
 
   Future<void> updateUserRole(

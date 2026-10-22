@@ -6,6 +6,7 @@ class QtyStepper extends StatelessWidget {
   final int qty;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
+  final ValueChanged<int>? onQtyChanged;
   final int maxQty;
 
   const QtyStepper({
@@ -13,6 +14,7 @@ class QtyStepper extends StatelessWidget {
     required this.qty,
     required this.onDecrease,
     required this.onIncrease,
+    this.onQtyChanged,
     this.maxQty = 9999,
   });
 
@@ -35,16 +37,58 @@ class QtyStepper extends StatelessWidget {
             onTap: onDecrease,
             isDark: isDark,
           ),
-          Container(
-            constraints: const BoxConstraints(minWidth: 32),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              '$qty',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: isDark ? AppColors.darkText : AppColors.lightText,
+          InkWell(
+            onTap: onQtyChanged == null
+                ? null
+                : () async {
+                    final controller = TextEditingController(text: '$qty');
+                    final result = await showDialog<int>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card),
+                        ),
+                        title: const Text('បញ្ចូលចំនួន (Quantity)'),
+                        content: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            labelText: 'ចំនួន (Qty) - អតិបរិមា $maxQty',
+                            isDense: true,
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('បោះបង់'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              final val = int.tryParse(controller.text) ?? qty;
+                              Navigator.pop(ctx, val);
+                            },
+                            child: const Text('យល់ព្រម'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (result != null && result > 0) {
+                      onQtyChanged!(result);
+                    }
+                  },
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 32),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Text(
+                '$qty',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                ),
               ),
             ),
           ),

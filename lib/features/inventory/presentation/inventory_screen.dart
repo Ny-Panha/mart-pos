@@ -99,6 +99,7 @@ class InventoryScreen extends ConsumerWidget {
 
             // 3. Filter Toolbar
             AppCard(
+              isFrosted: true,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,6 +173,7 @@ class InventoryScreen extends ConsumerWidget {
 
             // 4. Movement History Card
             AppCard(
+              isFrosted: true,
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,8 +327,11 @@ class InventoryScreen extends ConsumerWidget {
                       children: [
                         ProductThumbnail(
                           imageUrl: p.imageUrl,
-                          width: 32,
-                          height: 32,
+                          productId: p.id,
+                          productName: p.name,
+                          barcode: p.barcode,
+                          width: 36,
+                          height: 36,
                           borderRadius: 6,
                         ),
                         const SizedBox(width: 8),
@@ -442,6 +447,9 @@ class InventoryScreen extends ConsumerWidget {
           children: [
             ProductThumbnail(
               imageUrl: product?.imageUrl,
+              productId: product?.id,
+              productName: product?.name,
+              barcode: product?.barcode,
               width: 40,
               height: 40,
               borderRadius: AppRadius.sm,

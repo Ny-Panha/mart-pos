@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../core/widgets/product_thumbnail.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/product_code_model.dart';
 import '../firestore/models/product_model.dart';
@@ -25,7 +26,7 @@ class ProductRepository {
       stockQty: 48,
       unit: 'កំប៉ុង',
       lowStockThreshold: 10,
-      imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/coca_cola.jpg',
     ),
     ProductModel(
       id: 'p2',
@@ -39,7 +40,7 @@ class ProductRepository {
       stockQty: 36,
       unit: 'ដប',
       lowStockThreshold: 10,
-      imageUrl: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/sting_energy.jpg',
     ),
     ProductModel(
       id: 'p3',
@@ -53,7 +54,7 @@ class ProductRepository {
       stockQty: 24,
       unit: 'កំប៉ុង',
       lowStockThreshold: 10,
-      imageUrl: 'https://images.unsplash.com/photo-1543253687-c931c8e01820?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/red_bull.jpg',
     ),
     ProductModel(
       id: 'p4',
@@ -67,7 +68,7 @@ class ProductRepository {
       stockQty: 80,
       unit: 'ដប',
       lowStockThreshold: 20,
-      imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/angkor_water.jpg',
     ),
     ProductModel(
       id: 'p5',
@@ -81,7 +82,7 @@ class ProductRepository {
       stockQty: 50,
       unit: 'កញ្ចប់',
       lowStockThreshold: 15,
-      imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/mama_noodles.jpg',
     ),
     ProductModel(
       id: 'p6',
@@ -95,7 +96,7 @@ class ProductRepository {
       stockQty: 18,
       unit: 'ប្រអប់',
       lowStockThreshold: 5,
-      imageUrl: 'https://images.unsplash.com/photo-1582293041079-7814c2f12063?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/oreo_cookies.jpg',
     ),
     ProductModel(
       id: 'p7',
@@ -109,7 +110,7 @@ class ProductRepository {
       stockQty: 12,
       unit: 'ប្រអប់',
       lowStockThreshold: 5,
-      imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80',
+      imageUrl: 'assets/products/colgate_toothpaste.jpg',
     ),
     ProductModel(
       id: 'p8',
@@ -123,6 +124,7 @@ class ProductRepository {
       stockQty: 4, // low stock test
       unit: 'ដុំ',
       lowStockThreshold: 5,
+      imageUrl: 'assets/products/lifebuoy_soap.jpg',
     ),
   ];
 
@@ -134,7 +136,23 @@ class ProductRepository {
             seedDefaultProducts();
             return _fallbackProducts;
           }
-          return snapshot.docs.map((d) => d.data()).toList();
+          final list = snapshot.docs.map((d) {
+            final model = d.data();
+            if (model.imageUrl == null ||
+                model.imageUrl!.isEmpty ||
+                model.imageUrl!.contains('unsplash.com')) {
+              final local = ProductThumbnail.getAssetForProduct(
+                id: model.id,
+                name: model.name,
+                barcode: model.barcode,
+              );
+              if (local != null) {
+                return model.copyWith(imageUrl: local);
+              }
+            }
+            return model;
+          }).toList();
+          return list;
         })
         .handleError((error) {
           debugPrint('Firestore watchProducts error: $error');

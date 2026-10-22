@@ -85,16 +85,50 @@ class ShopSettingsModel {
   final String shopName;
   final String phone;
   final String address;
+  final String email;
   final String currency;
   final bool taxEnabled;
+  final double taxRate;
+  final int exchangeRate;
+  final String bakongId;
+  final String receiptFooter;
+  final String paperSize;
+  final bool showBarcodeOnReceipt;
+  final int lowStockThreshold;
+  final bool allowNegativeStock;
+  final bool notifLowStock;
+  final bool notifNightlyDigest;
+  final bool notifShiftAlerts;
+  final String openTime;
+  final String closeTime;
+  final bool is24Hours;
+  final String themeMode;
+  final Map<String, dynamic>? weeklySchedule;
 
   const ShopSettingsModel({
     required this.shopId,
     this.shopName = '',
     this.phone = '',
     this.address = '',
+    this.email = '',
     this.currency = 'KHR',
     this.taxEnabled = false,
+    this.taxRate = 10.0,
+    this.exchangeRate = 4100,
+    this.bakongId = '',
+    this.receiptFooter = 'ទំនិញទិញហើយមិនអាចប្តូរប្រាក់វិញបានទេ • សូមអរគុណ!',
+    this.paperSize = '80mm',
+    this.showBarcodeOnReceipt = true,
+    this.lowStockThreshold = 5,
+    this.allowNegativeStock = false,
+    this.notifLowStock = true,
+    this.notifNightlyDigest = true,
+    this.notifShiftAlerts = true,
+    this.openTime = '07:00 AM',
+    this.closeTime = '10:00 PM',
+    this.is24Hours = false,
+    this.themeMode = 'Dark',
+    this.weeklySchedule,
   });
 
   factory ShopSettingsModel.fromSnapshot(
@@ -107,8 +141,28 @@ class ShopSettingsModel {
       shopName: data['shopName']?.toString() ?? '',
       phone: data['phone']?.toString() ?? '',
       address: data['address']?.toString() ?? '',
+      email: data['email']?.toString() ?? '',
       currency: data['currency']?.toString() ?? 'KHR',
       taxEnabled: data['taxEnabled'] == true,
+      taxRate: (data['taxRate'] as num?)?.toDouble() ?? 10.0,
+      exchangeRate: (data['exchangeRate'] as num?)?.toInt() ?? 4100,
+      bakongId: data['bakongId']?.toString() ?? '',
+      receiptFooter: data['receiptFooter']?.toString() ??
+          'ទំនិញទិញហើយមិនអាចប្តូរប្រាក់វិញបានទេ • សូមអរគុណ!',
+      paperSize: data['paperSize']?.toString() ?? '80mm',
+      showBarcodeOnReceipt: data['showBarcodeOnReceipt'] ?? true,
+      lowStockThreshold: (data['lowStockThreshold'] as num?)?.toInt() ?? 5,
+      allowNegativeStock: data['allowNegativeStock'] == true,
+      notifLowStock: data['notifLowStock'] ?? true,
+      notifNightlyDigest: data['notifNightlyDigest'] ?? true,
+      notifShiftAlerts: data['notifShiftAlerts'] ?? true,
+      openTime: data['openTime']?.toString() ?? '07:00 AM',
+      closeTime: data['closeTime']?.toString() ?? '10:00 PM',
+      is24Hours: data['is24Hours'] == true,
+      themeMode: data['themeMode']?.toString() ?? 'Dark',
+      weeklySchedule: data['weeklySchedule'] != null
+          ? Map<String, dynamic>.from(data['weeklySchedule'] as Map)
+          : null,
     );
   }
 
@@ -117,8 +171,25 @@ class ShopSettingsModel {
     'shopName': shopName,
     'phone': phone,
     'address': address,
+    'email': email,
     'currency': currency,
     'taxEnabled': taxEnabled,
+    'taxRate': taxRate,
+    'exchangeRate': exchangeRate,
+    'bakongId': bakongId,
+    'receiptFooter': receiptFooter,
+    'paperSize': paperSize,
+    'showBarcodeOnReceipt': showBarcodeOnReceipt,
+    'lowStockThreshold': lowStockThreshold,
+    'allowNegativeStock': allowNegativeStock,
+    'notifLowStock': notifLowStock,
+    'notifNightlyDigest': notifNightlyDigest,
+    'notifShiftAlerts': notifShiftAlerts,
+    'openTime': openTime,
+    'closeTime': closeTime,
+    'is24Hours': is24Hours,
+    'themeMode': themeMode,
+    if (weeklySchedule != null) 'weeklySchedule': weeklySchedule,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 }
@@ -134,23 +205,30 @@ class AdminShopService {
 
   Stream<List<AttendanceRecord>> watchAttendance(UserModel user) {
     return _scoped(_db.collection('attendance'))
-        .orderBy('date', descending: true)
         .limit(300)
         .snapshots()
         .map(
-          (snapshot) =>
-              snapshot.docs.map(AttendanceRecord.fromSnapshot).toList(),
+          (snapshot) {
+            final list =
+                snapshot.docs.map(AttendanceRecord.fromSnapshot).toList();
+            list.sort((a, b) => b.date.compareTo(a.date));
+            return list;
+          },
         );
   }
 
   Stream<List<AdminNotificationRecord>> watchNotifications(UserModel user) {
     return _scoped(_db.collection('notificationLogs'))
-        .orderBy('createdAt', descending: true)
         .limit(200)
         .snapshots()
         .map(
-          (snapshot) =>
-              snapshot.docs.map(AdminNotificationRecord.fromSnapshot).toList(),
+          (snapshot) {
+            final list = snapshot.docs
+                .map(AdminNotificationRecord.fromSnapshot)
+                .toList();
+            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return list;
+          },
         );
   }
 

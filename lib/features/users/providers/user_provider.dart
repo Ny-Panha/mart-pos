@@ -2,12 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/firestore/models/user_model.dart';
 import '../../../data/repositories/user_repository.dart';
+import '../../auth/providers/auth_provider.dart';
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository();
 });
 
 final usersStreamProvider = StreamProvider<List<UserModel>>((ref) {
+  ref.watch(authProvider);
   final repo = ref.watch(userRepositoryProvider);
   return repo.watchUsers();
 });

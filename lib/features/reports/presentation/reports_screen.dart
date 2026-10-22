@@ -5,6 +5,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/utils/date.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/capsule_tab_bar.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
 import '../providers/report_provider.dart';
@@ -47,7 +48,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -74,52 +77,37 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               ],
             ),
 
-            // Date Range Chips
-            AppCard(
-              padding: const EdgeInsets.all(12),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Text('ចន្លោះកាលបរិច្ឆេទ (Range):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  ChoiceChip(
-                    label: const Text('ថ្ងៃនេះ (Today)'),
-                    selected: _rangeMode == ReportRangeMode.today,
-                    onSelected: (val) {
-                      if (val) {
-                        setState(() => _rangeMode = ReportRangeMode.today);
-                        ref.read(reportDateRangeProvider.notifier).setToday();
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('៧ ថ្ងៃ (7 Days)'),
-                    selected: _rangeMode == ReportRangeMode.sevenDays,
-                    onSelected: (val) {
-                      if (val) {
-                        setState(() => _rangeMode = ReportRangeMode.sevenDays);
-                        ref.read(reportDateRangeProvider.notifier).setLastDays(7);
-                      }
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('៣០ ថ្ងៃ (30 Days)'),
-                    selected: _rangeMode == ReportRangeMode.thirtyDays,
-                    onSelected: (val) {
-                      if (val) {
-                        setState(() => _rangeMode = ReportRangeMode.thirtyDays);
-                        ref.read(reportDateRangeProvider.notifier).setLastDays(30);
-                      }
-                    },
-                  ),
-                  ActionChip(
-                    avatar: const Icon(Icons.calendar_month_outlined, size: 16),
-                    label: Text(_rangeMode == ReportRangeMode.custom ? 'Custom ($rangeText)' : 'ជ្រើសរើសថ្ងៃ (Custom)'),
-                    onPressed: _pickCustomRange,
-                  ),
-                ],
-              ),
+            // Date Range Capsule Tabs (Tavola style)
+            CapsuleTabBar(
+              items: [
+                const CapsuleTabItem(label: 'ថ្ងៃនេះ (Today)', icon: Icons.today_rounded),
+                const CapsuleTabItem(label: '៧ ថ្ងៃ (7 Days)', icon: Icons.date_range_rounded),
+                const CapsuleTabItem(label: '៣០ ថ្ងៃ (30 Days)', icon: Icons.calendar_view_month_rounded),
+                CapsuleTabItem(
+                  label: _rangeMode == ReportRangeMode.custom ? 'Custom ($rangeText)' : 'ជ្រើសរើសថ្ងៃ (Custom)',
+                  icon: Icons.edit_calendar_rounded,
+                ),
+              ],
+              selectedIndex: _rangeMode == ReportRangeMode.today
+                  ? 0
+                  : (_rangeMode == ReportRangeMode.sevenDays
+                      ? 1
+                      : (_rangeMode == ReportRangeMode.thirtyDays ? 2 : 3)),
+              isDense: true,
+              onTabSelected: (idx) {
+                if (idx == 0) {
+                  setState(() => _rangeMode = ReportRangeMode.today);
+                  ref.read(reportDateRangeProvider.notifier).setToday();
+                } else if (idx == 1) {
+                  setState(() => _rangeMode = ReportRangeMode.sevenDays);
+                  ref.read(reportDateRangeProvider.notifier).setLastDays(7);
+                } else if (idx == 2) {
+                  setState(() => _rangeMode = ReportRangeMode.thirtyDays);
+                  ref.read(reportDateRangeProvider.notifier).setLastDays(30);
+                } else {
+                  _pickCustomRange();
+                }
+              },
             ),
             const SizedBox(height: 20),
 
@@ -169,6 +157,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
             // Sales Invoices Feed
             AppCard(
+              isFrosted: true,
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +225,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     required Color color,
   }) {
     return AppCard(
+      isFrosted: true,
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [

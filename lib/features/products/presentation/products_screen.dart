@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/capsule_tab_bar.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../data/firestore/models/product_model.dart';
@@ -17,6 +19,65 @@ import 'product_form_dialog.dart';
 
 class ProductsScreen extends ConsumerWidget {
   const ProductsScreen({super.key});
+
+  void _openScanSearch(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'ស្កេនបារកូដដើម្បីស្វែងរកទំនិញ',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: MobileScanner(
+                    onDetect: (capture) {
+                      final barcodes = capture.barcodes;
+                      if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                        final scanned = barcodes.first.rawValue!.trim();
+                        if (scanned.isNotEmpty) {
+                          Navigator.pop(ctx);
+                          ref.read(productSearchQueryProvider.notifier).setQuery(scanned);
+                        }
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _handleDeleteProduct(
     BuildContext context,
@@ -136,9 +197,46 @@ class ProductsScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // Category Capsule Tabs (Tavola style)
+            Builder(
+              builder: (context) {
+                final allProductsList = ref.watch(productsStreamProvider).value ?? [];
+                return CapsuleTabBar(
+                  items: [
+                    CapsuleTabItem(
+                      label: 'ទាំងអស់ (All)',
+                      count: '${allProductsList.isNotEmpty ? allProductsList.length : products.length}',
+                      icon: Icons.grid_view_rounded,
+                    ),
+                    for (final cat in categories)
+                      CapsuleTabItem(
+                        label: cat.name,
+                        count: '${allProductsList.where((p) => p.categoryId == cat.id).length}',
+                        icon: Icons.category_outlined,
+                      ),
+                  ],
+                  selectedIndex: (selectedCategory == 'all' || !categories.any((c) => c.id == selectedCategory))
+                      ? 0
+                      : (categories.indexWhere((c) => c.id == selectedCategory) + 1),
+                  isDense: true,
+                  onTabSelected: (idx) {
+                    if (idx == 0) {
+                      ref.read(selectedCategoryProvider.notifier).setCategory('all');
+                    } else {
+                      final cat = categories[idx - 1];
+                      ref.read(selectedCategoryProvider.notifier).setCategory(cat.id);
+                    }
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 16),
 
             // Toolbar (Search + Category Filter + Total Count)
             AppCard(
+              isFrosted: true,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,6 +253,11 @@ class ProductsScreen extends ConsumerWidget {
                                 isDense: true,
                                 hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
                                 prefixIcon: const Icon(Icons.search, size: 20),
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                                  tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                                  onPressed: () => _openScanSearch(context, ref),
+                                ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(AppRadius.md),
@@ -210,6 +313,11 @@ class ProductsScreen extends ConsumerWidget {
                                 isDense: true,
                                 hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
                                 prefixIcon: const Icon(Icons.search, size: 20),
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                                  tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                                  onPressed: () => _openScanSearch(context, ref),
+                                ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(AppRadius.md),
@@ -294,112 +402,124 @@ class ProductsScreen extends ConsumerWidget {
     bool isDark,
   ) {
     return AppCard(
+      isFrosted: true,
       padding: EdgeInsets.zero,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.card),
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(
-            isDark ? AppColors.darkSurface : AppColors.lightBg,
-          ),
-          columns: const [
-            DataColumn(label: Text('CODE / BARCODE', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('PRODUCT NAME', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('COST PRICE', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('SALE PRICE', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('STOCK', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold))),
-          ],
-          rows: products.map((p) {
-            return DataRow(cells: [
-              DataCell(
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(p.code, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    Text(p.barcode.isNotEmpty ? p.barcode : '-', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                  ],
-                ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 880),
+            child: DataTable(
+              headingRowColor: WidgetStateProperty.all(
+                isDark ? AppColors.darkSurface : AppColors.lightBg,
               ),
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ProductThumbnail(
-                      imageUrl: p.imageUrl,
-                      width: 36,
-                      height: 36,
-                      borderRadius: 6,
+              columns: const [
+                DataColumn(label: Text('CODE / BARCODE', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('PRODUCT NAME', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('COST PRICE', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('SALE PRICE', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('STOCK', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold))),
+              ],
+              rows: products.map((p) {
+                return DataRow(cells: [
+                  DataCell(
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p.code, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(p.barcode.isNotEmpty ? p.barcode : '-', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Flexible(
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ProductThumbnail(
+                          imageUrl: p.imageUrl,
+                          productId: p.id,
+                          productName: p.name,
+                          barcode: p.barcode,
+                          width: 38,
+                          height: 38,
+                          borderRadius: 6,
+                        ),
+                        const SizedBox(width: 10),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 180),
+                          child: Text(
+                            p.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  DataCell(Text(MoneyUtils.formatRiel(p.costPrice))),
+                  DataCell(Text(
+                    MoneyUtils.formatRiel(p.salePrice),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                  )),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: p.isOutOfStock
+                            ? AppColors.danger.withValues(alpha: 0.1)
+                            : (p.isLowStock
+                                ? AppColors.warning.withValues(alpha: 0.1)
+                                : AppColors.success.withValues(alpha: 0.1)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                       child: Text(
-                        p.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
+                        '${p.stockQty} ${p.unit}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: p.isOutOfStock
+                              ? AppColors.danger
+                              : (p.isLowStock ? AppColors.warning : AppColors.success),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              DataCell(Text(MoneyUtils.formatRiel(p.costPrice))),
-              DataCell(Text(
-                MoneyUtils.formatRiel(p.salePrice),
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-              )),
-              DataCell(
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: p.isOutOfStock
-                        ? AppColors.danger.withValues(alpha: 0.1)
-                        : (p.isLowStock
-                            ? AppColors.warning.withValues(alpha: 0.1)
-                            : AppColors.success.withValues(alpha: 0.1)),
-                    borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
-                    '${p.stockQty} ${p.unit}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: p.isOutOfStock
-                          ? AppColors.danger
-                          : (p.isLowStock ? AppColors.warning : AppColors.success),
+                  DataCell(
+                    Text(
+                      p.status.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: p.isActive ? AppColors.success : Colors.grey,
+                      ),
                     ),
                   ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  p.status.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: p.isActive ? AppColors.success : Colors.grey,
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          tooltip: 'កែប្រែ (Edit)',
+                          onPressed: () => ProductFormDialog.show(context, product: p),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
+                          tooltip: 'លុប (Delete)',
+                          onPressed: () => _handleDeleteProduct(context, ref, p),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      tooltip: 'កែប្រែ (Edit)',
-                      onPressed: () => ProductFormDialog.show(context, product: p),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
-                      tooltip: 'លុប (Delete)',
-                      onPressed: () => _handleDeleteProduct(context, ref, p),
-                    ),
-                  ],
-                ),
-              ),
-            ]);
-          }).toList(),
+                ]);
+              }).toList(),
+            ),
+          ),
         ),
       ),
     );
@@ -419,13 +539,17 @@ class ProductsScreen extends ConsumerWidget {
       itemBuilder: (context, index) {
         final p = products[index];
         return AppCard(
+          isFrosted: true,
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
               ProductThumbnail(
                 imageUrl: p.imageUrl,
-                width: 44,
-                height: 44,
+                productId: p.id,
+                productName: p.name,
+                barcode: p.barcode,
+                width: 48,
+                height: 48,
                 borderRadius: 8,
               ),
               const SizedBox(width: 14),

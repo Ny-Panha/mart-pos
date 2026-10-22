@@ -44,10 +44,10 @@ class SaleRepository {
     // 2. Decrement stock for each item & 3. Create stock movements
     for (var item in sale.items) {
       final productDocRef = _db.collection('products').doc(item.productId);
-      batch.update(productDocRef, {
+      batch.set(productDocRef, {
         'stockQty': FieldValue.increment(-item.qty),
         'updatedAt': Timestamp.now(),
-      });
+      }, SetOptions(merge: true));
 
       final movementRef = FirestoreCollections.stockMovements.doc();
       final movement = StockMovementModel(
@@ -66,9 +66,9 @@ class SaleRepository {
     // 4. Update customer totalSpent in the same batch if customerId exists
     if (sale.customerId != null && sale.customerId!.isNotEmpty) {
       final customerDocRef = _db.collection('customers').doc(sale.customerId);
-      batch.update(customerDocRef, {
+      batch.set(customerDocRef, {
         'totalSpent': FieldValue.increment(sale.total),
-      });
+      }, SetOptions(merge: true));
     }
 
     // Commit atomic batch

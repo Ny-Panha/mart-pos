@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 
@@ -69,12 +70,12 @@ class AppButton extends StatelessWidget {
               ],
               Flexible(
                 child: Text(
-                  text.toUpperCase(),
+                  text,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: GoogleFonts.notoSansKhmer(
                     color: fgColor,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
+                    letterSpacing: 0.5,
                     fontSize: 13,
                   ),
                 ),
@@ -82,23 +83,34 @@ class AppButton extends StatelessWidget {
             ],
           );
 
-    return SizedBox(
-      height: height,
-      width: fullWidth ? double.infinity : null,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
-          foregroundColor: fgColor,
-          elevation: 0,
-          side: borderSide,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.button),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+    final btn = ElevatedButton(
+      onPressed: isLoading ? null : onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: bgColor,
+        foregroundColor: fgColor,
+        elevation: 0,
+        side: borderSide,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.button),
         ),
-        child: child,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
+      child: child,
+    );
+
+    if (!fullWidth) {
+      return SizedBox(height: height, child: btn);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isBounded = constraints.hasBoundedWidth;
+        return SizedBox(
+          height: height,
+          width: isBounded ? double.infinity : null,
+          child: btn,
+        );
+      },
     );
   }
 }

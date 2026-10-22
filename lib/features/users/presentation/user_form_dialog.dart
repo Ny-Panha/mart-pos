@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -41,6 +43,7 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
   late final TextEditingController _nameController;
   final String _role = UserModel.cashierRole;
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   bool get isEditing => widget.user != null;
@@ -50,7 +53,47 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
     super.initState();
     _emailController = TextEditingController(text: widget.user?.email ?? '');
     _passwordController = TextEditingController();
+    _passwordController.addListener(() => setState(() {}));
     _nameController = TextEditingController(text: widget.user?.name ?? '');
+  }
+
+  int _calculateStrength(String pwd) {
+    if (pwd.isEmpty) return 0;
+    int score = 0;
+    if (pwd.length >= 8) score++;
+    if (RegExp(r'[A-Za-z]').hasMatch(pwd)) score++;
+    if (RegExp(r'[0-9]').hasMatch(pwd)) score++;
+    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-]').hasMatch(pwd) || pwd.length >= 12) score++;
+    return score;
+  }
+
+  Widget _buildRequirementCheck({
+    required String label,
+    required bool isMet,
+    required bool isDark,
+  }) {
+    final color = isMet
+        ? AppColors.success
+        : (isDark ? AppColors.darkMutedText : AppColors.lightMutedText);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isMet ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          size: 13,
+          color: color,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isMet ? FontWeight.w600 : FontWeight.normal,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -97,7 +140,29 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
         );
       }
     } catch (e) {
-      setState(() => _errorMessage = e.toString());
+      String message = e.toString();
+      if (e is FirebaseFunctionsException) {
+        if (e.code == 'already-exists') {
+          message = 'Email នេះត្រូវបានចុះឈ្មោះរួចហើយ (Email already registered).';
+        } else if (e.code == 'permission-denied') {
+          message = 'គ្មានសិទ្ធិបង្កើតគណនីបុគ្គលិកទេ (Permission denied).';
+        } else if (e.code == 'invalid-argument') {
+          message = 'ព័ត៌មានមិនត្រឹមត្រូវ: ${e.message ?? e.toString()}';
+        } else if (e.code == 'internal') {
+          message = e.message ?? 'Cloud Functions មិនទាន់ដំណើរការ ឬមិនទាន់ Deploy ទៅកាន់ Firebase [internal 0]';
+        } else {
+          message = e.message ?? e.toString();
+        }
+      } else if (e is FirebaseAuthException) {
+        if (e.code == 'email-already-in-use') {
+          message = 'Email នេះត្រូវបានចុះឈ្មោះរួចហើយ (Email already registered).';
+        } else if (e.code == 'weak-password') {
+          message = 'ពាក្យសម្ងាត់ខ្សោយពេក (Password is too weak).';
+        } else {
+          message = e.message ?? e.toString();
+        }
+      }
+      setState(() => _errorMessage = message);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -119,10 +184,11 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
       ),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Row(
               children: [
                 Container(
@@ -212,24 +278,115 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Temporary password *',
+                'ពាក្យសម្ងាត់បណ្តោះអាសន្ន (Temporary password) *',
                 style: AppTextStyles.bodyBold.copyWith(
                   color: isDark ? AppColors.darkText : AppColors.lightText,
                 ),
               ),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  hintText: 'At least 8 characters',
-                  prefixIcon: Icon(Icons.lock_outline),
-                ),
-                validator: (value) =>
-                    !isEditing && (value == null || value.length < 8)
-                    ? 'Use at least 8 characters'
-                    : null,
+              Builder(
+                builder: (context) {
+                  final obscure = _obscurePassword != false;
+                  return TextFormField(
+                    controller: _passwordController,
+                    obscureText: obscure,
+                    decoration: InputDecoration(
+                      hintText: 'យ៉ាងហោច 8 តួអក្សរ (At least 8 characters)',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !obscure),
+                      ),
+                    ),
+                    validator: (value) =>
+                        !isEditing && (value == null || value.length < 8)
+                        ? 'សូមប្រើប្រាស់យ៉ាងតិច 8 តួអក្សរ (At least 8 characters)'
+                        : null,
+                  );
+                },
               ),
+              if (!isEditing && _passwordController.text.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Builder(
+                  builder: (_) {
+                    final pwd = _passwordController.text;
+                    final strength = _calculateStrength(pwd);
+                    Color barColor = AppColors.danger;
+                    String label = 'ខ្សោយ (Weak)';
+                    if (strength == 2) {
+                      barColor = Colors.orange;
+                      label = 'មធ្យម (Fair)';
+                    } else if (strength == 3) {
+                      barColor = Colors.blue;
+                      label = 'ល្អ (Good)';
+                    } else if (strength >= 4) {
+                      barColor = AppColors.success;
+                      label = 'រឹងមាំ (Strong)';
+                    }
+
+                    return Row(
+                      children: [
+                        for (int i = 1; i <= 4; i++) ...[
+                          if (i > 1) const SizedBox(width: 4),
+                          Expanded(
+                            child: Container(
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: strength >= i
+                                    ? barColor
+                                    : (isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.lightBorder),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 10),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: barColor,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+              if (!isEditing) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    _buildRequirementCheck(
+                      label: '≥ 8 តួអក្សរ (8+ chars)',
+                      isMet: _passwordController.text.length >= 8,
+                      isDark: isDark,
+                    ),
+                    _buildRequirementCheck(
+                      label: 'មានអក្សរ (Letters)',
+                      isMet:
+                          RegExp(r'[A-Za-z]').hasMatch(_passwordController.text),
+                      isDark: isDark,
+                    ),
+                    _buildRequirementCheck(
+                      label: 'មានលេខ (Numbers)',
+                      isMet: RegExp(r'[0-9]').hasMatch(_passwordController.text),
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
             ],
 
@@ -297,6 +454,7 @@ class _UserFormDialogState extends ConsumerState<UserFormDialog> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

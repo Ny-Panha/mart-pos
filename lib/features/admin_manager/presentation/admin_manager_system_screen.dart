@@ -33,8 +33,8 @@ class AdminManagerSystemScreen extends ConsumerWidget {
       ),
     ];
     return ManagerPage(
-      title: 'System operations',
-      description: 'Monitor platform health, alerts, audit activity, and POS access controls.',
+      title: 'ប្រតិបត្តិការប្រព័ន្ធ (System Operations)',
+      description: 'តាមដានស្ថានភាពប្រព័ន្ធ ការជូនដំណឹង និងកំណត់ហេតុសវនកម្ម',
       child: DefaultTabController(
         length: tabs.length,
         child: Column(
@@ -47,7 +47,7 @@ class AdminManagerSystemScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 18),
             SizedBox(
-              height: 520,
+              height: 560,
               child: TabBarView(
                 children: tabs.map((tab) => tab.child).toList(),
               ),

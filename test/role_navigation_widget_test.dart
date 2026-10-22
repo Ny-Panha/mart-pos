@@ -14,7 +14,13 @@ void main() {
     UserModel user,
     List<String> labels,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1400, 1000));
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -35,10 +41,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     for (final label in labels) {
-      expect(find.text(label), findsOneWidget);
+      expect(find.text(label, skipOffstage: false), findsOneWidget);
     }
     router.dispose();
-    await tester.binding.setSurfaceSize(null);
   }
 
   testWidgets('manager receives platform navigation', (tester) async {
@@ -48,13 +53,13 @@ void main() {
       [
         'Dashboard',
         'Shops',
-        'Admin owners',
+        'Admin Owners',
         'Locations',
         'Subscriptions',
-        'Stock overview',
-        'Products',
-        'Reports',
-        'System',
+        'Stock Overview',
+        'Global Products',
+        'System Reports',
+        'Settings',
       ],
     );
   });
@@ -69,18 +74,19 @@ void main() {
         shopId: 'shop-a',
       ),
       [
-        'POS',
+        'POS Checkout',
         'Dashboard',
-        'Products',
-        'Stock',
+        'Products & Category',
+        'Stock Movements',
         'Purchases',
         'Suppliers',
+        'Reports & Analytics',
         'Customers',
-        'Reports',
+        'Staff & Shifts',
         'Attendance',
         'Notifications',
-        'Audit log',
-        'Shop settings',
+        'Audit Log',
+        'Shop Settings',
       ],
     );
   });
@@ -94,7 +100,7 @@ void main() {
         role: UserModel.cashierRole,
         shopId: 'shop-a',
       ),
-      ['POS', 'Sales history', 'Stock check', 'My shift'],
+      ['POS', 'Sales History', 'Stock Check', 'My Shift'],
     );
   });
 }

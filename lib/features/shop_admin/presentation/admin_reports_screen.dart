@@ -19,14 +19,16 @@ class AdminReportsScreen extends ConsumerWidget {
     final products = ref.watch(adminReportProductsProvider);
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             PageHeader(
-              eyebrow: 'Shop admin',
-              title: 'Shop reports',
-              description: 'Sales, stock, estimated profit and best sellers.',
+              eyebrow: 'Analytics & Reports',
+              title: 'របាយការណ៍ហាងលម្អិត (Shop Reports)',
+              description: 'ស្ថិតិនៃការលក់ ស្តុក ចំណេញដុល និងមុខទំនិញលក់ដាច់បំផុត (Best Sellers)',
               actions: [
                 Wrap(
                   spacing: 8,

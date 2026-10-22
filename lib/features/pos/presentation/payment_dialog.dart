@@ -78,9 +78,15 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
       if (mounted) {
         Navigator.pop(context);
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Checkout failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
       }
     }
   }
