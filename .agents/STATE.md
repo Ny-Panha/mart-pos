@@ -2,19 +2,15 @@
 
 ## Last Session
 - **Environment**: Antigravity IDE
-- **Timestamp**: 2026-10-22 16:38 (ICT)
+- **Timestamp**: 2026-10-22 16:41 (ICT)
 - **Author**: Pair programming with Nha (Build Bright University, Year 4 Semester 2)
 
-## Summary: Responsive UI Polish & Tab Fixes
-1. **CapsuleTabBar Auto-Scroll & Clip Fix**:
-   - Converted `CapsuleTabBar` to `StatefulWidget` with dedicated `ScrollController` and per-item `GlobalKey`.
-   - Prevented active tab clipping on mobile/narrow screens via full-width expansion wrapper.
-   - Added automatic centering (`Scrollable.ensureVisible` at `alignment: 0.5`) whenever the selected tab changes.
-2. **Admin Settings Auto-Scroll & Theme Preview**:
-   - Dynamic RenderBox coordinate detection for responsive auto-highlighting when scrolling through settings cards.
-   - Fixed theme switcher live update & mobile single-column card alignment.
-3. **Main Shell Live Service Badge**:
-   - Made Live Service badge responsive to prevent layout overflow on smaller viewports.
+## Summary: MCP Server Configuration Fix
+1. **canva-connect**:
+   - Fixed path from Linux `/home/kali/.gemini/...` to Windows `C:\Users\nhastar\.gemini\mcp-servers\canva\server.js`.
+2. **GitHub MCP Server**:
+   - Removed broken/duplicate Docker-based `github-mcp-server` entry (Docker wasn't found in %PATH%).
+   - Preserved active, working `github` MCP server running via `npx` (26/26 tools active).
 
 ## Active Environment
 - **Project**: `c:\Users\nhastar\Desktop\Project\mart_pos`
@@ -22,4 +18,5 @@
 - **Active URL**: `http://localhost:65378/#/admin/settings`
 
 ## Next Steps
-- Push commit to GitHub origin/main.
+- Click "Refresh" (icon) in IDE Manage MCP Servers to reload.
+- Push commit to GitHub origin/main if needed.
