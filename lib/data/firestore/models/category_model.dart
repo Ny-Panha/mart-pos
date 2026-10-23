@@ -28,6 +28,31 @@ class CategoryModel {
     );
   }
 
+  factory CategoryModel.fromJson(Map<String, dynamic> json) {
+    final nameKh = json['name_kh']?.toString();
+    final nameEn = json['name']?.toString() ?? '';
+    final displayName = (nameKh != null && nameKh.isNotEmpty) ? '$nameKh ($nameEn)' : nameEn;
+
+    return CategoryModel(
+      id: (json['id'] ?? '').toString(),
+      name: displayName,
+      sortOrder: (json['sortOrder'] ?? json['id'] ?? 0) is num
+          ? (json['sortOrder'] ?? json['id'] as num).toInt()
+          : int.tryParse((json['sortOrder'] ?? json['id'] ?? 0).toString()) ?? 0,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'sortOrder': sortOrder,
+    };
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,

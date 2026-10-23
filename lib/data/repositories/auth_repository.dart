@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/user_model.dart';
+import '../services/api_service.dart';
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -67,6 +69,28 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
+    // 1. Try Laravel REST API login first
+    try {
+      final res = await ApiService.post('/login', {
+        'email': email.trim(),
+        'password': password,
+      });
+
+      if (res != null && res['success'] == true && res['data'] != null) {
+        final token = res['data']['token']?.toString();
+        if (token != null) {
+          await ApiService.saveToken(token);
+        }
+        final userData = res['data']['user'] as Map<String, dynamic>;
+        final userModel = UserModel.fromJson(userData);
+        debugPrint('Signed in via Laravel REST API: ${userModel.name} (${userModel.role})');
+        return userModel;
+      }
+    } catch (e) {
+      debugPrint('Laravel API login notice (falling back to Firebase): $e');
+    }
+
+    // 2. Fallback to Firebase Auth
     final credential = await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
@@ -129,6 +153,7 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    await ApiService.clearToken();
     await _auth.signOut();
   }
 }

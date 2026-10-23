@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
@@ -6,6 +7,7 @@ import '../firestore/firestore_collections.dart';
 import '../firestore/models/product_code_model.dart';
 import '../firestore/models/product_model.dart';
 import '../firestore/shop_scope.dart';
+import '../services/api_service.dart';
 
 class ProductRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -127,9 +129,30 @@ class ProductRepository {
       imageUrl: 'assets/products/lifebuoy_soap.jpg',
     ),
   ];
+  Stream<List<ProductModel>> watchProducts() async* {
+    // 1. Fetch live from Laravel REST API (MySQL)
+    try {
+      final res = await ApiService.get('/products');
+      if (res != null && res['success'] == true && res['data'] is List) {
+        final list = (res['data'] as List).map((item) {
+          final model = ProductModel.fromJson(item as Map<String, dynamic>);
+          final local = ProductThumbnail.getAssetForProduct(
+            id: model.id,
+            name: model.name,
+            barcode: model.barcode,
+          );
+          return local != null ? model.copyWith(imageUrl: local) : model;
+        }).toList();
+        if (list.isNotEmpty) {
+          yield list;
+        }
+      }
+    } catch (e) {
+      debugPrint('Laravel API fetch notice: $e');
+    }
 
-  Stream<List<ProductModel>> watchProducts() {
-    return ShopScope.query(FirestoreCollections.products)
+    // 2. Fallback to Firestore / Offline cache
+    yield* ShopScope.query(FirestoreCollections.products)
         .snapshots()
         .map((snapshot) {
           if (snapshot.docs.isEmpty) {
@@ -237,6 +260,13 @@ class ProductRepository {
     );
 
     await batch.commit();
+
+    try {
+      await ApiService.post('/products', normalized.toJson());
+      debugPrint('Product synced to Laravel REST API successfully!');
+    } catch (e) {
+      debugPrint('Laravel API createProduct notice: $e');
+    }
   }
 
   Future<void> updateProduct(ProductModel product, {String? oldCode}) async {
@@ -277,6 +307,13 @@ class ProductRepository {
           .doc(normalized.id)
           .set(normalized, SetOptions(merge: true));
     }
+
+    try {
+      await ApiService.put('/products/${product.id}', product.toJson());
+      debugPrint('Product updated in Laravel REST API successfully!');
+    } catch (e) {
+      debugPrint('Laravel API updateProduct notice: $e');
+    }
   }
 
   Future<void> deleteProduct(String id, String code) async {
@@ -286,5 +323,12 @@ class ProductRepository {
       FirestoreCollections.productCodes.doc(_productCodeDocumentId(code)),
     );
     await batch.commit();
+
+    try {
+      await ApiService.delete('/products/$id');
+      debugPrint('Product deleted from Laravel REST API successfully!');
+    } catch (e) {
+      debugPrint('Laravel API deleteProduct notice: $e');
+    }
   }
 }

@@ -54,6 +54,7 @@ dependencies:
   firebase_storage: ^13.6.0
   shared_preferences: ^2.5.6
   flutter_native_splash: ^2.4.8
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

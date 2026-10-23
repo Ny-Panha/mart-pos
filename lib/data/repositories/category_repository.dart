@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/category_model.dart';
 import '../firestore/shop_scope.dart';
+import '../services/api_service.dart';
 
 class CategoryRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -19,8 +20,24 @@ class CategoryRepository {
     ),
   ];
 
-  Stream<List<CategoryModel>> watchCategories() {
-    return ShopScope.query(FirestoreCollections.categories)
+  Stream<List<CategoryModel>> watchCategories() async* {
+    // 1. Fetch live from Laravel REST API (MySQL)
+    try {
+      final res = await ApiService.get('/categories');
+      if (res != null && res['success'] == true && res['data'] is List) {
+        final list = (res['data'] as List)
+            .map((item) => CategoryModel.fromJson(item as Map<String, dynamic>))
+            .toList();
+        if (list.isNotEmpty) {
+          yield list;
+        }
+      }
+    } catch (e) {
+      debugPrint('Laravel API watchCategories notice: $e');
+    }
+
+    // 2. Fallback to Firestore / Offline cache
+    yield* ShopScope.query(FirestoreCollections.categories)
         .snapshots()
         .map((snapshot) {
           if (snapshot.docs.isEmpty) {

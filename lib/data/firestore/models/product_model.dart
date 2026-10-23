@@ -69,6 +69,67 @@ class ProductModel {
     );
   }
 
+  factory ProductModel.fromJson(Map<String, dynamic> json) {
+    return ProductModel(
+      id: (json['id'] ?? '').toString(),
+      name: json['name']?.toString() ?? '',
+      code: json['code']?.toString() ?? '',
+      barcode: json['barcode']?.toString() ?? '',
+      sku: json['sku']?.toString() ?? '',
+      categoryId: (json['category_id'] ?? json['categoryId'] ?? (json['category'] != null ? json['category']['slug'] : '') ?? '').toString(),
+      costPrice: json['cost_price'] is num
+          ? (json['cost_price'] as num).toInt()
+          : (json['costPrice'] is num
+              ? (json['costPrice'] as num).toInt()
+              : int.tryParse((json['cost_price'] ?? json['costPrice'] ?? 0).toString()) ?? 0),
+      salePrice: json['sale_price'] is num
+          ? (json['sale_price'] as num).toInt()
+          : (json['salePrice'] is num
+              ? (json['salePrice'] as num).toInt()
+              : int.tryParse((json['sale_price'] ?? json['salePrice'] ?? 0).toString()) ?? 0),
+      stockQty: json['stock_qty'] is num
+          ? (json['stock_qty'] as num).toInt()
+          : (json['stockQty'] is num
+              ? (json['stockQty'] as num).toInt()
+              : int.tryParse((json['stock_qty'] ?? json['stockQty'] ?? 0).toString()) ?? 0),
+      unit: json['unit']?.toString() ?? 'កំប៉ុង',
+      lowStockThreshold: json['low_stock_threshold'] is num
+          ? (json['low_stock_threshold'] as num).toInt()
+          : (json['lowStockThreshold'] is num
+              ? (json['lowStockThreshold'] as num).toInt()
+              : int.tryParse((json['low_stock_threshold'] ?? json['lowStockThreshold'] ?? 5).toString()) ?? 5),
+      tax: json['tax'] is num
+          ? (json['tax'] as num).toDouble()
+          : double.tryParse(json['tax']?.toString() ?? '0') ?? 0.0,
+      status: json['status']?.toString() ?? 'active',
+      imageUrl: (json['image_url'] ?? json['imageUrl'])?.toString().trim().isNotEmpty == true
+          ? (json['image_url'] ?? json['imageUrl']).toString().trim()
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'code': code,
+      'barcode': barcode,
+      'sku': sku,
+      'category_id': int.tryParse(categoryId) ?? categoryId,
+      'cost_price': costPrice,
+      'sale_price': salePrice,
+      'stock_qty': stockQty,
+      'unit': unit,
+      'low_stock_threshold': lowStockThreshold,
+      'tax': tax,
+      'status': status,
+      if (imageUrl != null && imageUrl!.trim().isNotEmpty)
+        'image_url': imageUrl!.trim(),
+    };
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,

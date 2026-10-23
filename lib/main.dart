@@ -7,10 +7,13 @@ import 'firebase_options.dart';
 
 export 'app.dart';
 
+import 'data/services/api_service.dart';
+
 /// Mini-Mart POS Entry Point
-/// Architecture: Feature-first with Flutter Riverpod, GoRouter, and Firebase Offline-First
+/// Architecture: Feature-first with Flutter Riverpod, GoRouter, Laravel REST API & MySQL
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.init();
 
   // TODO: For Android production APK build, ensure google-services.json is at:
   // android/app/google-services.json

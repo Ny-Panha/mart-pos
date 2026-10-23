@@ -67,6 +67,35 @@ class UserModel {
     );
   }
 
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    final roleStr = json['role']?.toString() ?? cashierRole;
+    return UserModel(
+      id: (json['id'] ?? '').toString(),
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString(),
+      role: normalizeRole(roleStr),
+      shopId: shopIdForProfile(
+        role: roleStr,
+        shopId: json['shop_id']?.toString() ?? json['shopId']?.toString(),
+      ),
+      active: (json['status'] == 'active') || (json['active'] ?? true),
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'role': normalizedRole,
+      'shop_id': shopId,
+      'active': active,
+    };
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,

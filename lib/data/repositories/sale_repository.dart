@@ -6,6 +6,7 @@ import '../firestore/models/held_bill_model.dart';
 import '../firestore/models/sale_model.dart';
 import '../firestore/models/stock_movement_model.dart';
 import '../firestore/shop_scope.dart';
+import '../services/api_service.dart';
 
 class SaleRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -71,8 +72,40 @@ class SaleRepository {
       }, SetOptions(merge: true));
     }
 
-    // Commit atomic batch
+    // Commit atomic batch in Firestore
     await batch.commit();
+
+    // Sync to Laravel REST API (MySQL DB)
+    try {
+      final itemsPayload = sale.items.map((item) {
+        // Map product id (numeric id or fallback)
+        int prodId = int.tryParse(item.productId) ?? 1;
+        if (item.productId.startsWith('p')) {
+          prodId = int.tryParse(item.productId.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+        }
+        return {
+          'product_id': prodId,
+          'qty': item.qty,
+        };
+      }).toList();
+
+      final payload = <String, dynamic>{
+        'items': itemsPayload,
+        'total_riel': sale.total,
+        'total_usd': (sale.total / 4100).toStringAsFixed(2),
+        'received_riel': sale.paidAmount,
+        'received_usd': '0.00',
+        'change_riel': sale.changeAmount,
+        'change_usd': '0.00',
+        'payment_method': sale.paymentMethod == 'khqr' ? 'khqr' : 'cash_riel',
+        'notes': 'Invoice: ${sale.invoiceNumber}',
+      };
+
+      await ApiService.post('/orders', payload);
+      debugPrint('Sale successfully posted to Laravel API & MySQL stock auto-cut!');
+    } catch (e) {
+      debugPrint('Laravel API checkoutSale notice: $e');
+    }
   }
 
   // Held Bills
