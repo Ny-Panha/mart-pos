@@ -19,18 +19,42 @@
 ---
 
 ## 📌 សេចក្តីផ្តើមអំពីគម្រោង (Project Overview)
-**ប្រព័ន្ធគ្រប់គ្រងការលក់នៅម៉ាត (Mart POS & Inventory System)** គឺជាកម្មវិធី Mobile & Multi-platform Application បង្កើតឡើងដោយប្រើប្រាស់ **Flutter (Dart)** រួមជាមួយ **Google Firebase (Cloud Firestore & Authentication)** ដែលត្រូវបានរចនាឡើងយ៉ាងពិសេសសម្រាប់ជួយសម្រួលដល់ដំណើរការលក់ដូរ និងគ្រប់គ្រងស្តុកទំនិញនៅតាមបណ្តាម៉ាតខ្នាតតូច និងមធ្យម (Mini-markets / Retail Shops)។
+**ប្រព័ន្ធគ្រប់គ្រងការលក់នៅម៉ាត (Mart POS & Inventory System)** គឺជាប្រព័ន្ធគ្រប់គ្រងការលក់ និងស្តុកទំនិញពេញលេញ (Fullstack Application) ដែលត្រូវបានអភិវឌ្ឍឡើងស្របតាមតម្រូវការសិក្សាជាក់ស្តែង ដោយរួមបញ្ចូលនូវបច្ចេកវិទ្យាសំខាន់ៗចំនួន ៣៖
+1. **Laravel REST API:** ដើរតួជា Backend ស្នូលសម្រាប់គ្រប់គ្រង Business Logic, Authentication, និង API Endpoints។
+2. **MySQL Database:** ដើរតួជាឃ្លាំងផ្ទុកទិន្នន័យចម្បង (Primary Storage) សម្រាប់ Products, Categories, Users, Orders និង Sales។
+3. **Flutter UI:** ដើរតួជា Frontend Mobile & Multi-platform Application ដែលមាន UI/UX ទំនើប ងាយស្រួលប្រើប្រាស់។
 
-ប្រព័ន្ធនេះត្រូវបានរចនាឡើងយ៉ាងយកចិត្តទុកដាក់ខ្ពស់ជាពិសេសជាមួយ UI/UX ទំនើប ងាយស្រួលប្រើប្រាស់ និងសរសេរកូដឡើងវិញទាំងស្រុងជាភាសា **Dart (Flutter)** ស្របតាមតម្រូវការសិក្សាជាក់ស្តែង។
+លើសពីនេះ ប្រព័ន្ធត្រូវបានបំពាក់នូវស្ថាបត្យកម្ម **Hybrid Offline-First** ដោយមាន **Firebase Cloud Firestore** ជាប្រព័ន្ធបម្រុងទុក (Fallback) ពេលដាច់ Network។
 
 ---
 
 ## 🛠️ បច្ចេកវិទ្យាប្រើប្រាស់ (Tech Stack)
-* **Frontend Application:** Flutter 3.47+ (Dart 3.13+)
-* **State Management:** Provider Architecture
-* **Database & Cloud:** Google Firebase (Cloud Firestore & Authentication)
-* **Payment & Currency:** Dual-Currency Engine (USD \$ និង KHR ៛ អត្រាប្តូរប្រាក់ 4,100៛) & Bakong KHQR QR Code
-* **Barcode Engine:** Barcode / QR Code Quick-Scan & Search
+
+| ផ្នែក (Component) | បច្ចេកវិទ្យា (Technology) | មុខងារលម្អិត |
+|---|---|---|
+| **Frontend UI** | **Flutter (Dart 3.x)** | UI/UX សម្រាប់ POS Mobile, Tablet និង Desktop |
+| **State Management** | **Flutter Riverpod** | គ្រប់គ្រង State ទូទាំង App យ៉ាងមានប្រសិទ្ធភាព |
+| **Backend REST API** | **Laravel (PHP 8.3)** | ផ្តល់សេវា API JSON, Token Auth (Sanctum) និង Business Logic |
+| **Primary Database** | **MySQL (Laragon)** | រក្សាទុកទិន្នន័យស្នូល (`mart_pos_db`) ជាមួយ Migrations & Seeders |
+| **Offline Resilience** | **Firebase (Firestore & Auth)** | ឃ្លាំងទិន្នន័យបម្រុងទុក (Offline Cache / Fallback) ពេលដាច់ Network |
+| **Payment Engine** | **Dual-Currency & KHQR** | គណនារូបិយប័ណ្ណពីរ (USD / KHR អត្រា 4,100៛) និង Bakong KHQR |
+| **Barcode Engine** | **Mobile Scanner** | ស្កេនបាកូដទំនិញរហ័សតាម Camera និង Barcode Reader |
+
+---
+
+## 📐 ស្ថាបត្យកម្មប្រព័ន្ធ (System Architecture)
+
+```
+[ Flutter Mobile App (UI) ]
+         │
+         ├── (1) Primary API (JSON / HTTP) ──> [ Laravel REST API (:8080) ]
+         │                                                │
+         │                                                ▼
+         │                                     [ MySQL Database (:3306) ]
+         │                                           (mart_pos_db)
+         │
+         └── (2) Offline Cache (Fallback) ───> [ Firebase Cloud Firestore ]
+```
 
 ---
 
@@ -38,8 +62,8 @@
 
 ### 1. 🛒 ផ្ទាំងគិតលុយលក់ដូរ (POS Cashier Terminal)
 * បង្ហាញមុខទំនិញតាមប្រភេទ (Category Chips): ភេសជ្ជៈ, មី និងអាហារស្រាល, នំបុ័ង និងនំចំណី, សម្ភារៈប្រើប្រាស់។
-* ស្វែងរកទំនិញតាមឈ្មោះ ឬតាមរយៈការស្កេនបាកូដ (Barcode Input/Scanner)។
-* បន្ថែមទំនិញចូលកន្ត្រក, កែប្រែចំនួន (+/-), បញ្ចុះតម្លៃ (Discount)។
+* ស្វែងរកទំនិញតាមឈ្មោះ ឬតាមរយៈការស្កេនបាកូដ (Barcode Scanner)។
+* បន្ថែមទំនិញចូលកន្ត្រក, កែប្រែចំនួន (+/-), និងបញ្ចុះតម្លៃ (Discount)។
 * មុខងារ **Hold Bill / Resume Bill** (ផ្អាកវិក្កយបត្របណ្តោះអាសន្ន និងបន្តការលក់ឡើងវិញ)។
 
 ### 2. 💵 ការទូទាត់ប្រាក់ និងវិក្កយបត្រ (Checkout & Thermal Receipt)
@@ -53,60 +77,48 @@
 * បង្ហាញបញ្ជីទំនិញទាំងអស់ក្នុងម៉ាត (ឈ្មោះ, Barcode, តម្លៃដើម, តម្លៃលក់, ចំនួនស្តុក)។
 * បន្ថែមទំនិញថ្មី, កែប្រែព័ត៌មានទំនិញ, និងលុបទំនិញ។
 * ប្រព័ន្ធជូនដំណឹងពេលទំនិញ **ជិតអស់ពីស្តុក (Low Stock Alert <= 5)**។
-* កាត់ស្តុកទំនិញស្វ័យប្រវត្តិភ្លាមៗពេលមានការលក់ចេញ (Auto Stock Deduction)។
+* **កាត់ស្តុកទំនិញស្វ័យប្រវត្តិក្នុង MySQL** ភ្លាមៗពេលមានការលក់ចេញ (Auto Stock Deduction)។
 
 ### 4. 📊 របាយការណ៍លក់ (Sales Analytics & Reports)
 * សង្ខេបចំណូលសរុបប្រចាំថ្ងៃជា USD (\$) និង KHR (៛)។
 * ចំនួនវិក្កយបត្រដែលបានលក់ចេញសរុប។
 * បញ្ជីប្រវត្តិវិក្កយបត្រលក់លម្អិត និងអាចបើកមើលឡើងវិញបានគ្រប់ពេល។
 
-### 5. 👥 ព័ត៌មានក្រុមការងារ (Team & Switch Demo User)
-* បង្ហាញឈ្មោះសមាជិកក្រុមនិស្សិត BBU និងតួនាទី។
-* ប៊ូតុងប្តូរគណនីប្រើប្រាស់ភ្លាមៗសម្រាប់ Demo ជូនគ្រូ (Admin vs Cashier)។
+### 5. 🔐 ប្រព័ន្ធសុវត្ថិភាព និងកំណត់សិទ្ធិ (Role-based Access)
+* **ADMIN_MANAGER / ADMIN:** គ្រប់គ្រងទំនិញ, ប្រភេទ, មើលរបាយការណ៍ និងគ្រប់គ្រងគណនី។
+* **CASHIER:** ប្រើប្រាស់ផ្ទាំង POS លក់ដូរទំនិញ និងចេញវិក្កយបត្រ។
 
 ---
 
-## 🚀 របៀប Run ដំណើរការកម្មវិធី (How to Run)
+## 🚀 របៀប Run ដំណើរការគម្រោង (How to Run)
 
-### Firebase role setup and existing data migration
+### ជំហានទី ១៖ បើក MySQL Database
+1. បើកកម្មវិធី **Laragon** (ឬ XAMPP)
+2. ចុច **Start All** ដើម្បីដំណើរការ MySQL Server (Port `3306`)
 
-The app uses `ADMIN_MANAGER`, `ADMIN`, and `CASHIER` profiles. Shop-owned documents carry a `shopId`; existing unscoped records are assigned to `default-shop` by the migration script.
-
-1. Install the Cloud Functions dependencies with `cd functions && npm install`.
-2. Create the intended first manager in Firebase Authentication. Copy `functions/.env.example` to `functions/.env.mart-pos-app` and set `BOOTSTRAP_MANAGER_UID` to that Auth UID, then deploy Functions. The login screen's **Initialize first platform manager** action calls the bootstrap function; it only works for that allowlisted UID while no manager profile exists. Existing shop users are allowed.
-3. Run the migration in dry-run mode from the project root: `node scripts/migrate-default-shop.js`. Review the planned paths and counts before applying it.
-4. Back up Firestore. Then apply with `ALLOW_LIVE_MIGRATION=1 node scripts/migrate-default-shop.js --apply`. The script checks document counts and confirms a second plan is empty. Do not deploy the shop-scoped rules until this verification succeeds.
-5. Deploy Firestore rules after migration: `firebase deploy --only firestore:rules`.
-
-The migration is idempotent and does not run during deploy. The script requires explicit apply flags before writing. Cloud Functions use the Admin SDK for shop provisioning, user role changes, subscriptions, and platform reports.
-
-#### Firebase Emulator checks
-
-Start the Auth, Firestore, and Functions emulators with `firebase emulators:start --only auth,firestore,functions`. Use a disposable emulator project when testing role access and callable workflows.
-
-Run the automated Firestore authorization and migration repeatability checks with `firebase emulators:exec --project demo-mart-pos --only firestore "cd functions && npm run test:rules"`.
-
-### ជំហានទី ១៖ ចូលទៅកាន់ Folder គម្រោង
+### ជំហានទី ២៖ ដំណើរការ Laravel Backend API
+បើក Terminal ចូលទៅកាន់ folder `backend`៖
 ```bash
-cd /home/nha/Desktop/mart_pos
+cd backend
+composer install
+php artisan migrate --seed
+php artisan serve --host=0.0.0.0 --port=8080
 ```
+*(Backend REST API នឹងដំណើរការនៅ `http://localhost:8080` ឬតាម Wi-Fi IP ក្នុងបណ្តាញ Local)*
 
-### ជំហានទី ២៖ ទាញយក Packages
+### ជំហានទី ៣៖ ដំណើរការ Flutter Frontend App
+បើក Terminal ថ្មីមួយទៀតក្នុង Root Folder នៃគម្រោង៖
 ```bash
 flutter pub get
+flutter run
 ```
+*(អាច Run លើទូរស័ព្ទ Android ពិត, Chrome Web, ឬ Desktop)*
 
-### ជំហានទី ៣៖ Run កម្មវិធីលើ Chrome Web (ងាយស្រួល និងលឿនបំផុតសម្រាប់ Demo)
-```bash
-flutter run -d chrome
-```
+---
 
-*(ឬបើចង់ run លើ Linux Desktop)*
-```bash
-flutter run -d linux
-```
+## 🔑 គណនីសម្រាប់សាកល្បង Demo (Default Credentials)
 
-*(ឬបើចង់ run លើទូរស័ព្ទ Android)*
-```bash
-flutter run -d <android-device-id>
-```
+| តួនាទី (Role) | អ៊ីមែល (Email) | ពាក្យសម្ងាត់ (Password) |
+|---|---|---|
+| **Admin Manager** | `admin@martpos.com` | `password123` |
+| **Cashier (អ្នកគិតលុយ)** | `cashier@martpos.com` | `password123` |
