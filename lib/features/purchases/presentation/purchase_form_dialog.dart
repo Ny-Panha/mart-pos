@@ -68,6 +68,7 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
   final List<_ItemDraft> _items = [];
   bool _isLoading = false;
   String? _errorMessage;
+  String? _activePurchaseId;
 
   @override
   void initState() {
@@ -153,13 +154,19 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
         );
       }).toList();
 
+      _activePurchaseId ??= 'po_${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecondsSinceEpoch % 100000}';
+
       await repo.createPurchase(
         supplierId: _selectedSupplierId!,
         items: purchaseItems,
         note: _noteController.text.trim(),
         userId: user?.id ?? 'admin',
         userName: user?.name,
+        purchaseId: _activePurchaseId,
+        clientOperationId: 'op_$_activePurchaseId',
       );
+
+      _activePurchaseId = null;
 
       if (mounted) {
         Navigator.of(context).pop();

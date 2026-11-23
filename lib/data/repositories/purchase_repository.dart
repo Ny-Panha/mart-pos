@@ -90,6 +90,8 @@ class PurchaseRepository {
     String? note,
     required String userId,
     String? userName,
+    String? purchaseId,
+    String? clientOperationId,
   }) async {
     // 1. Verify supplier exists and is active
     final supplierDoc = await FirestoreCollections.suppliers
@@ -118,12 +120,13 @@ class PurchaseRepository {
       };
     }).toList();
 
-    final purchaseRef = FirestoreCollections.purchases.doc();
-    final purchaseId = purchaseRef.id;
+    final pId = purchaseId ?? FirestoreCollections.purchases.doc().id;
+    final purchaseRef = FirestoreCollections.purchases.doc(pId);
+    final opId = clientOperationId ?? 'op_po_$pId';
 
     // 4. Authoritative request to Laravel API with stable client_operation_id
     final res = await ApiService.post('/inventory/purchase', {
-      'client_operation_id': 'op_po_$purchaseId',
+      'client_operation_id': opId,
       'supplier_name': supplier.name,
       'supplier_id': supplierId,
       'note': note?.trim().isEmpty ?? true ? null : note!.trim(),
@@ -140,6 +143,9 @@ class PurchaseRepository {
 
     // 5. Update products and stock movements in Firestore cache idempotently
     try {
+      final existingPurchase = await purchaseRef.get();
+      final wasAlreadyRecorded = existingPurchase.exists;
+
       final confirmedProducts = <String, int>{};
       if (res['data']?['products'] is List) {
         for (final p in res['data']['products']) {
@@ -153,24 +159,30 @@ class PurchaseRepository {
       for (final item in items) {
         final productRef = FirestoreCollections.products.doc(item.productId);
         final confirmedStock = confirmedProducts[item.productId];
-        batch.set(productRef, {
-          if (confirmedStock != null)
-            'stockQty': confirmedStock
-          else
-            'stockQty': FieldValue.increment(item.qty),
+
+        final updateData = <String, dynamic>{
           'costPrice': item.costPrice,
           'updatedAt': Timestamp.now(),
-        }, SetOptions(merge: true));
+        };
+
+        if (confirmedStock != null) {
+          updateData['stockQty'] = confirmedStock;
+        } else if (!wasAlreadyRecorded) {
+          // Never use additive increment on a replayed / already-recorded purchase
+          updateData['stockQty'] = FieldValue.increment(item.qty);
+        }
+
+        batch.set(productRef, updateData, SetOptions(merge: true));
 
         // Deterministic document ID to prevent duplicate stock movements on retry
-        final movementRef = FirestoreCollections.stockMovements.doc('po_${purchaseId}_${item.productId}');
+        final movementRef = FirestoreCollections.stockMovements.doc('po_${pId}_${item.productId}');
         final movement = StockMovementModel(
           id: movementRef.id,
           productId: item.productId,
           type: 'in',
           qty: item.qty,
           note: 'Purchase from ${supplier.name}',
-          refId: purchaseId,
+          refId: pId,
           createdBy: userId,
           createdAt: now,
         );
@@ -178,7 +190,7 @@ class PurchaseRepository {
       }
 
       final purchase = PurchaseModel(
-        id: purchaseId,
+        id: pId,
         supplierId: supplierId,
         supplierName: supplier.name,
         items: items,
@@ -199,11 +211,11 @@ class PurchaseRepository {
       userName: userName ?? 'User $userId',
       action: 'purchase.create',
       entityType: 'purchase',
-      entityId: purchaseId,
+      entityId: pId,
       details:
           '${supplier.name} · ${items.length} items · ${MoneyUtils.formatRiel(totalCost)}',
     );
 
-    return purchaseId;
+    return pId;
   }
 }

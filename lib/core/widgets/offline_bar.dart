@@ -112,7 +112,7 @@ class _OfflineBarState extends State<OfflineBar> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '⚠️ Offline Mode — ${widget.pendingSyncCount > 0 ? "${widget.pendingSyncCount} sales pending sync to Cloud" : "Local cache active (WriteBatch offline)"}',
+              '⚠️ Offline Mode — Active internet connection required for checkout (authoritative sync)',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(

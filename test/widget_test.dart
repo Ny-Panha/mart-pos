@@ -717,18 +717,77 @@ void main() {
         activeInvoiceNumber: 'INV-20261123-0001',
       );
 
-      // On failure, copyWith(isCheckingOut: false) preserves operation identity
-      final failureState = initial.copyWith(isCheckingOut: false);
+      // On failure, copyWith(isCheckingOut: false, checkoutStatus: CheckoutStatus.failed) preserves operation identity
+      final failureState = initial.copyWith(
+        isCheckingOut: false,
+        checkoutStatus: CheckoutStatus.failed,
+      );
       expect(failureState.activeOperationId, 'op_test_12345678');
       expect(failureState.activeInvoiceNumber, 'INV-20261123-0001');
 
-      // On cart item or price modification, clearActiveOperation resets them
-      final mutatedState = initial.copyWith(
+      // When an operation is unresolved (failed or pending), clearActiveOperation preserves operation identity!
+      final unresolvedMutatedState = failureState.copyWith(
+        discount: 500,
+        clearActiveOperation: true,
+      );
+      expect(unresolvedMutatedState.activeOperationId, 'op_test_12345678');
+      expect(unresolvedMutatedState.activeInvoiceNumber, 'INV-20261123-0001');
+
+      // When resolved (idle), clearActiveOperation resets them
+      final resolvedState = initial.copyWith(checkoutStatus: CheckoutStatus.idle);
+      final mutatedState = resolvedState.copyWith(
         discount: 500,
         clearActiveOperation: true,
       );
       expect(mutatedState.activeOperationId, isNull);
       expect(mutatedState.activeInvoiceNumber, isNull);
+    });
+
+    test('SaleModel supports receivedUsd, changeUsd, and taxRate serialization', () {
+      final sale = SaleModel(
+        id: 's_usd_01',
+        invoiceNumber: 'INV-USD-001',
+        cashierId: 'cashier_1',
+        items: [
+          SaleItem(productId: '10', name: 'Item', qty: 2, unitPrice: 2050, totalPrice: 4100),
+        ],
+        subtotal: 4100,
+        total: 4100,
+        paidAmount: 4100,
+        receivedUsd: 2.00,
+        changeUsd: 1.00,
+        taxRate: 0.10,
+        paymentMethod: 'cash_usd',
+      );
+
+      expect(sale.receivedUsd, 2.00);
+      expect(sale.changeUsd, 1.00);
+      expect(sale.taxRate, 0.10);
+      expect(sale.paymentMethod, 'cash_usd');
+
+      final map = sale.toFirestore();
+      expect(map['receivedUsd'], 2.00);
+      expect(map['changeUsd'], 1.00);
+      expect(map['taxRate'], 0.10);
+      expect(map['paymentMethod'], 'cash_usd');
+    });
+
+    test('PurchaseRepository.validatePurchaseInput validates items and supplier correctly', () {
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: false,
+          items: [PurchaseItem(productId: 'p1', name: 'Item', qty: 1, costPrice: 1000)],
+        ),
+        throwsA(isA<ArgumentError>().having((e) => e.message, 'message', contains('Supplier must exist'))),
+      );
+
+      expect(
+        () => PurchaseRepository.validatePurchaseInput(
+          isSupplierActive: true,
+          items: [],
+        ),
+        throwsA(isA<ArgumentError>().having((e) => e.message, 'message', contains('cannot be empty'))),
+      );
     });
 
     test('SaleRepository and ReportRepository handle network failure gracefully without throwing unhandled exceptions', () async {

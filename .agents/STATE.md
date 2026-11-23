@@ -2,56 +2,57 @@
 
 ## Last Session
 - **Environment**: Antigravity IDE
-- **Timestamp**: 2026-11-23 21:13 (ICT)
-- **Branch**: `fix/targeted-release-blockers`
-- **Base Branch**: `fix/p0-p1-regressions` (Commit: `1d8d67c967b510fd21538b634e0cf69a15307523`)
+- **Timestamp**: 2026-11-23 21:46 (ICT)
+- **Branch**: `fix/final-safety-repair`
+- **Base Branch**: `fix/targeted-release-blockers` (Commit: `4f92b8136f4462ea75c3f4f6069f37f8eee3df80`)
 - **Author**: Ny Panha & Antigravity
 
-## Summary: Targeted Release-Blocker Repair
+## Summary: Final Targeted Safety Repair
 
-### 1. P0 — Stable Checkout Operation Identity (Flutter)
-- **Durable Identity**: `PosCartState` now tracks `activeOperationId` and `activeInvoiceNumber`. These are preserved across network timeouts, application re-renders, and failed checkout attempts.
-- **Pre-retry Reconciliation**: In `PosCartNotifier.checkout`, before issuing a checkout mutation, the client queries `GET /orders/by-operation/{opId}`. If the order was already recorded by Laravel (e.g. response was lost due to network drop), the client reconciles the confirmed invoice, updates the local cache idempotently, clears the cart, and completes payment without duplicate orders.
-- **Cart & Operation Reset**: Any cart item modification, quantity change, customer update, discount, or tax change automatically clears `activeOperationId` (`clearActiveOperation: true`) to avoid reusing operation IDs for altered payloads.
+### 1. P0 — Isolated & Safe MySQL Test Suite (`MysqlConcurrencyAndIdempotencyTest.php`, `phpunit.xml`)
+- **Hard Guard Against Live DB**: Added strict assertion enforcing that tests NEVER run against `mart_pos_db` or the application database. Tests fail immediately with `RuntimeException` if `DB_TEST_DATABASE` is missing, matches the app DB, or does not clearly end in `_test`.
+- **Zero Hardcoded Credentials**: Database host, port, username, and password are read exclusively from environment variables (`DB_TEST_*` or `DB_*`).
+- **Isolated Per-Run Fixtures & Cleanup**: Fixtures use unique per-run tokens (`runKey`). Cleanup in `tearDown` targets strictly entities belonging to the test run, avoiding sweeping deletions of shared database tables.
+- **True Concurrency Testing**: Implemented `test_mysql_simultaneous_database_operations_with_independent_connections` using two independent MySQL sessions (`mysql` and `mysql_secondary`) to verify that MySQL `UNIQUE` index on `client_operation_id` rejects concurrent duplicates (error 23000) under separate transactions.
 
-### 2. P0 — Secure Idempotency Recovery (Laravel)
-- **Unified Recovery Path**: In `OrderController.php`, unified all recovery points (pre-transaction lookup, transaction row-lock check, and `QueryException` catch block) through a single `resolveIdempotentOrder` method.
-- **Canonical Payload Validation**: `isEquivalentPayload` validates total amount, discount, tax, payment method, tendered amount, change amount, and line item quantities/prices.
-- **Strict Ownership & Conflict Handling**: Cross-user operation ID reuse returns HTTP 403 Forbidden. Conflicting payloads return HTTP 409 Conflict. Identical retries return HTTP 200 OK idempotent recovery.
+### 2. P0 — Durable Checkout Identity Persistence (`pos_cart_provider.dart`, `sale_repository.dart`)
+- **Durable Identity**: Persists pending checkout `operationId`, `invoiceNumber`, full payload, and status (`idle`, `pending`, `confirmed`, `failed`) into `SharedPreferences`.
+- **Restoration on Startup**: Provider restores unresolved operation state upon application boot via `restorePendingCheckout()`.
+- **Pre-checkout Reconciliation**: Queries `GET /orders/by-operation/{opId}` prior to mutating backend or retrying, recovering confirmed orders seamlessly after dropped connections without duplicate sales.
+- **Preserved Unresolved Identity**: `PosCartState.copyWith` prevents clearing active operation identity on cart alterations while an operation remains unresolved (`pending` or `failed`).
+- **Concurrency Submission Lock**: Rejects overlapping checkout requests if `isCheckingOut` is already active.
+- **Accurate Offline Messaging**: Removed false claims that offline checkouts are queued to cloud; updated `offline_bar.dart` and `pos_screen.dart` to clarify that an authoritative server connection is required.
 
-### 3. P1 — Totals and Payment Verification (Laravel)
-- **Server-side Tax Policy**: Explicitly validates `tax_rate` (0.0 to 0.30) and calculates expected tax server-side. Arbitrary client-provided tax amounts exceeding policy limits (> 25% of subtotal) are rejected with HTTP 422.
-- **Multi-currency & Method Validation**:
-  - `khqr`: Requires exact received amount and zero change.
-  - `cash_riel` / `cash`: Requires `received_riel >= total_riel` and exact change calculation.
-  - `cash_usd`: Converts totals using standard 4100 Riel/USD rate, validates USD tendered and change amounts in USD or Riel.
-  - Unsupported payment methods (e.g. `crypto`, `bitcoin`) are rejected with HTTP 422.
+### 3. P0 — Repaired Cash USD Payment (`sale_repository.dart`, `sale_model.dart`, `OrderController.php`)
+- **Real USD Received Mapping**: Replaced hardcoded `'received_usd': '0.00'` with actual `received_usd` and `change_usd` values derived from tendered payment.
+- **Positive Tendered Validation**: `OrderController` strictly rejects non-positive or insufficient USD received amounts for `cash_usd` payment method.
+- **Flexible Currency Change**: Validates that change due is properly accounted for in USD, Khmer Riel (at 4,100 Riel/USD), or mixed combinations within standard rounding tolerances.
+- **Idempotency Payload Check**: Updated `isEquivalentPayload` to compare `received_usd` and `change_usd` on retried `cash_usd` operations.
 
-### 4. P1 — Inventory Database Idempotency (Laravel & MySQL)
-- **Database Unique Constraint**: Created `inventory_operations` migration and model with a unique constraint on `client_operation_id`.
-- **Database-level Mutation Guards**: All stock mutations (`stockIn`, `stockOut`, `adjustStock`, `purchase`) require `client_operation_id` (min 8 chars) and record an `InventoryOperation`.
-- **Conflict Prevention**: Concurrent retries and reuse with conflicting products, quantities, or operation types are rejected with HTTP 409 Conflict or HTTP 403 Forbidden without mutating stock twice.
+### 4. P1 — Preserved Purchase Idempotency (`purchase_repository.dart`, `purchase_form_dialog.dart`)
+- **Stable Purchase Identity**: `PurchaseRepository.createPurchase` accepts optional `purchaseId` and `clientOperationId`, reusing existing identifiers across retries.
+- **Dialog Retry Continuity**: `_PurchaseFormDialogState` retains `_activePurchaseId` so that retrying submission after a network timeout reuses the same operation identity.
+- **Safe Cache Updates**: Never uses `FieldValue.increment` on replayed / already-recorded purchases; always favors exact authoritative stock quantities returned from MySQL.
 
-### 5. P1 — Cache Reconciliation & Reports (Flutter & Laravel)
-- **Idempotent Firestore Reconciliation**: Replaced additive cache writes in `sale_repository.dart` and `purchase_repository.dart`. Customer `totalSpent` is only incremented if the sale was not already confirmed in Firestore.
-- **Deterministic Movement IDs**: Uses deterministic Firestore document IDs (`opId` and `po_${purchaseId}_${item.productId}`) to prevent duplicate stock movements upon retry.
-- **Server-confirmed Stock Updates**: Reconciles local product cache with exact server-returned `stock_qty`.
-- **Authoritative Reports**: `ReportController::summary` calculates authoritative sales, orders, and net profit from MySQL `orders` and `order_items` over requested date periods. Added `ReportRepository.getAuthoritativeSummary`.
+### 5. P1 — Server-Side Tax Policy Enforcement (`OrderController.php`)
+- **Deterministic Recalculation**: Explicitly validates `tax_rate` (0.0 to 0.30) against server-side subtotal and discount.
+- **Inconsistent Amount Rejection**: Rejects client-provided `tax_riel` that diverges (> 2 Riel) from server-calculated tax with HTTP 422.
+- **Tax Cap Guard**: Prevents applying tax on zero taxable base and caps implicit tax at 30%.
 
 ## Active Environment
 - **Flutter App**: `e:\Project\flutter\project\mart_pos`
 - **Laravel Backend**: `e:\Project\flutter\project\mart_pos\backend`
-- **Backend API Server**: `http://localhost:8080` (or `API_BASE_URL` env variable)
-- **MySQL Database**: `mart_pos_db` on `127.0.0.1:3306`
+- **Backend API Server**: `http://localhost:8080`
+- **MySQL Application Database**: `mart_pos_db` on `127.0.0.1:3306`
+- **MySQL Dedicated Test Database**: `mart_pos_test` on `127.0.0.1:3306`
 
 ## Verification & Test Results
-- `flutter analyze lib/`: **No issues found!** (ran in 9.4s)
-- `flutter test`: **All 52 tests passed!** (Including MoneyUtils, Role guards, Code uniqueness, Profit math, Stable checkout identity preservation, and Graceful network handling)
-- `cd backend; php artisan test`: **All 23 tests passed (123 assertions)!**
-  - Includes isolated MySQL concurrency & database uniqueness tests: `MysqlConcurrencyAndIdempotencyTest` (testing real MySQL transactions and UNIQUE constraint on `inventory_operations.client_operation_id`).
-  - Includes `OrderAndInventoryTest` covering lookup by operation ID, server-side tax limits, cash USD flow, and inventory idempotency.
+- `cd backend; php artisan test`: **All 24 tests passed (127 assertions)!**
+  - Includes `MysqlConcurrencyAndIdempotencyTest` (isolated test DB guard, real MySQL transactions, multi-connection concurrency verification).
+  - Includes `OrderAndInventoryTest` (cash USD flow, zero-USD rejection, inconsistent tax rejection, consistent tax success).
+- `flutter analyze lib/`: **No issues found!** (ran in 5.7s)
+- `flutter test`: **All 54 tests passed!**
+  - Includes MoneyUtils, Role guards, Code uniqueness, Profit math, Stable checkout identity preservation across cart mutations, Cash USD model serialization, Purchase input guards, and Graceful network handling.
 
-## Next Steps
-- Commit all changes to review branch `fix/targeted-release-blockers`.
-- Push branch to origin.
-- Do NOT merge into `main`.
+## Remaining Limitations
+- Mart POS operates strictly with an authoritative MySQL backend for sales and inventory mutation. When offline, catalog browsing is available via cache, but sales transactions require an authoritative server connection because a full offline durable mutation outbox has not yet been built.

@@ -706,6 +706,50 @@ class OrderAndInventoryTest extends TestCase
             'payment_method' => 'bitcoin',
         ]);
         $unsupportedRes->assertStatus(422);
+
+        // 4. Cash USD rejecting zero received_usd
+        $zeroUsdRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_zero_usd_fail',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'total_riel' => 2500,
+            'total_usd' => 0.61,
+            'received_usd' => 0.00,
+            'change_usd' => 0.00,
+            'payment_method' => 'cash_usd',
+        ]);
+        $zeroUsdRes->assertStatus(422);
+
+        // 5. Inconsistent tax rate and tax amount rejection
+        $inconsistentTaxRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_inconsistent_tax_fail',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'tax_rate' => 0.10, // 10% on 2500 should be 250
+            'tax_riel' => 999, // Manipulated tax
+            'total_riel' => 3499,
+            'received_riel' => 3499,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ]);
+        $inconsistentTaxRes->assertStatus(422);
+
+        // 6. Consistent tax calculation success
+        $consistentTaxRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_consistent_tax_success',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'tax_rate' => 0.10,
+            'tax_riel' => 250,
+            'total_riel' => 2750,
+            'received_riel' => 2750,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ]);
+        $consistentTaxRes->assertStatus(201);
     }
 
     public function test_inventory_database_idempotency_conflicts_and_ownership(): void

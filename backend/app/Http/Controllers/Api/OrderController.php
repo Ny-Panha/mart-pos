@@ -86,6 +86,14 @@ class OrderController extends Controller
         if (isset($validated['change_riel']) && (int) $existing->change_riel !== (int) $validated['change_riel']) {
             return false;
         }
+        if ($existing->payment_method === 'cash_usd') {
+            if (isset($validated['received_usd']) && abs((float) $existing->received_usd - (float) $validated['received_usd']) > 0.01) {
+                return false;
+            }
+            if (isset($validated['change_usd']) && abs((float) $existing->change_usd - (float) $validated['change_usd']) > 0.01) {
+                return false;
+            }
+        }
 
         // 3. Validate line items: product_id, aggregate qty, and unit price
         $existingItems = [];
@@ -284,16 +292,37 @@ class OrderController extends Controller
                 }
 
                 // Server-side Tax Policy: explicit calculation policy
+                $taxableBase = max(0, $calculatedSubtotal - $discountRiel);
                 if (isset($validated['tax_rate']) && $validated['tax_rate'] !== null) {
                     $taxRate = (float) $validated['tax_rate'];
-                    $taxRiel = (int) round(max(0, $calculatedSubtotal - $discountRiel) * $taxRate);
-                } else {
-                    $taxRiel = (int) ($validated['tax_riel'] ?? 0);
-                    $maxAllowableTax = (int) round(max(0, $calculatedSubtotal - $discountRiel) * 0.25);
-                    if ($taxRiel > $maxAllowableTax) {
+                    if ($taxRate < 0.0 || $taxRate > 0.30) {
                         return response()->json([
                             'success' => false,
-                            'message' => "Invalid or manipulated tax amount: {$taxRiel} Riel exceeds allowable policy limit.",
+                            'message' => "Invalid tax rate: {$taxRate}. Must be between 0.0 and 0.30.",
+                        ], 422);
+                    }
+                    $expectedTaxRiel = (int) round($taxableBase * $taxRate);
+                    if (isset($validated['tax_riel']) && abs((int) $validated['tax_riel'] - $expectedTaxRiel) > 2) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Inconsistent tax amount. Server calculated {$expectedTaxRiel} Riel for rate {$taxRate}, client sent {$validated['tax_riel']} Riel.",
+                        ], 422);
+                    }
+                    $taxRiel = $expectedTaxRiel;
+                } else {
+                    $taxRiel = (int) ($validated['tax_riel'] ?? 0);
+                    if ($taxRiel > 0 && $taxableBase > 0) {
+                        $impliedRate = $taxRiel / $taxableBase;
+                        if ($impliedRate > 0.30) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => "Invalid or manipulated tax amount: {$taxRiel} Riel exceeds allowable policy limit (30%).",
+                            ], 422);
+                        }
+                    } elseif ($taxRiel > 0 && $taxableBase === 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cannot apply tax to a zero taxable base.',
                         ], 422);
                     }
                 }
@@ -327,8 +356,15 @@ class OrderController extends Controller
                     }
                 } elseif ($paymentMethod === 'cash_usd') {
                     $expectedTotalUsd = round($expectedTotalRiel / 4100, 2);
-                    $receivedUsd = (float) ($validated['received_usd'] ?? 0.0);
-                    $changeUsd = (float) ($validated['change_usd'] ?? 0.0);
+                    $receivedUsd = round((float) ($validated['received_usd'] ?? 0.0), 2);
+                    $changeUsd = round((float) ($validated['change_usd'] ?? 0.0), 2);
+
+                    if ($receivedUsd <= 0.0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cash USD payment requires a positive received_usd amount.',
+                        ], 422);
+                    }
 
                     if ($receivedUsd < $expectedTotalUsd) {
                         return response()->json([
@@ -339,10 +375,16 @@ class OrderController extends Controller
 
                     $expectedChangeUsd = round($receivedUsd - $expectedTotalUsd, 2);
                     $expectedChangeRielFromUsd = (int) round($expectedChangeUsd * 4100);
-                    if (abs($changeUsd - $expectedChangeUsd) > 0.02 && abs($changeRiel - $expectedChangeRielFromUsd) > 100) {
+
+                    // Allow USD change, Riel change, or combined USD + Riel change within rounding margin
+                    $isUsdChangeValid = abs($changeUsd - $expectedChangeUsd) <= 0.02;
+                    $isRielChangeValid = abs($changeRiel - $expectedChangeRielFromUsd) <= 100;
+                    $isCombinedChangeValid = abs(($changeUsd + round($changeRiel / 4100, 2)) - $expectedChangeUsd) <= 0.02;
+
+                    if (!$isUsdChangeValid && !$isRielChangeValid && !$isCombinedChangeValid) {
                         return response()->json([
                             'success' => false,
-                            'message' => "USD change mismatch. Expected: \${$expectedChangeUsd} (or {$expectedChangeRielFromUsd} Riel), received: \${$changeUsd} / {$changeRiel} Riel.",
+                            'message' => "USD change mismatch. Expected: \${$expectedChangeUsd} (or {$expectedChangeRielFromUsd} Riel), received: \${$changeUsd} USD / {$changeRiel} Riel.",
                         ], 422);
                     }
                 } else {

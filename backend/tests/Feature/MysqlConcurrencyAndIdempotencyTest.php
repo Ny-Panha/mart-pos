@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\User;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -19,89 +20,155 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
     protected ?User $admin = null;
     protected ?Category $category = null;
     protected ?Product $product = null;
+    protected string $runKey = '';
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Ensure we test against the real MySQL connection
+        // 1. Strict Fail-Fast Database Safety Check
+        $testDb = env('DB_TEST_DATABASE', env('MYSQL_TEST_DATABASE'));
+        if (empty($testDb)) {
+            throw new \RuntimeException(
+                'CRITICAL SAFETY ERROR: Integration tests require an explicitly configured test database (DB_TEST_DATABASE). None provided.'
+            );
+        }
+
+        $appDb = env('DB_DATABASE', 'mart_pos_db');
+        if ($testDb === 'mart_pos_db' || $testDb === $appDb) {
+            throw new \RuntimeException(
+                "CRITICAL SAFETY ERROR: Refusing to run tests against application database '{$testDb}'. Must use an isolated test database."
+            );
+        }
+
+        if (!str_ends_with($testDb, '_test') && !str_contains($testDb, '_test_')) {
+            throw new \RuntimeException(
+                "CRITICAL SAFETY ERROR: Test database '{$testDb}' is not clearly marked as a test database (name must end with '_test'). Aborting."
+            );
+        }
+
+        // 2. Read connection settings exclusively from environment (NO hardcoded credentials)
+        $host = env('DB_TEST_HOST', env('DB_HOST', '127.0.0.1'));
+        $port = env('DB_TEST_PORT', env('DB_PORT', '3306'));
+        $username = env('DB_TEST_USERNAME', env('DB_USERNAME', 'root'));
+        $password = env('DB_TEST_PASSWORD', env('DB_PASSWORD', ''));
+
         config([
             'database.default' => 'mysql',
-            'database.connections.mysql.database' => 'mart_pos_db',
-            'database.connections.mysql.username' => 'root',
-            'database.connections.mysql.password' => env('DB_PASSWORD', '123456'),
+            'database.connections.mysql.database' => $testDb,
+            'database.connections.mysql.host' => $host,
+            'database.connections.mysql.port' => $port,
+            'database.connections.mysql.username' => $username,
+            'database.connections.mysql.password' => $password,
+
+            // Secondary independent connection to test actual simultaneous database sessions
+            'database.connections.mysql_secondary' => [
+                'driver' => 'mysql',
+                'host' => $host,
+                'port' => $port,
+                'database' => $testDb,
+                'username' => $username,
+                'password' => $password,
+                'charset' => 'utf8mb4',
+                'collation' => 'utf8mb4_unicode_ci',
+                'prefix' => '',
+                'strict' => true,
+            ],
         ]);
+
         DB::purge('mysql');
+        DB::purge('mysql_secondary');
         DB::reconnect('mysql');
 
-        // Set up test entities isolated with dedicated test prefixes
-        $this->cashier = User::firstOrCreate(
-            ['email' => 'mysql_cashier_test@martpos.com'],
-            [
-                'name' => 'MySQL Cashier Test',
-                'role' => 'CASHIER',
-                'status' => 'active',
-                'password' => bcrypt('password123'),
-            ]
-        );
+        // Ensure test database schema is up-to-date
+        Artisan::call('migrate', ['--database' => 'mysql', '--force' => true]);
 
-        $this->otherCashier = User::firstOrCreate(
-            ['email' => 'mysql_other_cashier@martpos.com'],
-            [
-                'name' => 'MySQL Other Cashier',
-                'role' => 'CASHIER',
-                'status' => 'active',
-                'password' => bcrypt('password123'),
-            ]
-        );
+        // 3. Isolated test fixtures unique to this test run
+        $this->runKey = substr(md5(uniqid((string) mt_rand(), true)), 0, 8);
 
-        $this->admin = User::firstOrCreate(
-            ['email' => 'mysql_admin_test@martpos.com'],
-            [
-                'name' => 'MySQL Admin Test',
-                'role' => 'ADMIN',
-                'status' => 'active',
-                'password' => bcrypt('password123'),
-            ]
-        );
+        $this->cashier = User::create([
+            'name' => 'Cashier Test ' . $this->runKey,
+            'email' => 'cashier_' . $this->runKey . '@martpos-test.com',
+            'role' => 'CASHIER',
+            'status' => 'active',
+            'password' => bcrypt('password123'),
+        ]);
 
-        $this->category = Category::firstOrCreate(
-            ['slug' => 'mysql-concurrency-test-cat'],
-            ['name' => 'MySQL Test Cat', 'name_kh' => 'ប្រភេទតេស្ត']
-        );
+        $this->otherCashier = User::create([
+            'name' => 'Other Cashier ' . $this->runKey,
+            'email' => 'other_' . $this->runKey . '@martpos-test.com',
+            'role' => 'CASHIER',
+            'status' => 'active',
+            'password' => bcrypt('password123'),
+        ]);
 
-        $this->product = Product::firstOrCreate(
-            ['code' => 'MYSQL-TEST-001'],
-            [
-                'name' => 'MySQL Concurrency Test Product',
-                'barcode' => '888000999111',
-                'category_id' => $this->category->id,
-                'cost_price' => 1500,
-                'sale_price' => 2500,
-                'stock_qty' => 50,
-                'status' => 'active',
-            ]
-        );
-        $this->product->update(['stock_qty' => 50, 'status' => 'active']);
+        $this->admin = User::create([
+            'name' => 'Admin Test ' . $this->runKey,
+            'email' => 'admin_' . $this->runKey . '@martpos-test.com',
+            'role' => 'ADMIN',
+            'status' => 'active',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $this->category = Category::create([
+            'slug' => 'cat-' . $this->runKey,
+            'name' => 'Test Cat ' . $this->runKey,
+            'name_kh' => 'ប្រភេទ ' . $this->runKey,
+        ]);
+
+        $this->product = Product::create([
+            'code' => 'P-' . $this->runKey,
+            'name' => 'Test Product ' . $this->runKey,
+            'barcode' => '888' . mt_rand(100000000, 999999999),
+            'category_id' => $this->category->id,
+            'cost_price' => 1500,
+            'sale_price' => 2500,
+            'stock_qty' => 50,
+            'status' => 'active',
+        ]);
     }
 
     protected function tearDown(): void
     {
-        // Clean up only test records created during this run
+        // Safe isolated cleanup targeting ONLY fixtures created during this specific test run
         if ($this->product) {
             StockMovement::where('product_id', $this->product->id)->delete();
             OrderItem::where('product_id', $this->product->id)->delete();
             InventoryOperation::where('product_id', $this->product->id)->delete();
+            $this->product->delete();
         }
-        Order::where('client_operation_id', 'like', 'op_mysql_%')->delete();
-        InventoryOperation::where('client_operation_id', 'like', 'op_mysql_%')->delete();
+        if ($this->category) {
+            $this->category->delete();
+        }
+        if ($this->cashier) {
+            $orderIds = Order::where('cashier_id', $this->cashier->id)->pluck('id');
+            if ($orderIds->isNotEmpty()) {
+                OrderItem::whereIn('order_id', $orderIds)->delete();
+                Order::whereIn('id', $orderIds)->delete();
+            }
+            $this->cashier->tokens()->delete();
+            $this->cashier->delete();
+        }
+        if ($this->otherCashier) {
+            $orderIds = Order::where('cashier_id', $this->otherCashier->id)->pluck('id');
+            if ($orderIds->isNotEmpty()) {
+                OrderItem::whereIn('order_id', $orderIds)->delete();
+                Order::whereIn('id', $orderIds)->delete();
+            }
+            $this->otherCashier->tokens()->delete();
+            $this->otherCashier->delete();
+        }
+        if ($this->admin) {
+            $this->admin->tokens()->delete();
+            $this->admin->delete();
+        }
 
         parent::tearDown();
     }
 
     public function test_mysql_idempotent_checkout_and_concurrency_guards(): void
     {
-        $opId = 'op_mysql_order_' . time() . '_' . rand(1000, 9999);
+        $opId = 'op_mysql_order_' . $this->runKey . '_' . time();
         $initialStock = $this->product->fresh()->stock_qty;
 
         // 1. Submit original order
@@ -159,7 +226,7 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
         $conflictRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
             'client_operation_id' => $opId,
             'items' => [
-                ['product_id' => $this->product->id, 'qty' => 10] // Changed qty
+                ['product_id' => $this->product->id, 'qty' => 10]
             ],
             'total_riel' => 25000,
             'received_riel' => 25000,
@@ -171,7 +238,7 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
 
     public function test_mysql_inventory_operations_table_enforces_database_uniqueness(): void
     {
-        $opId = 'op_mysql_inv_' . time() . '_' . rand(1000, 9999);
+        $opId = 'op_mysql_inv_' . $this->runKey . '_' . time();
         $initialStock = $this->product->fresh()->stock_qty;
 
         // 1. First Stock In
@@ -211,9 +278,58 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
         $resConflict = $this->actingAs($this->admin, 'sanctum')->postJson('/api/inventory/stock-in', [
             'client_operation_id' => $opId,
             'product_id' => $this->product->id,
-            'qty' => 999, // Conflicting qty
+            'qty' => 999,
             'note' => 'Conflicting shipment',
         ]);
         $resConflict->assertStatus(409);
+    }
+
+    public function test_mysql_simultaneous_database_operations_with_independent_connections(): void
+    {
+        $opId = 'op_mysql_simult_' . $this->runKey . '_' . time();
+
+        // Independent connection 1 begins transaction and inserts operation
+        $conn1 = DB::connection('mysql');
+        $conn2 = DB::connection('mysql_secondary');
+
+        $conn1->beginTransaction();
+        try {
+            $conn1->table('inventory_operations')->insert([
+                'client_operation_id' => $opId,
+                'operation_type' => 'in',
+                'user_id' => $this->admin->id,
+                'product_id' => $this->product->id,
+                'qty' => 5,
+                'payload_hash' => hash('sha256', 'test_payload'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Commit connection 1 so record is durable in MySQL
+            $conn1->commit();
+        } catch (\Throwable $e) {
+            $conn1->rollBack();
+            throw $e;
+        }
+
+        // Independent connection 2 (separate session / PDO process) attempts duplicate insert
+        $duplicateCaught = false;
+        try {
+            $conn2->table('inventory_operations')->insert([
+                'client_operation_id' => $opId,
+                'operation_type' => 'in',
+                'user_id' => $this->admin->id,
+                'product_id' => $this->product->id,
+                'qty' => 5,
+                'payload_hash' => hash('sha256', 'test_payload'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // MySQL error 23000 indicates duplicate key constraint violation
+            $duplicateCaught = ($e->getCode() === '23000' || str_contains($e->getMessage(), 'Duplicate entry'));
+        }
+
+        $this->assertTrue($duplicateCaught, 'Simultaneous duplicate operation on independent connection must be rejected by MySQL UNIQUE constraint.');
     }
 }

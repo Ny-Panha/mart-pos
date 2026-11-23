@@ -58,7 +58,10 @@ class SaleModel {
   final int total; // int Riel
   final int paidAmount; // int Riel
   final int changeAmount; // int Riel
-  final String paymentMethod; // "cash" | "khqr"
+  final double? receivedUsd; // Tendered USD if paid in USD
+  final double? changeUsd; // Change in USD if returned in USD
+  final double? taxRate; // Optional tax rate applied
+  final String paymentMethod; // "cash" | "cash_riel" | "cash_usd" | "khqr"
   final String paymentStatus; // "paid" | "due" | "partial"
   final DateTime createdAt;
 
@@ -76,6 +79,9 @@ class SaleModel {
     required this.total,
     required this.paidAmount,
     this.changeAmount = 0,
+    this.receivedUsd,
+    this.changeUsd,
+    this.taxRate,
     this.paymentMethod = 'cash',
     this.paymentStatus = 'paid',
     DateTime? createdAt,
@@ -111,6 +117,9 @@ class SaleModel {
         total: (data?['total'] is num) ? (data!['total'] as num).toInt() : 0,
         paidAmount: (data?['paidAmount'] is num) ? (data!['paidAmount'] as num).toInt() : 0,
         changeAmount: (data?['changeAmount'] is num) ? (data!['changeAmount'] as num).toInt() : 0,
+        receivedUsd: (data?['receivedUsd'] is num) ? (data!['receivedUsd'] as num).toDouble() : null,
+        changeUsd: (data?['changeUsd'] is num) ? (data!['changeUsd'] as num).toDouble() : null,
+        taxRate: (data?['taxRate'] is num) ? (data!['taxRate'] as num).toDouble() : null,
         paymentMethod: data?['paymentMethod']?.toString() ?? 'cash',
         paymentStatus: data?['paymentStatus']?.toString() ?? 'paid',
         createdAt: (data?['createdAt'] is Timestamp)
@@ -144,6 +153,9 @@ class SaleModel {
       'total': total,
       'paidAmount': paidAmount,
       'changeAmount': changeAmount,
+      if (receivedUsd != null) 'receivedUsd': receivedUsd,
+      if (changeUsd != null) 'changeUsd': changeUsd,
+      if (taxRate != null) 'taxRate': taxRate,
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus,
       'createdAt': Timestamp.fromDate(createdAt),

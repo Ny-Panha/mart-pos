@@ -11,6 +11,8 @@ final saleRepositoryProvider = Provider<SaleRepository>((ref) {
   return SaleRepository();
 });
 
+enum CheckoutStatus { idle, pending, confirmed, failed }
+
 class CartItemState {
   final ProductModel product;
   final int qty;
@@ -50,6 +52,7 @@ class PosCartState {
   final String? lastCompletedInvoice;
   final String? activeOperationId;
   final String? activeInvoiceNumber;
+  final CheckoutStatus checkoutStatus;
 
   PosCartState({
     this.items = const [],
@@ -63,6 +66,7 @@ class PosCartState {
     this.lastCompletedInvoice,
     this.activeOperationId,
     this.activeInvoiceNumber,
+    this.checkoutStatus = CheckoutStatus.idle,
   });
 
   int get subtotal => items.fold(0, (sum, i) => sum + i.lineTotal);
@@ -87,9 +91,15 @@ class PosCartState {
     String? lastCompletedInvoice,
     String? activeOperationId,
     String? activeInvoiceNumber,
+    CheckoutStatus? checkoutStatus,
     bool clearLastScan = false,
     bool clearActiveOperation = false,
   }) {
+    final effectiveStatus = checkoutStatus ?? this.checkoutStatus;
+    final isUnresolved = effectiveStatus == CheckoutStatus.pending || effectiveStatus == CheckoutStatus.failed;
+    // Do not reset unresolved operation identity merely because cart items change
+    final shouldClearOp = clearActiveOperation && !isUnresolved;
+
     return PosCartState(
       items: items ?? this.items,
       customerId: customerId ?? this.customerId,
@@ -100,8 +110,9 @@ class PosCartState {
       recentScans: recentScans ?? this.recentScans,
       isCheckingOut: isCheckingOut ?? this.isCheckingOut,
       lastCompletedInvoice: lastCompletedInvoice ?? this.lastCompletedInvoice,
-      activeOperationId: clearActiveOperation ? null : (activeOperationId ?? this.activeOperationId),
-      activeInvoiceNumber: clearActiveOperation ? null : (activeInvoiceNumber ?? this.activeInvoiceNumber),
+      activeOperationId: shouldClearOp ? null : (activeOperationId ?? this.activeOperationId),
+      activeInvoiceNumber: shouldClearOp ? null : (activeInvoiceNumber ?? this.activeInvoiceNumber),
+      checkoutStatus: effectiveStatus,
     );
   }
 }
@@ -115,7 +126,32 @@ class PosCartNotifier extends Notifier<PosCartState> {
 
   @override
   PosCartState build() {
+    Future.microtask(() => restorePendingCheckout());
     return PosCartState();
+  }
+
+  /// Restores unresolved checkout identity from durable local storage upon application start
+  Future<void> restorePendingCheckout() async {
+    try {
+      final saleRepo = ref.read(saleRepositoryProvider);
+      final pending = await saleRepo.getPendingCheckout();
+      if (pending != null && pending['operation_id'] != null) {
+        final opId = pending['operation_id'] as String;
+        final inv = pending['invoice_number'] as String? ?? '';
+        final statusStr = pending['status'] as String? ?? 'pending';
+        final status = statusStr == 'confirmed'
+            ? CheckoutStatus.confirmed
+            : (statusStr == 'failed' ? CheckoutStatus.failed : CheckoutStatus.pending);
+
+        state = state.copyWith(
+          activeOperationId: opId,
+          activeInvoiceNumber: inv.isNotEmpty ? inv : null,
+          checkoutStatus: status,
+        );
+      }
+    } catch (e) {
+      // Ignore background restore error
+    }
   }
 
   /// Returns null on success, or an error message if stock exceeded or double scanned
@@ -235,13 +271,20 @@ class PosCartNotifier extends Notifier<PosCartState> {
     );
   }
 
-  /// Critical Checkout using atomic WriteBatch
+  /// Critical Checkout using atomic WriteBatch & Authoritative REST API
   Future<String> checkout({
     required String cashierId,
     String paymentMethod = 'cash',
     int? paidAmount,
     int? changeAmount,
+    double? receivedUsd,
+    double? changeUsd,
   }) async {
+    // 0. Strict concurrency lock to prevent multiple concurrent checkout submissions
+    if (state.isCheckingOut) {
+      throw Exception('Checkout already in progress. Please wait.');
+    }
+
     if (state.items.isEmpty) {
       throw Exception('Cart is empty');
     }
@@ -257,6 +300,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
       isCheckingOut: true,
       activeOperationId: opId,
       activeInvoiceNumber: invoiceNum,
+      checkoutStatus: CheckoutStatus.pending,
     );
 
     try {
@@ -287,9 +331,12 @@ class PosCartNotifier extends Notifier<PosCartState> {
         subtotal: state.subtotal,
         discount: state.discount,
         totalTax: state.totalTax,
+        taxRate: state.taxRate > 0 ? state.taxRate : null,
         total: state.total,
         paidAmount: actualPaid,
         changeAmount: actualChange,
+        receivedUsd: receivedUsd,
+        changeUsd: changeUsd,
         paymentMethod: paymentMethod,
         paymentStatus: 'paid',
         createdAt: DateTime.now(),
@@ -300,6 +347,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
       if (existingOrder != null) {
         final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? invoiceNum;
         await saleRepo.reconcileConfirmedOrder(existingOrder, sale);
+        await saleRepo.clearPendingCheckout();
 
         AuditService.logFromRef(
           ref,
@@ -312,6 +360,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
         state = PosCartState(
           recentScans: state.recentScans,
           lastCompletedInvoice: confirmedInvoice,
+          checkoutStatus: CheckoutStatus.confirmed,
         );
 
         return confirmedInvoice;
@@ -332,12 +381,16 @@ class PosCartNotifier extends Notifier<PosCartState> {
       state = PosCartState(
         recentScans: state.recentScans,
         lastCompletedInvoice: invoiceNum,
+        checkoutStatus: CheckoutStatus.confirmed,
       );
 
       return invoiceNum;
     } catch (e) {
       // Preserve cart items, activeOperationId, and activeInvoiceNumber on failure
-      state = state.copyWith(isCheckingOut: false);
+      state = state.copyWith(
+        isCheckingOut: false,
+        checkoutStatus: CheckoutStatus.failed,
+      );
       rethrow;
     }
   }

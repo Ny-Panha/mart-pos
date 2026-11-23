@@ -254,7 +254,7 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
-                '✓ បានកត់ត្រា និងកាត់ស្តុកដោយស្វ័យប្រវត្តិ (WriteBatch Offline-First)',
+                '✓ បានកត់ត្រា និងកាត់ស្តុកដោយជោគជ័យ (Authoritative Sync)',
                 style: TextStyle(fontSize: 11, color: Colors.green),
               ),
             ),

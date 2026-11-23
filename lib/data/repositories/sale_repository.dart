@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/held_bill_model.dart';
@@ -12,7 +14,72 @@ class SaleRepository {
   final FirebaseFirestore? _dbInstance;
   FirebaseFirestore get _db => _dbInstance ?? FirebaseFirestore.instance;
 
+  static const _prefPendingOpId = 'mart_pos_pending_checkout_op_id';
+  static const _prefPendingInvoice = 'mart_pos_pending_checkout_invoice';
+  static const _prefPendingPayload = 'mart_pos_pending_checkout_payload';
+  static const _prefPendingStatus = 'mart_pos_pending_checkout_status';
+
   SaleRepository({FirebaseFirestore? db}) : _dbInstance = db;
+
+  /// Persist pending checkout state across application restarts
+  Future<void> persistPendingCheckout({
+    required String operationId,
+    required String invoiceNumber,
+    required Map<String, dynamic> payload,
+    required String status,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefPendingOpId, operationId);
+      await prefs.setString(_prefPendingInvoice, invoiceNumber);
+      await prefs.setString(_prefPendingPayload, jsonEncode(payload));
+      await prefs.setString(_prefPendingStatus, status);
+    } catch (e) {
+      debugPrint('Failed to persist pending checkout: $e');
+    }
+  }
+
+  /// Retrieve persisted pending checkout state
+  Future<Map<String, dynamic>?> getPendingCheckout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final opId = prefs.getString(_prefPendingOpId);
+      final invoice = prefs.getString(_prefPendingInvoice);
+      final status = prefs.getString(_prefPendingStatus);
+      final payloadStr = prefs.getString(_prefPendingPayload);
+
+      if (opId != null && opId.isNotEmpty) {
+        Map<String, dynamic>? payload;
+        if (payloadStr != null && payloadStr.isNotEmpty) {
+          try {
+            payload = jsonDecode(payloadStr) as Map<String, dynamic>?;
+          } catch (_) {}
+        }
+        return {
+          'operation_id': opId,
+          'invoice_number': invoice ?? '',
+          'status': status ?? 'pending',
+          'payload': payload ?? <String, dynamic>{},
+        };
+      }
+    } catch (e) {
+      debugPrint('Failed to read pending checkout: $e');
+    }
+    return null;
+  }
+
+  /// Clear persisted checkout state on confirmed completion
+  Future<void> clearPendingCheckout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefPendingOpId);
+      await prefs.remove(_prefPendingInvoice);
+      await prefs.remove(_prefPendingPayload);
+      await prefs.remove(_prefPendingStatus);
+    } catch (e) {
+      debugPrint('Failed to clear pending checkout: $e');
+    }
+  }
 
   Stream<List<SaleModel>> watchSales() {
     var query = ShopScope.query(FirestoreCollections.sales);
@@ -69,6 +136,9 @@ class SaleRepository {
               total: sale.total,
               paidAmount: sale.paidAmount,
               changeAmount: sale.changeAmount,
+              receivedUsd: sale.receivedUsd,
+              changeUsd: sale.changeUsd,
+              taxRate: sale.taxRate,
               paymentMethod: sale.paymentMethod,
               paymentStatus: sale.paymentStatus,
               createdAt: sale.createdAt,
@@ -135,34 +205,65 @@ class SaleRepository {
     }
     final opId = rawOpId;
 
+    final bool isUsd = sale.paymentMethod == 'cash_usd';
+    final double expectedTotalUsd = (sale.total / 4100.0);
+    final double actualReceivedUsd = sale.receivedUsd ?? (isUsd ? (sale.paidAmount / 4100.0) : 0.0);
+    final double actualChangeUsd = sale.changeUsd ?? (isUsd && sale.changeAmount > 0 ? (sale.changeAmount / 4100.0) : 0.0);
+
     final payload = <String, dynamic>{
       'client_operation_id': opId,
       'invoice_number': sale.invoiceNumber,
       'items': itemsPayload,
       'discount_riel': sale.discount,
+      if (sale.taxRate != null) 'tax_rate': sale.taxRate,
       'tax_riel': sale.totalTax,
       'total_riel': sale.total,
-      'total_usd': (sale.total / 4100).toStringAsFixed(2),
+      'total_usd': expectedTotalUsd.toStringAsFixed(2),
       'received_riel': sale.paidAmount,
-      'received_usd': '0.00',
+      'received_usd': actualReceivedUsd.toStringAsFixed(2),
       'change_riel': sale.changeAmount,
-      'change_usd': '0.00',
+      'change_usd': actualChangeUsd.toStringAsFixed(2),
       'payment_method': sale.paymentMethod == 'khqr'
           ? 'khqr'
-          : (sale.paymentMethod == 'cash_usd' ? 'cash_usd' : 'cash_riel'),
+          : (isUsd ? 'cash_usd' : 'cash_riel'),
       'notes': 'Invoice: ${sale.invoiceNumber}',
     };
 
-    // 2. Authoritative request to Laravel REST API
-    final res = await ApiService.post('/orders', payload);
-    if (res == null || res['success'] != true) {
-      final msg = res?['message'] ?? 'Authoritative checkout failed on server.';
-      throw Exception(msg);
-    }
+    // Persist pending checkout state before remote network transmission
+    await persistPendingCheckout(
+      operationId: opId,
+      invoiceNumber: sale.invoiceNumber,
+      payload: payload,
+      status: 'pending',
+    );
 
-    // 3. Update secondary cache in Firestore with confirmed status idempotently
-    final serverOrder = (res['data'] is Map<String, dynamic>) ? res['data'] as Map<String, dynamic> : <String, dynamic>{};
-    await reconcileConfirmedOrder(serverOrder, sale);
+    // 2. Authoritative request to Laravel REST API
+    try {
+      final res = await ApiService.post('/orders', payload);
+      if (res == null || res['success'] != true) {
+        final msg = res?['message'] ?? 'Authoritative checkout failed on server.';
+        await persistPendingCheckout(
+          operationId: opId,
+          invoiceNumber: sale.invoiceNumber,
+          payload: payload,
+          status: 'failed',
+        );
+        throw Exception(msg);
+      }
+
+      // 3. Update secondary cache in Firestore with confirmed status idempotently
+      final serverOrder = (res['data'] is Map<String, dynamic>) ? res['data'] as Map<String, dynamic> : <String, dynamic>{};
+      await reconcileConfirmedOrder(serverOrder, sale);
+      await clearPendingCheckout();
+    } catch (e) {
+      await persistPendingCheckout(
+        operationId: opId,
+        invoiceNumber: sale.invoiceNumber,
+        payload: payload,
+        status: 'failed',
+      );
+      rethrow;
+    }
   }
 
   // Held Bills
