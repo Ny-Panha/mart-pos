@@ -199,10 +199,50 @@ class PosCartNotifier extends Notifier<PosCartState> {
         );
 
         // 2. Perform background reconciliation with backend
-        final existingOrder = await saleRepo.checkOperationStatus(opId);
-        if (existingOrder != null) {
+        final resolution = await saleRepo.resolveOperationStatus(opId);
+        if (resolution.status == OperationResolution.confirmed && resolution.orderData != null) {
+          final existingOrder = resolution.orderData!;
           final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? inv;
+
+          final saleItems = state.items.map((i) {
+            return SaleItem(
+              productId: i.product.id,
+              name: i.product.name,
+              qty: i.qty,
+              unitPrice: i.unitPrice,
+              originalPrice: i.product.salePrice,
+              totalPrice: i.lineTotal,
+              tax: i.product.tax,
+            );
+          }).toList();
+
+          final user = ref.read(authProvider).value;
+          final sale = SaleModel(
+            id: opId,
+            invoiceNumber: confirmedInvoice,
+            cashierId: user?.id ?? 'cashier',
+            cashierName: user?.name,
+            customerId: state.customerId,
+            customerName: state.customerName,
+            items: saleItems,
+            subtotal: state.subtotal,
+            discount: state.discount,
+            totalTax: state.totalTax,
+            taxRate: state.taxRate > 0 ? state.taxRate : null,
+            total: state.total,
+            paidAmount: state.total,
+            changeAmount: 0,
+            paymentMethod: (existingOrder['payment_method'] as String?) ?? 'cash_riel',
+            paymentStatus: 'paid',
+            createdAt: DateTime.now(),
+          );
+
+          // Reconcile the authoritative order into Firestore cache BEFORE clearing pending state!
+          await saleRepo.reconcileConfirmedOrder(existingOrder, sale);
+
+          // Clear pending state ONLY AFTER successful reconciliation
           await saleRepo.clearPendingCheckout();
+
           state = PosCartState(
             recentScans: state.recentScans,
             lastCompletedInvoice: confirmedInvoice,
@@ -215,13 +255,39 @@ class PosCartNotifier extends Notifier<PosCartState> {
     }
   }
 
-  /// Cancels or dismisses an unresolved pending checkout after confirmation
+  /// Cancels or dismisses an unresolved pending checkout ONLY after authoritative resolution
   Future<void> cancelOrDismissUnresolvedCheckout() async {
+    final opId = state.activeOperationId;
+    if (opId == null) {
+      state = PosCartState(
+        recentScans: state.recentScans,
+        checkoutStatus: CheckoutStatus.idle,
+      );
+      return;
+    }
+
     final saleRepo = ref.read(saleRepositoryProvider);
-    await saleRepo.clearPendingCheckout();
-    state = PosCartState(
-      recentScans: state.recentScans,
-      checkoutStatus: CheckoutStatus.idle,
+    final resolution = await saleRepo.resolveOperationStatus(opId);
+
+    if (resolution.status == OperationResolution.confirmed) {
+      // Order actually exists on the server! Must reconcile and confirm, NEVER dismiss!
+      await reconcileActiveCheckout();
+      return;
+    }
+
+    if (resolution.status == OperationResolution.notFound) {
+      // Server authoritatively confirmed order does not exist
+      await saleRepo.clearPendingCheckout();
+      state = PosCartState(
+        recentScans: state.recentScans,
+        checkoutStatus: CheckoutStatus.idle,
+      );
+      return;
+    }
+
+    // Network failure or unknown response: FAIL CLOSED!
+    throw Exception(
+      'Cannot dismiss unresolved checkout ($opId): Server outcome is unknown (${resolution.errorMessage}). Network failure cannot be treated as proof that an order was not committed.',
     );
   }
 
@@ -230,8 +296,9 @@ class PosCartNotifier extends Notifier<PosCartState> {
     if (state.activeOperationId == null) return null;
     final opId = state.activeOperationId!;
     final saleRepo = ref.read(saleRepositoryProvider);
-    final existingOrder = await saleRepo.checkOperationStatus(opId);
-    if (existingOrder != null) {
+    final resolution = await saleRepo.resolveOperationStatus(opId);
+    if (resolution.status == OperationResolution.confirmed && resolution.orderData != null) {
+      final existingOrder = resolution.orderData!;
       final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? state.activeInvoiceNumber ?? opId;
 
       final saleItems = state.items.map((i) {
@@ -258,10 +325,11 @@ class PosCartNotifier extends Notifier<PosCartState> {
         subtotal: state.subtotal,
         discount: state.discount,
         totalTax: state.totalTax,
+        taxRate: state.taxRate > 0 ? state.taxRate : null,
         total: state.total,
         paidAmount: state.total,
         changeAmount: 0,
-        paymentMethod: 'cash_riel',
+        paymentMethod: (existingOrder['payment_method'] as String?) ?? 'cash_riel',
         paymentStatus: 'paid',
         createdAt: DateTime.now(),
       );
@@ -426,7 +494,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
     double? receivedUsd,
     double? changeUsd,
   }) async {
-    // 0. Strict concurrency lock to prevent multiple concurrent checkout submissions
+    // 0. Strict synchronous concurrency lock before ANY asynchronous operation
     if (state.isCheckingOut) {
       throw Exception('Checkout already in progress. Please wait.');
     }
@@ -435,21 +503,26 @@ class PosCartNotifier extends Notifier<PosCartState> {
       throw Exception('Cart is empty');
     }
 
-    final saleRepo = ref.read(saleRepositoryProvider);
-
-    // 1. Establish stable, durable operation identity for this checkout attempt
-    final invoiceNum = state.activeInvoiceNumber ?? await _invoiceService.getNextInvoiceNumber();
-    final opId = state.activeOperationId ??
-        'op_pos_${DateTime.now().millisecondsSinceEpoch}_${invoiceNum.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
-
+    // Immediately acquire concurrency lock synchronously before any await,
+    // ensuring simultaneous checkout calls cannot create separate operation IDs!
     state = state.copyWith(
       isCheckingOut: true,
-      activeOperationId: opId,
-      activeInvoiceNumber: invoiceNum,
       checkoutStatus: CheckoutStatus.pending,
     );
 
+    final saleRepo = ref.read(saleRepositoryProvider);
+
     try {
+      // 1. Establish stable, durable operation identity for this checkout attempt
+      final invoiceNum = state.activeInvoiceNumber ?? await _invoiceService.getNextInvoiceNumber();
+      final opId = state.activeOperationId ??
+          'op_pos_${DateTime.now().millisecondsSinceEpoch}_${invoiceNum.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+
+      state = state.copyWith(
+        activeOperationId: opId,
+        activeInvoiceNumber: invoiceNum,
+      );
+
       final saleItems = state.items.map((i) {
         return SaleItem(
           productId: i.product.id,

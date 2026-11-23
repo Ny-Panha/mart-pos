@@ -10,6 +10,24 @@ import '../firestore/models/stock_movement_model.dart';
 import '../firestore/shop_scope.dart';
 import '../services/api_service.dart';
 
+enum OperationResolution {
+  confirmed,
+  notFound,
+  unknown,
+}
+
+class OperationResolutionResult {
+  final OperationResolution status;
+  final Map<String, dynamic>? orderData;
+  final String? errorMessage;
+
+  const OperationResolutionResult({
+    required this.status,
+    this.orderData,
+    this.errorMessage,
+  });
+}
+
 class SaleRepository {
   final FirebaseFirestore? _dbInstance;
   FirebaseFirestore get _db => _dbInstance ?? FirebaseFirestore.instance;
@@ -23,6 +41,7 @@ class SaleRepository {
   SaleRepository({FirebaseFirestore? db}) : _dbInstance = db;
 
   /// Persist pending checkout state across application restarts
+  /// Fails closed: throws if unable to durably persist the operation identity or payload
   Future<void> persistPendingCheckout({
     required String operationId,
     required String invoiceNumber,
@@ -32,15 +51,23 @@ class SaleRepository {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefPendingOpId, operationId);
-      await prefs.setString(_prefPendingInvoice, invoiceNumber);
-      await prefs.setString(_prefPendingPayload, jsonEncode(payload));
-      await prefs.setString(_prefPendingStatus, status);
+      final ok1 = await prefs.setString(_prefPendingOpId, operationId);
+      final ok2 = await prefs.setString(_prefPendingInvoice, invoiceNumber);
+      final ok3 = await prefs.setString(_prefPendingPayload, jsonEncode(payload));
+      final ok4 = await prefs.setString(_prefPendingStatus, status);
+      bool ok5 = true;
       if (cartDraft != null) {
-        await prefs.setString(_prefPendingCartDraft, jsonEncode(cartDraft));
+        ok5 = await prefs.setString(_prefPendingCartDraft, jsonEncode(cartDraft));
+      }
+
+      if (!ok1 || !ok2 || !ok3 || !ok4 || !ok5) {
+        throw Exception('SharedPreferences write returned false for one or more keys.');
       }
     } catch (e) {
       debugPrint('Failed to persist pending checkout: $e');
+      throw Exception(
+        'Durable pending-checkout persistence failed ($e). Operation aborted to fail closed and prevent untracked remote mutations.',
+      );
     }
   }
 
@@ -118,17 +145,46 @@ class SaleRepository {
         });
   }
 
-  /// Check existing operation with authoritative backend
-  Future<Map<String, dynamic>?> checkOperationStatus(String operationId) async {
+  /// Resolves the definitive status of an operation with the authoritative server
+  Future<OperationResolutionResult> resolveOperationStatus(String operationId) async {
     try {
       final res = await ApiService.get('/orders/by-operation/$operationId');
       if (res != null && res['success'] == true && res['data'] != null) {
-        return res['data'] as Map<String, dynamic>;
+        return OperationResolutionResult(
+          status: OperationResolution.confirmed,
+          orderData: res['data'] as Map<String, dynamic>,
+        );
       }
+      return const OperationResolutionResult(
+        status: OperationResolution.unknown,
+        errorMessage: 'Invalid server response structure',
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        // Authoritative confirmation from server database: Order was NOT committed!
+        return OperationResolutionResult(
+          status: OperationResolution.notFound,
+          errorMessage: e.message,
+        );
+      }
+      return OperationResolutionResult(
+        status: OperationResolution.unknown,
+        errorMessage: 'Server error (HTTP ${e.statusCode}): ${e.message}',
+      );
     } catch (e) {
-      debugPrint('checkOperationStatus notice: $e');
+      // Network failure, socket exception, timeout, server unavailable.
+      // Must NEVER be treated as notFound!
+      return OperationResolutionResult(
+        status: OperationResolution.unknown,
+        errorMessage: 'Network/connection failure: $e',
+      );
     }
-    return null;
+  }
+
+  /// Check existing operation with authoritative backend (convenience wrapper)
+  Future<Map<String, dynamic>?> checkOperationStatus(String operationId) async {
+    final resolution = await resolveOperationStatus(operationId);
+    return resolution.orderData;
   }
 
   /// Reconcile confirmed order into secondary Firestore cache idempotently
@@ -192,6 +248,7 @@ class SaleRepository {
       await batch.commit();
     } catch (e) {
       debugPrint('Firestore sale cache reconciliation notice: $e');
+      rethrow;
     }
   }
 

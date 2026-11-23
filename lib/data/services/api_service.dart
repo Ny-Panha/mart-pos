@@ -4,6 +4,21 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+  final dynamic body;
+
+  ApiException({
+    required this.statusCode,
+    required this.message,
+    this.body,
+  });
+
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   static const String _tokenKey = 'mart_pos_auth_token';
   static const String _baseUrlKey = 'mart_pos_api_base_url';
@@ -106,17 +121,28 @@ class ApiService {
     try {
       decoded = jsonDecode(utf8.decode(response.bodyBytes));
     } catch (_) {
-      throw Exception('Malformed server response (HTTP ${response.statusCode}): invalid JSON');
+      throw ApiException(
+        statusCode: response.statusCode,
+        message: 'Malformed server response (HTTP ${response.statusCode}): invalid JSON',
+      );
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (decoded is Map && decoded['success'] == false) {
-        throw Exception(decoded['message'] ?? 'API Operation returned success: false');
+        throw ApiException(
+          statusCode: response.statusCode,
+          message: decoded['message']?.toString() ?? 'API Operation returned success: false',
+          body: decoded,
+        );
       }
       return decoded;
     } else {
       final msg = decoded is Map ? (decoded['message'] ?? decoded['error']) : null;
-      throw Exception(msg ?? 'API Error: HTTP ${response.statusCode}');
+      throw ApiException(
+        statusCode: response.statusCode,
+        message: msg?.toString() ?? 'API Error: HTTP ${response.statusCode}',
+        body: decoded,
+      );
     }
   }
 }

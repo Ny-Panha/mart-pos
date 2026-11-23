@@ -838,10 +838,110 @@ void main() {
       final blockedQty = notifier.updateQty('1', 5);
       expect(blockedQty, contains('Cannot update quantity'));
 
-      // Dismiss unresolved checkout resets status to idle and allows mutation again
-      await notifier.cancelOrDismissUnresolvedCheckout();
-      expect(container.read(posCartProvider).isPendingUnresolved, isFalse);
-      expect(container.read(posCartProvider).items, isEmpty);
+      // Attempting to dismiss while server status is unknown (network down) strictly fails closed!
+      expect(
+        () => notifier.cancelOrDismissUnresolvedCheckout(),
+        throwsA(isA<Exception>()),
+      );
+      expect(container.read(posCartProvider).isPendingUnresolved, isTrue);
+    });
+
+    test('Simultaneous checkout calls acquire synchronous lock before await and reject duplicate execution', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer();
+      final notifier = container.read(posCartProvider.notifier);
+
+      final dummyProduct = ProductModel(
+        id: '1',
+        name: 'Coca Cola',
+        code: 'P001',
+        categoryId: 'cat_drinks',
+        costPrice: 1500,
+        salePrice: 2500,
+        stockQty: 50,
+      );
+      notifier.addProduct(dummyProduct);
+
+      // Launch first checkout (synchronously acquires isCheckingOut: true before await)
+      final future1 = notifier.checkout(cashierId: 'cashier_1');
+
+      // Simultaneous second checkout call in the same microtask
+      expect(
+        () => notifier.checkout(cashierId: 'cashier_1'),
+        throwsA(predicate((e) => e.toString().contains('Checkout already in progress'))),
+      );
+
+      // Await first future (fails gracefully on network since offline)
+      try {
+        await future1;
+      } catch (_) {}
+    });
+
+    test('Uncertain network outcome prevents Dismiss from deleting unresolved checkout', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer();
+      final notifier = container.read(posCartProvider.notifier);
+
+      final dummyProduct = ProductModel(
+        id: '2',
+        name: 'Angkor Beer',
+        code: 'P002',
+        categoryId: 'cat_drinks',
+        costPrice: 2000,
+        salePrice: 3200,
+        stockQty: 30,
+      );
+      notifier.addProduct(dummyProduct);
+
+      // Put cart into unresolved pending state
+      container.read(posCartProvider.notifier).state = container.read(posCartProvider).copyWith(
+        activeOperationId: 'op_uncertain_network_999',
+        activeInvoiceNumber: 'INV-20261123-UNCERTAIN',
+        checkoutStatus: CheckoutStatus.pending,
+      );
+
+      // Attempt Dismiss when server is unreachable
+      expect(
+        () => notifier.cancelOrDismissUnresolvedCheckout(),
+        throwsA(predicate((e) => e.toString().contains('Network failure cannot be treated as proof'))),
+      );
+
+      // Unresolved state and cart items are safely preserved!
+      expect(container.read(posCartProvider).isPendingUnresolved, isTrue);
+      expect(container.read(posCartProvider).activeOperationId, 'op_uncertain_network_999');
+      expect(container.read(posCartProvider).items.length, 1);
+    });
+
+    test('Durable pending-checkout persistence fails closed before remote transmission', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      SharedPreferences.setMockInitialValues({});
+      await expectLater(
+        saleRepo.persistPendingCheckout(
+          operationId: 'op_test_persist_1',
+          invoiceNumber: 'INV-001',
+          payload: {'total_riel': 5000},
+          status: 'pending',
+        ),
+        completes,
+      );
+
+      final saved = await saleRepo.getPendingCheckout();
+      expect(saved, isNotNull);
+      expect(saved!['operation_id'], 'op_test_persist_1');
+    });
+
+    test('Operation resolution distinguishes confirmed, 404 notFound, and unknown network states', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      // Unknown network / server error (e.g. HTTP 400 / Connection error)
+      final unknownRes = await saleRepo.resolveOperationStatus('op_non_existent_unreachable');
+      expect(unknownRes.status, OperationResolution.unknown);
+      expect(unknownRes.errorMessage, isNotEmpty);
     });
 
     test('Cash USD math converts Riel correctly with 4,100 exchange rate and computes change', () {

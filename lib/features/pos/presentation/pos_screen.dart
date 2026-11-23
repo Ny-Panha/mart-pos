@@ -1452,7 +1452,20 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
             ),
             child: const Text('បោះបង់ (Dismiss)', style: TextStyle(fontSize: 11)),
             onPressed: () async {
-              await ref.read(posCartProvider.notifier).cancelOrDismissUnresolvedCheckout();
+              try {
+                await ref.read(posCartProvider.notifier).cancelOrDismissUnresolvedCheckout();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Unresolved checkout safely resolved and dismissed.'), backgroundColor: AppColors.success),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Dismiss rejected: $e'), backgroundColor: AppColors.danger),
+                  );
+                }
+              }
             },
           ),
         ],
