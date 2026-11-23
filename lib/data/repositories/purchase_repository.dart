@@ -118,8 +118,12 @@ class PurchaseRepository {
       };
     }).toList();
 
-    // 4. Authoritative request to Laravel API
+    final purchaseRef = FirestoreCollections.purchases.doc();
+    final purchaseId = purchaseRef.id;
+
+    // 4. Authoritative request to Laravel API with stable client_operation_id
     final res = await ApiService.post('/inventory/purchase', {
+      'client_operation_id': 'op_po_$purchaseId',
       'supplier_name': supplier.name,
       'supplier_id': supplierId,
       'note': note?.trim().isEmpty ?? true ? null : note!.trim(),
@@ -133,8 +137,6 @@ class PurchaseRepository {
 
     final totalCost = calculateTotalCost(items);
     final now = DateTime.now();
-    final purchaseRef = FirestoreCollections.purchases.doc();
-    final purchaseId = purchaseRef.id;
 
     // 5. Update products and stock movements in Firestore cache
     try {

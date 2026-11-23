@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:mart_pos/core/role_route_guard.dart';
 import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/audit_log_model.dart';
 import 'package:mart_pos/data/firestore/models/category_model.dart';
+import 'package:mart_pos/data/services/api_service.dart';
 import 'package:mart_pos/data/services/audit_service.dart';
 import 'package:mart_pos/data/firestore/models/product_model.dart';
 import 'package:mart_pos/data/firestore/models/purchase_model.dart';
@@ -661,6 +663,50 @@ void main() {
       expect(
         () => repo.adjustStock(productId: '1', currentQty: 10, newQty: -5, note: 'Audit', userId: 'u1'),
         throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('SaleRepository.checkoutSale enforces client_operation_id minimum 8 characters', () async {
+      final repo = SaleRepository();
+      final validSale = SaleModel(
+        id: 's1',
+        invoiceNumber: 'INV-TEST-001',
+        cashierId: 'cashier-1',
+        items: [
+          SaleItem(productId: '10', name: 'Item', qty: 1, unitPrice: 1000, totalPrice: 1000),
+        ],
+        subtotal: 1000,
+        total: 1000,
+        paidAmount: 1000,
+      );
+
+      expect(
+        () => repo.checkoutSale(validSale, clientOperationId: 'short'),
+        throwsA(isA<ArgumentError>().having(
+          (e) => e.toString(),
+          'message',
+          contains('at least 8 characters'),
+        )),
+      );
+    });
+
+    test('ApiService.processResponse rejects malformed non-JSON HTTP responses and throws Exception', () {
+      expect(
+        () => ApiService.processResponse(http.Response('<html>Bad Request</html>', 400)),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('Malformed server response (HTTP 400): invalid JSON'),
+        )),
+      );
+
+      expect(
+        () => ApiService.processResponse(http.Response('<html>Server Error</html>', 200)),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('Malformed server response (HTTP 200): invalid JSON'),
+        )),
       );
     });
   });

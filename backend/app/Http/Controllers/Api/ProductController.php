@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 
@@ -82,7 +83,7 @@ class ProductController extends Controller
             $catVal = (string) $request->category_id;
             if (!is_numeric($catVal)) {
                 $cleanSlug = str_replace('cat_', '', strtolower(trim($catVal)));
-                $foundCat = \App\Models\Category::where('slug', $cleanSlug)
+                $foundCat = Category::where('slug', $cleanSlug)
                     ->orWhere('slug', $catVal)
                     ->orWhere('name', $catVal)
                     ->first();
@@ -94,15 +95,15 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|unique:products,code',
-            'barcode' => 'nullable|string',
-            'sku' => 'nullable|string',
+            'code' => 'required|string|max:100|unique:products,code',
+            'barcode' => 'nullable|string|max:100',
+            'sku' => 'nullable|string|max:100',
             'category_id' => 'required|exists:categories,id',
             'cost_price' => 'required|integer|min:0',
             'sale_price' => 'required|integer|min:0',
             'stock_qty' => 'required|integer|min:0',
-            'unit' => 'nullable|string',
-            'low_stock_threshold' => 'nullable|integer',
+            'unit' => 'nullable|string|max:50',
+            'low_stock_threshold' => 'nullable|integer|min:0',
             'image_url' => 'nullable|string',
         ]);
 
@@ -111,7 +112,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product created successfully',
-            'data' => $product->load('category'),
+            'data' => $product->fresh()->load('category'),
         ], 201);
     }
 
@@ -123,7 +124,7 @@ class ProductController extends Controller
             $catVal = (string) $request->category_id;
             if (!is_numeric($catVal)) {
                 $cleanSlug = str_replace('cat_', '', strtolower(trim($catVal)));
-                $foundCat = \App\Models\Category::where('slug', $cleanSlug)
+                $foundCat = Category::where('slug', $cleanSlug)
                     ->orWhere('slug', $catVal)
                     ->orWhere('name', $catVal)
                     ->first();
@@ -135,14 +136,15 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'barcode' => 'nullable|string',
-            'sku' => 'nullable|string',
+            'code' => 'sometimes|string|max:100|unique:products,code,' . $product->id,
+            'barcode' => 'nullable|string|max:100',
+            'sku' => 'nullable|string|max:100',
             'category_id' => 'sometimes|exists:categories,id',
             'cost_price' => 'sometimes|integer|min:0',
             'sale_price' => 'sometimes|integer|min:0',
             'stock_qty' => 'sometimes|integer|min:0',
-            'unit' => 'nullable|string',
-            'low_stock_threshold' => 'nullable|integer',
+            'unit' => 'nullable|string|max:50',
+            'low_stock_threshold' => 'nullable|integer|min:0',
             'image_url' => 'nullable|string',
             'status' => 'sometimes|string|in:active,inactive',
         ]);
@@ -152,7 +154,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product updated successfully',
-            'data' => $product->load('category'),
+            'data' => $product->fresh()->load('category'),
         ]);
     }
 
@@ -164,6 +166,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product removed successfully',
+            'data' => $product->fresh(),
         ]);
     }
 }

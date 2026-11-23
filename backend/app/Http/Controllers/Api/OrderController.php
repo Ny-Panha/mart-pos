@@ -36,9 +36,36 @@ class OrderController extends Controller
         ]);
     }
 
+    private function isEquivalentPayload(Order $existing, array $validated): bool
+    {
+        if ((int) $existing->total_riel !== (int) $validated['total_riel']) {
+            return false;
+        }
+        if ($existing->payment_method !== $validated['payment_method']) {
+            return false;
+        }
+
+        $existingItems = [];
+        foreach ($existing->items as $item) {
+            $pid = (int) $item->product_id;
+            $existingItems[$pid] = ($existingItems[$pid] ?? 0) + (int) $item->qty;
+        }
+
+        $incomingItems = [];
+        foreach ($validated['items'] as $item) {
+            $pid = (int) $item['product_id'];
+            $incomingItems[$pid] = ($incomingItems[$pid] ?? 0) + (int) $item['qty'];
+        }
+
+        ksort($existingItems);
+        ksort($incomingItems);
+
+        return $existingItems === $incomingItems;
+    }
+
     public function store(Request $request)
     {
-        // Must be authenticated cashier, admin, or manager
+        // Must be authenticated user
         $user = $request->user();
         if (!$user) {
             return response()->json([
@@ -47,22 +74,8 @@ class OrderController extends Controller
             ], 401);
         }
 
-        // Idempotency check: if client_operation_id is sent and order exists, return it
-        if ($request->filled('client_operation_id')) {
-            $existing = Order::with(['cashier:id,name', 'items'])
-                ->where('client_operation_id', $request->client_operation_id)
-                ->first();
-            if ($existing) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Order already processed (idempotent recovery)',
-                    'data' => $existing,
-                ], 200);
-            }
-        }
-
         $validated = $request->validate([
-            'client_operation_id' => 'nullable|string|max:64',
+            'client_operation_id' => 'required|string|min:8|max:64',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|integer|min:1',
@@ -80,112 +93,265 @@ class OrderController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $request, $user) {
-            // Concurrent double-request protection with client_operation_id
-            if (!empty($validated['client_operation_id'])) {
-                $dup = Order::where('client_operation_id', $validated['client_operation_id'])
+        $opId = $validated['client_operation_id'];
+
+        // 1. Idempotency Check & User Binding & Equivalent Payload
+        $existing = Order::with(['cashier:id,name', 'items'])
+            ->where('client_operation_id', $opId)
+            ->first();
+
+        if ($existing) {
+            if ($existing->cashier_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cross-user idempotency violation: Operation ID is already registered to another user.',
+                ], 403);
+            }
+
+            if (!$this->isEquivalentPayload($existing, $validated)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conflict: client_operation_id already used with a different payload.',
+                ], 409);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order already processed (idempotent recovery)',
+                'data' => $existing,
+            ], 200);
+        }
+
+        try {
+            return DB::transaction(function () use ($validated, $request, $user, $opId) {
+                // Check double-request race condition
+                $dup = Order::where('client_operation_id', $opId)
                     ->lockForUpdate()
                     ->first();
                 if ($dup) {
+                    if ($dup->cashier_id !== $user->id) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Cross-user idempotency violation: Operation ID is already registered to another user.',
+                        ], 403);
+                    }
+                    if (!$this->isEquivalentPayload($dup, $validated)) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Conflict: client_operation_id already used with a different payload.',
+                        ], 409);
+                    }
                     return response()->json([
                         'success' => true,
                         'message' => 'Order already processed (idempotent recovery)',
                         'data' => $dup->load(['cashier:id,name', 'items']),
                     ], 200);
                 }
-            }
 
-            // 1. Strict Stock and Status Verification with Row-Level Locking
-            $productsToDeduct = [];
-            foreach ($validated['items'] as $itemData) {
-                $product = Product::lockForUpdate()->findOrFail($itemData['product_id']);
+                // 2. Aggregate quantities by product ID
+                $aggregatedQty = [];
+                foreach ($validated['items'] as $item) {
+                    $pid = (int) $item['product_id'];
+                    $aggregatedQty[$pid] = ($aggregatedQty[$pid] ?? 0) + (int) $item['qty'];
+                }
 
-                if ($product->status !== 'active') {
+                // 3. Deterministic locking: sort by product ID ascending to prevent deadlocks
+                ksort($aggregatedQty);
+                $lockedProducts = [];
+                foreach (array_keys($aggregatedQty) as $pid) {
+                    $lockedProducts[$pid] = Product::lockForUpdate()->findOrFail($pid);
+                }
+
+                // 4. Validate aggregate stock and active status
+                foreach ($aggregatedQty as $pid => $totalQty) {
+                    $prod = $lockedProducts[$pid];
+                    if ($prod->status !== 'active') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Product \"{$prod->name}\" is inactive and cannot be sold.",
+                        ], 422);
+                    }
+                    if ($prod->stock_qty < $totalQty) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Insufficient aggregate stock for \"{$prod->name}\". Available: {$prod->stock_qty}, requested: {$totalQty}.",
+                        ], 422);
+                    }
+                }
+
+                // 5. Server-side Recalculation & Authorization
+                $userRole = strtoupper(trim((string) $user->role));
+                $isAdminOrManager = in_array($userRole, ['ADMIN_MANAGER', 'ADMIN'], true);
+
+                $calculatedSubtotal = 0;
+                $processedItems = [];
+
+                foreach ($validated['items'] as $item) {
+                    $prod = $lockedProducts[$item['product_id']];
+                    $unitPrice = $prod->sale_price;
+
+                    if (isset($item['custom_price']) && $item['custom_price'] !== null) {
+                        $customPrice = (int) $item['custom_price'];
+                        if ($customPrice !== $prod->sale_price && !$isAdminOrManager) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Cashiers are not authorized to override item prices.',
+                            ], 403);
+                        }
+                        $unitPrice = $customPrice;
+                    }
+
+                    $qty = (int) $item['qty'];
+                    $subtotal = $unitPrice * $qty;
+                    $calculatedSubtotal += $subtotal;
+
+                    $processedItems[] = [
+                        'product' => $prod,
+                        'qty' => $qty,
+                        'unit_price' => $unitPrice,
+                        'subtotal' => $subtotal,
+                    ];
+                }
+
+                $discountRiel = (int) ($validated['discount_riel'] ?? 0);
+                if ($discountRiel > 0 && !$isAdminOrManager) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Product \"{$product->name}\" is inactive and cannot be sold.",
+                        'message' => 'Cashiers are not authorized to apply discounts without manager approval.',
+                    ], 403);
+                }
+                if ($discountRiel > $calculatedSubtotal) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Discount cannot exceed order subtotal.',
                     ], 422);
                 }
 
-                if ($product->stock_qty < $itemData['qty']) {
+                $taxRiel = (int) ($validated['tax_riel'] ?? 0);
+                $expectedTotalRiel = max(0, $calculatedSubtotal - $discountRiel + $taxRiel);
+
+                if ((int) $validated['total_riel'] !== $expectedTotalRiel) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Insufficient stock for \"{$product->name}\". Available: {$product->stock_qty}, requested: {$itemData['qty']}.",
+                        'message' => "Total amount mismatch. Expected: {$expectedTotalRiel} Riel, received: {$validated['total_riel']} Riel.",
                     ], 422);
                 }
 
-                $productsToDeduct[] = [
-                    'product' => $product,
-                    'qty' => $itemData['qty'],
-                    'custom_price' => $itemData['custom_price'] ?? null,
-                ];
-            }
+                // 6. Validate payment totals and change amounts
+                $paymentMethod = $validated['payment_method'];
+                $receivedRiel = (int) ($validated['received_riel'] ?? 0);
+                $changeRiel = (int) ($validated['change_riel'] ?? 0);
 
-            // 2. Establish trusted Invoice Number
-            $invoiceNumber = $validated['invoice_number'] ?? null;
-            if (empty($invoiceNumber) || Order::where('invoice_number', $invoiceNumber)->exists()) {
-                $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
-            }
+                if ($paymentMethod === 'khqr') {
+                    if ($receivedRiel !== $expectedTotalRiel) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'KHQR payment received amount must exactly equal total amount.',
+                        ], 422);
+                    }
+                    if ($changeRiel !== 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'KHQR payment cannot have change amount.',
+                        ], 422);
+                    }
+                } else {
+                    if ($receivedRiel < $expectedTotalRiel) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Insufficient payment received. Total: {$expectedTotalRiel}, received: {$receivedRiel}.",
+                        ], 422);
+                    }
+                    $expectedChange = $receivedRiel - $expectedTotalRiel;
+                    if ($changeRiel !== $expectedChange) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Change amount mismatch. Expected: {$expectedChange}, received: {$changeRiel}.",
+                        ], 422);
+                    }
+                }
 
-            // 3. Create Order
-            $order = Order::create([
-                'invoice_number' => $invoiceNumber,
-                'client_operation_id' => $validated['client_operation_id'] ?? null,
-                'cashier_id' => $user->id,
-                'customer_id' => $request->customer_id ?? null,
-                'discount_riel' => $validated['discount_riel'] ?? 0,
-                'tax_riel' => $validated['tax_riel'] ?? 0,
-                'total_riel' => $validated['total_riel'],
-                'total_usd' => $validated['total_usd'] ?? round($validated['total_riel'] / 4100, 2),
-                'received_riel' => $validated['received_riel'] ?? 0,
-                'received_usd' => $validated['received_usd'] ?? 0,
-                'change_riel' => $validated['change_riel'] ?? 0,
-                'change_usd' => $validated['change_usd'] ?? 0,
-                'payment_method' => $validated['payment_method'],
-                'status' => 'completed',
-                'notes' => $validated['notes'] ?? null,
-            ]);
+                // 7. Establish Invoice Number
+                $invoiceNumber = $validated['invoice_number'] ?? null;
+                if (empty($invoiceNumber) || Order::where('invoice_number', $invoiceNumber)->exists()) {
+                    $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
+                }
 
-            // 4. Process each item, decrement stock, and record stock movement
-            foreach ($productsToDeduct as $entry) {
-                /** @var Product $product */
-                $product = $entry['product'];
-                $qty = $entry['qty'];
-                $salePrice = $entry['custom_price'] ?? $product->sale_price;
-                $subtotal = $salePrice * $qty;
-
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'product_name' => $product->name,
-                    'qty' => $qty,
-                    'cost_price' => $product->cost_price,
-                    'sale_price' => $salePrice,
-                    'subtotal' => $subtotal,
+                // 8. Create Order
+                $order = Order::create([
+                    'invoice_number' => $invoiceNumber,
+                    'client_operation_id' => $opId,
+                    'cashier_id' => $user->id,
+                    'customer_id' => $request->customer_id ?? null,
+                    'discount_riel' => $discountRiel,
+                    'tax_riel' => $taxRiel,
+                    'total_riel' => $expectedTotalRiel,
+                    'total_usd' => $validated['total_usd'] ?? round($expectedTotalRiel / 4100, 2),
+                    'received_riel' => $receivedRiel,
+                    'received_usd' => $validated['received_usd'] ?? 0,
+                    'change_riel' => $changeRiel,
+                    'change_usd' => $validated['change_usd'] ?? 0,
+                    'payment_method' => $paymentMethod,
+                    'status' => 'completed',
+                    'notes' => $validated['notes'] ?? null,
                 ]);
 
-                $stockBefore = $product->stock_qty;
-                $product->decrement('stock_qty', $qty);
-                $stockAfter = $stockBefore - $qty;
+                // 9. Create Order Items
+                foreach ($processedItems as $entry) {
+                    $prod = $entry['product'];
+                    $qty = $entry['qty'];
 
-                // Authoritative Stock Movement log
-                StockMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'sale',
-                    'qty' => -$qty,
-                    'stock_before' => $stockBefore,
-                    'stock_after' => $stockAfter,
-                    'note' => 'POS Sale: ' . $order->invoice_number,
-                    'ref_id' => $order->invoice_number,
-                    'created_by' => $user->id,
-                ]);
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_id' => $prod->id,
+                        'product_name' => $prod->name,
+                        'qty' => $qty,
+                        'cost_price' => $prod->cost_price,
+                        'sale_price' => $entry['unit_price'],
+                        'subtotal' => $entry['subtotal'],
+                    ]);
+                }
+
+                // 10. Deduct aggregate stock once per product and record stock movement
+                foreach ($aggregatedQty as $pid => $totalQty) {
+                    $prod = $lockedProducts[$pid];
+                    $stockBefore = $prod->stock_qty;
+                    $prod->decrement('stock_qty', $totalQty);
+                    $stockAfter = $stockBefore - $totalQty;
+
+                    StockMovement::create([
+                        'product_id' => $prod->id,
+                        'type' => 'sale',
+                        'qty' => -$totalQty,
+                        'stock_before' => $stockBefore,
+                        'stock_after' => $stockAfter,
+                        'note' => 'POS Sale: ' . $order->invoice_number,
+                        'ref_id' => $order->invoice_number,
+                        'created_by' => $user->id,
+                    ]);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Order created and stock updated successfully',
+                    'data' => $order->load(['cashier:id,name', 'items']),
+                ], 201);
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle race-condition unique constraint duplicate entry
+            if ($e->getCode() === '23000') {
+                $committed = Order::with(['cashier:id,name', 'items'])
+                    ->where('client_operation_id', $opId)
+                    ->first();
+                if ($committed) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Order already processed (idempotent recovery)',
+                        'data' => $committed,
+                    ], 200);
+                }
             }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Order created and stock updated successfully',
-                'data' => $order->load(['cashier:id,name', 'items']),
-            ], 201);
-        });
+            throw $e;
+        }
     }
 }

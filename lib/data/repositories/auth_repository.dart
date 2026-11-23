@@ -61,89 +61,53 @@ class AuthRepository {
       }
     }
 
-    // 2. Fall back to Firebase session
-    final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await FirestoreCollections.users.doc(user.uid).get();
-      if (!doc.exists || doc.data() == null) {
-        return null;
-      }
-
-      var profile = doc.data()!;
-      profile = await _syncUserProfile(profile, user);
-
-      if (!profile.isManager &&
-          (profile.shopId == null || profile.shopId!.isEmpty)) {
-        await signOut();
-        throw Exception(
-          'Your account is not assigned to a shop. Contact the platform manager.',
-        );
-      }
-      if (!profile.active) {
-        await signOut();
-        throw Exception('Account deactivated');
-      }
-
-      return profile;
-    } catch (_) {
-      return null;
-    }
+    // 2. Prevent a Firebase-only session from being treated as a valid Laravel session.
+    // An active Laravel Sanctum token is required for all authoritative operations.
+    return null;
   }
 
-  /// Sign In with unified Laravel + Firebase authentication
+  /// Sign In with authoritative Laravel authentication
   Future<UserModel> signIn({
     required String email,
     required String password,
   }) async {
-    UserModel? laravelUser;
+    // 1. Authoritative login on Laravel REST API (Required)
+    final res = await ApiService.post('/login', {
+      'email': email.trim(),
+      'password': password,
+    });
 
-    // 1. Authoritative login on Laravel REST API
-    try {
-      final res = await ApiService.post('/login', {
-        'email': email.trim(),
-        'password': password,
-      });
-
-      if (res != null && res['success'] == true && res['data'] != null) {
-        final token = res['data']['token']?.toString();
-        if (token != null) {
-          await ApiService.saveToken(token);
-        }
-        final userData = res['data']['user'] as Map<String, dynamic>;
-        laravelUser = UserModel.fromJson(userData);
-        debugPrint('Signed in via Laravel REST API: ${laravelUser.name} (${laravelUser.role})');
-      }
-    } catch (e) {
-      debugPrint('Laravel API login notice: $e');
+    if (res == null || res['success'] != true || res['data'] == null) {
+      final msg = res?['message'] ?? 'Laravel authentication failed.';
+      throw Exception(msg);
     }
 
-    // 2. Also authenticate to Firebase if configured
+    final token = res['data']['token']?.toString();
+    if (token != null) {
+      await ApiService.saveToken(token);
+    }
+    final userData = res['data']['user'] as Map<String, dynamic>;
+    final laravelUser = UserModel.fromJson(userData);
+    debugPrint('Signed in via Laravel REST API: ${laravelUser.name} (${laravelUser.role})');
+
+    // 2. Opportunistically authenticate to Firebase if credentials match, preserving Firebase features
     try {
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      final user = credential.user!;
-      final uid = user.uid;
-
-      final doc = await FirestoreCollections.users.doc(uid).get();
-      if (doc.exists && doc.data() != null) {
-        var profile = doc.data()!;
-        profile = await _syncUserProfile(profile, user);
-        return profile;
+      final user = credential.user;
+      if (user != null) {
+        final doc = await FirestoreCollections.users.doc(user.uid).get();
+        if (doc.exists && doc.data() != null) {
+          await _syncUserProfile(doc.data()!, user);
+        }
       }
     } catch (e) {
-      debugPrint('Firebase signIn notice: $e');
+      debugPrint('Firebase secondary auth notice: $e');
     }
 
-    // If Laravel authentication was successful, return the authoritative profile
-    if (laravelUser != null) {
-      return laravelUser;
-    }
-
-    throw Exception('ចូលប្រើប្រាស់បរាជ័យ (Invalid email/password or server connection failed)');
+    return laravelUser;
   }
 
   /// Completes the one-time manager bootstrap for the UID allowlisted by the

@@ -37,7 +37,7 @@ class SaleRepository {
   /// 2. Performs authoritative checkout against Laravel REST API (MySQL).
   /// 3. Propagates all errors (insufficient stock, unauthorized, validation, network) to caller.
   /// 4. Once confirmed by MySQL, updates secondary cache in Firestore for reporting/offline view.
-  Future<void> checkoutSale(SaleModel sale) async {
+  Future<void> checkoutSale(SaleModel sale, {String? clientOperationId}) async {
     // 1. Explicit and validated product ID mapping
     final itemsPayload = <Map<String, dynamic>>[];
     for (final item in sale.items) {
@@ -55,8 +55,14 @@ class SaleRepository {
       });
     }
 
+    final rawOpId = clientOperationId ?? (sale.id.length >= 8 ? sale.id : 'op_sale_${sale.id}_${sale.invoiceNumber}');
+    if (rawOpId.length < 8) {
+      throw ArgumentError('client_operation_id must be at least 8 characters long.');
+    }
+    final opId = rawOpId;
+
     final payload = <String, dynamic>{
-      'client_operation_id': sale.id,
+      'client_operation_id': opId,
       'invoice_number': sale.invoiceNumber,
       'items': itemsPayload,
       'discount_riel': sale.discount,

@@ -97,7 +97,9 @@ class InventoryRepository {
     }
 
     // 1. Authoritative mutation on Laravel API
+    final opId = 'op_stockin_${productId}_${DateTime.now().millisecondsSinceEpoch}';
     final res = await ApiService.post('/inventory/stock-in', {
+      'client_operation_id': opId,
       'product_id': pId,
       'qty': qty,
       'note': note?.trim().isEmpty ?? true ? null : note!.trim(),
@@ -108,14 +110,23 @@ class InventoryRepository {
       throw Exception(msg);
     }
 
-    // 2. Sync to Firestore cache
+    // 2. Reconcile Firestore cache using server-confirmed stock quantity
     try {
       final batch = _db.batch();
       final productDocRef = _db.collection('products').doc(productId);
-      batch.set(productDocRef, {
-        'stockQty': FieldValue.increment(qty),
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
+      final serverQty = res['data']?['product']?['stock_qty'];
+
+      if (serverQty is num) {
+        batch.set(productDocRef, {
+          'stockQty': serverQty.toInt(),
+          'updatedAt': Timestamp.now(),
+        }, SetOptions(merge: true));
+      } else {
+        batch.set(productDocRef, {
+          'stockQty': FieldValue.increment(qty),
+          'updatedAt': Timestamp.now(),
+        }, SetOptions(merge: true));
+      }
 
       final movementRef = FirestoreCollections.stockMovements.doc();
       final movement = StockMovementModel(
@@ -170,7 +181,9 @@ class InventoryRepository {
     }
 
     // 1. Authoritative mutation on Laravel API
+    final opId = 'op_stockout_${productId}_${DateTime.now().millisecondsSinceEpoch}';
     final res = await ApiService.post('/inventory/stock-out', {
+      'client_operation_id': opId,
       'product_id': pId,
       'qty': qty,
       'note': note.trim(),
@@ -181,14 +194,23 @@ class InventoryRepository {
       throw Exception(msg);
     }
 
-    // 2. Sync to Firestore cache
+    // 2. Reconcile Firestore cache using server-confirmed stock quantity
     try {
       final batch = _db.batch();
       final productDocRef = _db.collection('products').doc(productId);
-      batch.set(productDocRef, {
-        'stockQty': FieldValue.increment(-qty),
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
+      final serverQty = res['data']?['product']?['stock_qty'];
+
+      if (serverQty is num) {
+        batch.set(productDocRef, {
+          'stockQty': serverQty.toInt(),
+          'updatedAt': Timestamp.now(),
+        }, SetOptions(merge: true));
+      } else {
+        batch.set(productDocRef, {
+          'stockQty': FieldValue.increment(-qty),
+          'updatedAt': Timestamp.now(),
+        }, SetOptions(merge: true));
+      }
 
       final movementRef = FirestoreCollections.stockMovements.doc();
       final movement = StockMovementModel(
@@ -248,7 +270,9 @@ class InventoryRepository {
     );
 
     // 1. Authoritative mutation on Laravel API
+    final opId = 'op_adjust_${productId}_${DateTime.now().millisecondsSinceEpoch}';
     final res = await ApiService.post('/inventory/adjust', {
+      'client_operation_id': opId,
       'product_id': pId,
       'new_qty': newQty,
       'note': note.trim(),
@@ -259,7 +283,7 @@ class InventoryRepository {
       throw Exception(msg);
     }
 
-    // 2. Sync to Firestore cache
+    // 2. Reconcile Firestore cache using server-confirmed stock quantity
     try {
       final batch = _db.batch();
       final productDocRef = _db.collection('products').doc(productId);

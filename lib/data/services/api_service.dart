@@ -8,12 +8,15 @@ class ApiService {
   static const String _tokenKey = 'mart_pos_auth_token';
   static const String _baseUrlKey = 'mart_pos_api_base_url';
 
-  // Default IP: 192.168.1.4 for real Wi-Fi device, localhost for Desktop/Web, 10.0.2.2 for Android Emulator
+  // Configurable base URL: prefers --dart-define=API_BASE_URL or SharedPreferences
   static String defaultBaseUrl() {
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+
     if (kIsWeb) return 'http://localhost:8080/api';
     if (Platform.isAndroid) {
-      // 192.168.1.4 matches PC's local Wi-Fi IP so physical Android phones work directly
-      return 'http://192.168.1.4:8080/api';
+      // Standard Android emulator loopback to host machine
+      return 'http://10.0.2.2:8080/api';
     }
     return 'http://localhost:8080/api';
   }
@@ -95,23 +98,25 @@ class ApiService {
     return _processResponse(response);
   }
 
+  static dynamic processResponse(http.Response response) => _processResponse(response);
+
   static dynamic _processResponse(http.Response response) {
     debugPrint('API Response [${response.statusCode}]');
     dynamic decoded;
     try {
       decoded = jsonDecode(utf8.decode(response.bodyBytes));
     } catch (_) {
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return {'success': true};
-      }
-      throw Exception('Server error: HTTP ${response.statusCode}');
+      throw Exception('Malformed server response (HTTP ${response.statusCode}): invalid JSON');
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (decoded is Map && decoded['success'] == false) {
+        throw Exception(decoded['message'] ?? 'API Operation returned success: false');
+      }
       return decoded;
     } else {
       final msg = decoded is Map ? (decoded['message'] ?? decoded['error']) : null;
-      throw Exception(msg ?? 'API Error: ${response.statusCode}');
+      throw Exception(msg ?? 'API Error: HTTP ${response.statusCode}');
     }
   }
 }
