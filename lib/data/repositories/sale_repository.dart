@@ -11,9 +11,12 @@ import '../firestore/shop_scope.dart';
 import '../services/api_service.dart';
 
 enum OperationResolution {
-  confirmed,
+  completed,
+  cancelled,
   notFound,
-  unknown,
+  unknown;
+
+  static const OperationResolution confirmed = OperationResolution.completed;
 }
 
 class OperationResolutionResult {
@@ -157,9 +160,20 @@ class SaleRepository {
     try {
       final res = await ApiService.get('/orders/by-operation/$operationId');
       if (res != null && res['success'] == true && res['data'] != null) {
+        final data = res['data'] as Map<String, dynamic>;
+        final opStatus = (res['operation_status'] ?? data['status'])?.toString().toLowerCase();
+
+        if (opStatus == 'cancelled') {
+          return OperationResolutionResult(
+            status: OperationResolution.cancelled,
+            orderData: data,
+            errorMessage: res['message']?.toString() ?? 'Operation was cancelled and not committed as a sale.',
+          );
+        }
+
         return OperationResolutionResult(
-          status: OperationResolution.confirmed,
-          orderData: res['data'] as Map<String, dynamic>,
+          status: OperationResolution.completed,
+          orderData: data,
         );
       }
       return const OperationResolutionResult(
@@ -191,7 +205,10 @@ class SaleRepository {
   /// Check existing operation with authoritative backend (convenience wrapper)
   Future<Map<String, dynamic>?> checkOperationStatus(String operationId) async {
     final resolution = await resolveOperationStatus(operationId);
-    return resolution.orderData;
+    if (resolution.status == OperationResolution.completed) {
+      return resolution.orderData;
+    }
+    return null;
   }
 
   /// Authoritatively abort an operation on the backend
@@ -231,6 +248,12 @@ class SaleRepository {
 
   /// Reconcile confirmed order into secondary Firestore cache idempotently
   Future<void> reconcileConfirmedOrder(Map<String, dynamic> serverOrder, SaleModel sale) async {
+    final serverStatus = (serverOrder['status'] ?? serverOrder['operation_status'])?.toString().toLowerCase();
+    if (serverStatus == 'cancelled' || sale.paymentStatus == 'cancelled') {
+      debugPrint('Refusing to reconcile cancelled operation (${sale.id}) into Firestore sales.');
+      return;
+    }
+
     final db = _db;
     if (db == null) {
       debugPrint('Firestore unavailable in test/offline environment, skipping cache write.');

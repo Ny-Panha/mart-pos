@@ -57,8 +57,18 @@ class OrderController extends Controller
             ], 403);
         }
 
+        if ($order->status === 'cancelled') {
+            return response()->json([
+                'success' => true,
+                'operation_status' => 'cancelled',
+                'message' => 'Operation was cancelled and not committed as a sale.',
+                'data' => $order,
+            ], 200);
+        }
+
         return response()->json([
             'success' => true,
+            'operation_status' => 'completed',
             'data' => $order,
         ]);
     }

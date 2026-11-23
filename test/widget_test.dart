@@ -1220,6 +1220,212 @@ void main() {
       expect(resNetwork.status, OperationResolution.unknown);
       expect(resNetwork.errorMessage, contains('Connection refused'));
 
+      // Case D: 200 Cancelled Tombstone response (operation was aborted/cancelled)
+      ApiService.client = http_testing.MockClient((request) async {
+        return http.Response(jsonEncode({
+          'success': true,
+          'operation_status': 'cancelled',
+          'message': 'Operation was cancelled and not committed as a sale.',
+          'data': {'id': 99, 'invoice_number': 'ABORT-99', 'status': 'cancelled'}
+        }), 200, headers: {'content-type': 'application/json'});
+      });
+      final resCancelled = await saleRepo.resolveOperationStatus('op_test_cancelled');
+      expect(resCancelled.status, OperationResolution.cancelled);
+      expect(resCancelled.orderData!['status'], 'cancelled');
+
+      ApiService.client = null;
+    });
+
+    test('End-to-end: Aborted operation returns cancelled, restorePendingCheckout prevents completed sale/receipt/mutations, and retry is rejected', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      final opId = 'op_e2e_cancelled_tombstone_777';
+      final invoiceNum = 'INV-E2E-777';
+
+      // 1. Mock API with controllable backend routes
+      bool abortEndpointHit = false;
+      bool getOperationHit = false;
+
+      ApiService.client = http_testing.MockClient((request) async {
+        final path = request.url.path;
+
+        if (path.contains('/orders/abort-operation/$opId')) {
+          abortEndpointHit = true;
+          return http.Response(jsonEncode({
+            'success': true,
+            'aborted': true,
+            'message': 'Operation authoritatively aborted.',
+            'data': {
+              'id': 777,
+              'invoice_number': 'ABORT-TOMBSTONE-777',
+              'client_operation_id': opId,
+              'status': 'cancelled',
+              'total_riel': 0,
+            },
+          }), 200, headers: {'content-type': 'application/json'});
+        }
+
+        if (path.contains('/orders/by-operation/$opId')) {
+          getOperationHit = true;
+          return http.Response(jsonEncode({
+            'success': true,
+            'operation_status': 'cancelled',
+            'message': 'Operation was cancelled and not committed as a sale.',
+            'data': {
+              'id': 777,
+              'invoice_number': 'ABORT-TOMBSTONE-777',
+              'client_operation_id': opId,
+              'status': 'cancelled',
+              'total_riel': 0,
+            },
+          }), 200, headers: {'content-type': 'application/json'});
+        }
+
+        if (path == '/api/orders' && request.method == 'POST') {
+          // Laravel rejects retries on aborted/cancelled operations with 409 Conflict
+          return http.Response(jsonEncode({
+            'success': false,
+            'message': 'Conflict: Operation ID was aborted/cancelled and cannot be committed.',
+          }), 409, headers: {'content-type': 'application/json'});
+        }
+
+        return http.Response('{"success": false}', 404);
+      });
+
+      // 2. Abort operation successfully
+      final abortResult = await saleRepo.abortOperation(opId);
+      expect(abortEndpointHit, true);
+      expect(abortResult['success'], true);
+      expect(abortResult['aborted'], true);
+
+      // 3. GET operation returns cancelled status
+      final resolution = await saleRepo.resolveOperationStatus(opId);
+      expect(getOperationHit, true);
+      expect(resolution.status, OperationResolution.cancelled);
+      expect(resolution.orderData!['status'], 'cancelled');
+
+      // 4. Check checkOperationStatus convenience method returns null for cancelled operations
+      final checkOrder = await saleRepo.checkOperationStatus(opId);
+      expect(checkOrder, isNull);
+
+      // 5. Seed persisted pending checkout state (simulating power cut during checkout)
+      final dummyDraft = {
+        'items': [
+          {
+            'product': {
+              'id': '10',
+              'name': 'Beer Can',
+              'code': 'BC01',
+              'sale_price': 5000,
+              'cost_price': 3000,
+              'stock_qty': 20,
+              'tax': 0.10,
+            },
+            'qty': 2,
+          }
+        ],
+        'customerId': 'cust_vip_001',
+        'customerName': 'VIP Customer',
+        'discount': 1000,
+        'taxRate': 0.10,
+      };
+
+      final dummyPayload = {
+        'client_operation_id': opId,
+        'invoice_number': invoiceNum,
+        'total_riel': 10000,
+        'items': [
+          {'product_id': 10, 'qty': 2}
+        ],
+      };
+
+      SharedPreferences.setMockInitialValues({
+        'mart_pos_pending_checkout_op_id': opId,
+        'mart_pos_pending_checkout_invoice': invoiceNum,
+        'mart_pos_pending_checkout_status': 'pending',
+        'mart_pos_pending_checkout_payload': jsonEncode(dummyPayload),
+        'mart_pos_pending_checkout_cart_draft': jsonEncode(dummyDraft),
+      });
+
+      // 6. Restart Flutter and restore persisted operation
+      final container = ProviderContainer();
+      final notifier = container.read(posCartProvider.notifier);
+
+      await notifier.restorePendingCheckout();
+
+      // Verify no completed sale, receipt, stock mutation, or customer spending update
+      final stateAfterRestore = container.read(posCartProvider);
+      expect(stateAfterRestore.lastCompletedInvoice, isNull, reason: 'No receipt should be generated for a cancelled operation');
+      expect(stateAfterRestore.checkoutStatus, CheckoutStatus.idle);
+      expect(stateAfterRestore.activeOperationId, isNull);
+
+      // Verify pending checkout is cleaned up from storage so it does not linger
+      final pendingAfterRestore = await saleRepo.getPendingCheckout();
+      expect(pendingAfterRestore, isNull);
+
+      // 7. Verify reconcileConfirmedOrder strictly refuses cancelled orders
+      final dummySale = SaleModel(
+        id: opId,
+        invoiceNumber: invoiceNum,
+        cashierId: 'c1',
+        customerId: 'cust_vip_001',
+        items: [
+          SaleItem(productId: '10', name: 'Beer Can', qty: 2, unitPrice: 5000, totalPrice: 10000),
+        ],
+        subtotal: 10000,
+        discount: 1000,
+        totalTax: 1000,
+        total: 10000,
+        paidAmount: 10000,
+        changeAmount: 0,
+        paymentMethod: 'cash_riel',
+        paymentStatus: 'cancelled',
+        createdAt: DateTime.now(),
+      );
+
+      // Reconcile must safely refuse without writing
+      await saleRepo.reconcileConfirmedOrder(
+        {
+          'status': 'cancelled',
+          'operation_status': 'cancelled',
+          'invoice_number': 'ABORT-TOMBSTONE-777',
+        },
+        dummySale,
+      );
+
+      // 8. Ensure checkout retry with a cancelled operation ID cannot create or confirm a sale
+      // Set the active operation ID to the cancelled opId
+      container.read(posCartProvider.notifier).addProduct(ProductModel(
+        id: '10',
+        name: 'Beer Can',
+        code: 'BC01',
+        categoryId: 'cat_drinks',
+        costPrice: 3000,
+        salePrice: 5000,
+        stockQty: 20,
+      ));
+
+      // Attempt checkout with the active operation
+      expect(
+        () async {
+          // Force activeOperationId to opId for retry testing
+          await saleRepo.persistPendingCheckout(
+            operationId: opId,
+            invoiceNumber: invoiceNum,
+            payload: dummyPayload,
+            status: 'failed',
+          );
+          await notifier.restorePendingCheckout();
+          await notifier.checkout(cashierId: 'cashier_01');
+        },
+        throwsA(isA<Exception>()),
+      );
+
+      final stateAfterFailedRetry = container.read(posCartProvider);
+      expect(stateAfterFailedRetry.lastCompletedInvoice, isNull);
+      expect(stateAfterFailedRetry.checkoutStatus, isNot(CheckoutStatus.confirmed));
+
       ApiService.client = null;
     });
 

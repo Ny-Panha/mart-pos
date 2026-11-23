@@ -2,31 +2,45 @@
 
 ## Last Session
 - **Environment**: Antigravity IDE
-- **Timestamp**: 2026-11-23 23:40 (ICT)
+- **Timestamp**: 2026-11-24 00:05 (ICT)
 - **Branch**: `fix/final-safety-repair`
-- **Base Branch**: `fix/targeted-release-blockers` (Commit: `4f92b8136f4462ea75c3f4f6069f37f8eee3df80`)
+- **Base Branch**: `fix/targeted-release-blockers`
 - **Author**: Ny Panha & Antigravity
 
-## Summary: Checkout Acceptance Gate Closure & Gaps Resolution
+## Summary: Cancelled Operation Status Fix & Safety Hardening
 
-### 1. In-Flight Authoritative Cancellation (`OrderController.php`, `pos_cart_provider.dart`, `sale_repository.dart`)
-- **Tombstone Abort Endpoint**: Implemented `POST /api/orders/abort-operation/{opId}`. When a client requests cancellation, MySQL atomically checks or reserves the `client_operation_id` with `status = 'cancelled'`.
-- **In-Flight POST Invalidation**: Any in-flight POST that timed out but commits later is rejected by MySQL unique index collision (error 23000), where `resolveIdempotentOrder` sees `status == 'cancelled'` and aborts without deducting stock or inserting items.
-- **Delayed Commit Detection**: If the in-flight POST committed right before or during abort, the abort endpoint returns 409 with `committed: true` and order data, forcing the client to reconcile rather than deleting the sale.
+### 1. Authoritative Backend Communication (`backend/app/Http/Controllers/Api/OrderController.php`)
+- `GET /api/orders/by-operation/{opId}` explicitly communicates operation status:
+  - For completed orders: `"operation_status": "completed"`
+  - For cancelled tombstones: `"operation_status": "cancelled"`, message `"Operation was cancelled and not committed as a sale."`
+- `resolveIdempotentOrder()` strictly prevents committing retried checkout attempts when `status === 'cancelled'`, returning HTTP 409 Conflict.
+- Verified in `backend/tests/Feature/OrderAndInventoryTest.php` (`test_abort_operation_tombstones_operation_and_prevents_commit`).
 
-### 2. Original Persisted Immutable Payload on Retry & Restart (`pos_cart_provider.dart`, `sale_repository.dart`)
-- **Immutable Payload Preservation**: `PosCartState` retains `activeCheckoutPayload`, and `restorePendingCheckout()` restores the exact canonical payload on app restart.
-- **Zero UI Drift**: On retry or restart, `checkoutSale()` transmits the original immutable payload directly across the wire (preserving Cash USD tendered, change, custom prices, discounts, and tax rate). The request is never rebuilt from UI defaults.
+### 2. Flutter Operation Resolution Distinction (`lib/data/repositories/sale_repository.dart`)
+- `OperationResolution` enum explicitly distinguishes `completed`, `cancelled`, `notFound`, and `unknown` (with `confirmed = completed` alias).
+- `resolveOperationStatus()` checks both `operation_status` and `order.status` to return `OperationResolution.cancelled`.
+- `checkOperationStatus()` convenience wrapper returns `null` for cancelled operations, preventing callers from interpreting tombstones as valid orders.
 
-### 3. Controllable Fake Dependencies & Comprehensive Regression Suite (`test/widget_test.dart`)
-- **Controllable Mock Client**: Added `ApiService.client` injection to mock arbitrary HTTP/network behaviors deterministically.
-- **6 Verified Behavioral Scenarios**:
-  1. Original POST still executing when GET returns 404 (abort detects committed order and reconciles instead of deleting).
-  2. Timeout followed by delayed server commit (reconciliation recovers confirmed order and cleans pending state).
-  3. Persisted Cash USD checkout restored after restart transmits exact immutable payload on retry.
-  4. SharedPreferences write failure fails closed and blocks remote transmission.
-  5. HTTP 404, confirmed response (200), and network failure (SocketException) distinct handling in `resolveOperationStatus`.
-  6. Correct cache reconciliation and pending-state cleanup in SharedPreferences.
+### 3. Tombstone Firestore Rejection & No Receipt / Spending Updates (`sale_repository.dart`, `pos_cart_provider.dart`)
+- `reconcileConfirmedOrder()` strictly guards against cancelled operations, aborting before Firestore writes (no sales document, no stock movement, no customer spending increment).
+- `restorePendingCheckout()`: when encountering a cancelled operation upon app restart:
+  - Clears persisted pending checkout from SharedPreferences.
+  - Resets cart state to idle with `lastCompletedInvoice == null` (zero spurious receipts).
+  - Skips Firestore cache reconciliation completely.
+- `reconcileActiveCheckout()` safely clears pending checkout and resets cart to idle on cancelled status.
+
+### 4. Cancelled Checkout Retry Lockout (`pos_cart_provider.dart`)
+- `checkout()` inspects `resolveOperationStatus()` prior to retrying.
+- If the operation is cancelled, it clears pending checkout, resets checking-out flag, and throws an exception, blocking retries from creating or confirming sales.
+
+### 5. Comprehensive Regression Suite (`test/widget_test.dart`)
+- Added end-to-end regression test:
+  1. Abort operation successfully via `saleRepo.abortOperation()`.
+  2. GET operation returns `OperationResolution.cancelled`.
+  3. Seed persisted pending state and restart Flutter (`restorePendingCheckout()`).
+  4. Verify `lastCompletedInvoice == null`, status is idle, and pending state is cleared from SharedPreferences.
+  5. Verify `reconcileConfirmedOrder()` refuses to write cancelled orders.
+  6. Verify checkout retry with cancelled operation throws exception and is blocked.
 
 ## Active Environment
 - **Flutter App**: `e:\Project\flutter\project\mart_pos`
@@ -36,11 +50,9 @@
 - **MySQL Dedicated Test Database**: `mart_pos_test` on `127.0.0.1:3306`
 
 ## Verification & Test Results
-- `cd backend; php artisan test`: **All 27 tests passed (141 assertions)!**
-  - Includes `test_abort_operation_tombstones_operation_and_prevents_commit` and `test_abort_operation_returns_committed_order_if_already_completed`.
-  - Includes MySQL multi-connection concurrency and row locking tests.
-- `flutter analyze`: **No issues found!** (ran in 4.8s)
-- `flutter test`: **All 66 tests passed!** (100% passed across all unit and widget tests)
+- `cd backend; php artisan test`: **All 27 tests passed (143 assertions)!**
+- `flutter analyze`: **No issues found!** (ran in 5.1s)
+- `flutter test`: **All 67 tests passed!** (100% passed across all unit and widget tests)
 
 ## Remaining Limitations
-- Mart POS operates strictly with an authoritative MySQL backend for sales and inventory mutation. When offline, catalog browsing is available via cache, but sales transactions require an authoritative server connection because a full offline durable mutation outbox has not yet been built.
+- Mart POS operates strictly with an authoritative MySQL backend for sales and inventory mutation. When offline, catalog browsing is available via cache, but sales transactions require an authoritative server connection.

@@ -208,8 +208,29 @@ class PosCartNotifier extends Notifier<PosCartState> {
 
         // 2. Perform background reconciliation with backend
         final resolution = await saleRepo.resolveOperationStatus(opId);
-        if (resolution.status == OperationResolution.confirmed && resolution.orderData != null) {
+        if (resolution.status == OperationResolution.cancelled) {
+          // Operation was cancelled on the server:
+          // Must NEVER reconcile into Firestore sales, NEVER generate receipt, NEVER update customer spending.
+          await saleRepo.clearPendingCheckout();
+          state = PosCartState(
+            recentScans: state.recentScans,
+            checkoutStatus: CheckoutStatus.idle,
+          );
+          return;
+        }
+
+        if ((resolution.status == OperationResolution.completed || resolution.status == OperationResolution.confirmed) && resolution.orderData != null) {
           final existingOrder = resolution.orderData!;
+          final serverStatus = (existingOrder['status'] ?? existingOrder['operation_status'])?.toString().toLowerCase();
+          if (serverStatus == 'cancelled') {
+            await saleRepo.clearPendingCheckout();
+            state = PosCartState(
+              recentScans: state.recentScans,
+              checkoutStatus: CheckoutStatus.idle,
+            );
+            return;
+          }
+
           final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? inv;
 
           final saleItems = state.items.map((i) {
@@ -310,8 +331,36 @@ class PosCartNotifier extends Notifier<PosCartState> {
     if (state.activeOperationId == null) return null;
     final opId = state.activeOperationId!;
     final saleRepo = ref.read(saleRepositoryProvider);
-    final existingOrder = preloadedOrder ?? (await saleRepo.resolveOperationStatus(opId)).orderData;
-    if (existingOrder != null) {
+    final resolution = preloadedOrder != null
+        ? OperationResolutionResult(
+            status: ((preloadedOrder['status'] ?? preloadedOrder['operation_status'])?.toString().toLowerCase() == 'cancelled')
+                ? OperationResolution.cancelled
+                : OperationResolution.completed,
+            orderData: preloadedOrder,
+          )
+        : await saleRepo.resolveOperationStatus(opId);
+
+    if (resolution.status == OperationResolution.cancelled) {
+      await saleRepo.clearPendingCheckout();
+      state = PosCartState(
+        recentScans: state.recentScans,
+        checkoutStatus: CheckoutStatus.idle,
+      );
+      return null;
+    }
+
+    final existingOrder = resolution.orderData;
+    if (existingOrder != null && (resolution.status == OperationResolution.completed || resolution.status == OperationResolution.confirmed)) {
+      final serverStatus = (existingOrder['status'] ?? existingOrder['operation_status'])?.toString().toLowerCase();
+      if (serverStatus == 'cancelled') {
+        await saleRepo.clearPendingCheckout();
+        state = PosCartState(
+          recentScans: state.recentScans,
+          checkoutStatus: CheckoutStatus.idle,
+        );
+        return null;
+      }
+
       final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? state.activeInvoiceNumber ?? opId;
 
       final saleItems = state.items.map((i) {
@@ -575,8 +624,30 @@ class PosCartNotifier extends Notifier<PosCartState> {
       );
 
       // 2. Before retrying, reconcile previous operation with Laravel to prevent duplicate sales
-      final existingOrder = await saleRepo.checkOperationStatus(opId);
-      if (existingOrder != null) {
+      final resolution = await saleRepo.resolveOperationStatus(opId);
+      if (resolution.status == OperationResolution.cancelled) {
+        await saleRepo.clearPendingCheckout();
+        state = state.copyWith(
+          isCheckingOut: false,
+          checkoutStatus: CheckoutStatus.failed,
+          clearActiveOperation: true,
+        );
+        throw Exception('Cannot checkout: Operation ($opId) was cancelled on the server and cannot be committed.');
+      }
+
+      if ((resolution.status == OperationResolution.completed || resolution.status == OperationResolution.confirmed) && resolution.orderData != null) {
+        final existingOrder = resolution.orderData!;
+        final serverStatus = (existingOrder['status'] ?? existingOrder['operation_status'])?.toString().toLowerCase();
+        if (serverStatus == 'cancelled') {
+          await saleRepo.clearPendingCheckout();
+          state = state.copyWith(
+            isCheckingOut: false,
+            checkoutStatus: CheckoutStatus.failed,
+            clearActiveOperation: true,
+          );
+          throw Exception('Cannot checkout: Operation ($opId) was cancelled on the server and cannot be committed.');
+        }
+
         final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? invoiceNum;
         await saleRepo.reconcileConfirmedOrder(existingOrder, sale);
         await saleRepo.clearPendingCheckout();

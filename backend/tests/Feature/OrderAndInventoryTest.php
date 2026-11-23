@@ -847,6 +847,18 @@ class OrderAndInventoryTest extends TestCase
                 'aborted' => true,
             ]);
 
+        // 1b. Querying by-operation explicitly returns operation_status: 'cancelled'
+        $queryRes = $this->actingAs($this->cashier, 'sanctum')->getJson("/api/orders/by-operation/{$opId}");
+        $queryRes->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'operation_status' => 'cancelled',
+                'data' => [
+                    'client_operation_id' => $opId,
+                    'status' => 'cancelled',
+                ],
+            ]);
+
         // 2. An in-flight or delayed POST with this client_operation_id must be rejected with 409 conflict
         $stockBefore = $this->product->fresh()->stock_qty;
         $postRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
