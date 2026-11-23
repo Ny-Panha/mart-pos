@@ -30,7 +30,14 @@ class OperationResolutionResult {
 
 class SaleRepository {
   final FirebaseFirestore? _dbInstance;
-  FirebaseFirestore get _db => _dbInstance ?? FirebaseFirestore.instance;
+  FirebaseFirestore? get _db {
+    if (_dbInstance != null) return _dbInstance;
+    try {
+      return FirebaseFirestore.instance;
+    } catch (_) {
+      return null;
+    }
+  }
 
   static const _prefPendingOpId = 'mart_pos_pending_checkout_op_id';
   static const _prefPendingInvoice = 'mart_pos_pending_checkout_invoice';
@@ -187,10 +194,51 @@ class SaleRepository {
     return resolution.orderData;
   }
 
+  /// Authoritatively abort an operation on the backend
+  /// Guarantees that any in-flight POST cannot commit by tombstoning client_operation_id,
+  /// or returns the committed order if the POST already completed.
+  Future<Map<String, dynamic>> abortOperation(String operationId) async {
+    try {
+      final res = await ApiService.post('/orders/abort-operation/$operationId', {});
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+      return {
+        'success': false,
+        'message': 'Invalid response from abort-operation endpoint.',
+      };
+    } on ApiException catch (e) {
+      if (e.statusCode == 409 && e.body is Map && e.body['committed'] == true) {
+        // Order already committed on server!
+        return {
+          'success': false,
+          'committed': true,
+          'data': e.body['data'],
+          'message': e.message,
+        };
+      }
+      return {
+        'success': false,
+        'message': e.message,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Network failure or server unavailable: $e',
+      };
+    }
+  }
+
   /// Reconcile confirmed order into secondary Firestore cache idempotently
   Future<void> reconcileConfirmedOrder(Map<String, dynamic> serverOrder, SaleModel sale) async {
+    final db = _db;
+    if (db == null) {
+      debugPrint('Firestore unavailable in test/offline environment, skipping cache write.');
+      return;
+    }
+
     try {
-      final batch = _db.batch();
+      final batch = db.batch();
 
       final saleDocRef = FirestoreCollections.sales.doc(sale.id);
       final existingSale = await saleDocRef.get();
@@ -239,7 +287,7 @@ class SaleRepository {
 
       // Customer spending: only increment if this sale was not already confirmed!
       if (!wasAlreadyConfirmed && sale.customerId != null && sale.customerId!.isNotEmpty) {
-        final customerDocRef = _db.collection('customers').doc(sale.customerId);
+        final customerDocRef = db.collection('customers').doc(sale.customerId);
         batch.set(customerDocRef, {
           'totalSpent': FieldValue.increment(sale.total),
         }, SetOptions(merge: true));
@@ -252,13 +300,11 @@ class SaleRepository {
     }
   }
 
-  /// Authoritative Checkout:
-  /// 1. Validates Product IDs (never guesses or falls back to ID 1).
-  /// 2. Performs authoritative checkout against Laravel REST API (MySQL).
-  /// 3. Propagates all errors (insufficient stock, unauthorized, validation, network) to caller.
-  /// 4. Once confirmed by MySQL, updates secondary cache in Firestore for reporting/offline view.
-  Future<void> checkoutSale(SaleModel sale, {String? clientOperationId, Map<String, dynamic>? cartDraft}) async {
-    // 1. Explicit and validated product ID mapping
+  /// Builds the complete canonical checkout request payload
+  Map<String, dynamic> buildCheckoutPayload({
+    required SaleModel sale,
+    required String clientOperationId,
+  }) {
     final itemsPayload = <Map<String, dynamic>>[];
     for (final item in sale.items) {
       final prodId = int.tryParse(item.productId);
@@ -275,19 +321,17 @@ class SaleRepository {
       });
     }
 
-    final rawOpId = clientOperationId ?? (sale.id.length >= 8 ? sale.id : 'op_sale_${sale.id}_${sale.invoiceNumber}');
-    if (rawOpId.length < 8) {
+    if (clientOperationId.length < 8) {
       throw ArgumentError('client_operation_id must be at least 8 characters long.');
     }
-    final opId = rawOpId;
 
     final bool isUsd = sale.paymentMethod == 'cash_usd';
     final double expectedTotalUsd = (sale.total / 4100.0);
     final double actualReceivedUsd = sale.receivedUsd ?? (isUsd ? (sale.paidAmount / 4100.0) : 0.0);
     final double actualChangeUsd = sale.changeUsd ?? (isUsd && sale.changeAmount > 0 ? (sale.changeAmount / 4100.0) : 0.0);
 
-    final payload = <String, dynamic>{
-      'client_operation_id': opId,
+    return <String, dynamic>{
+      'client_operation_id': clientOperationId,
       'invoice_number': sale.invoiceNumber,
       'items': itemsPayload,
       'discount_riel': sale.discount,
@@ -304,11 +348,32 @@ class SaleRepository {
           : (isUsd ? 'cash_usd' : 'cash_riel'),
       'notes': 'Invoice: ${sale.invoiceNumber}',
     };
+  }
 
-    // Persist pending checkout state before remote network transmission
+  /// Authoritative Checkout:
+  /// 1. Validates Product IDs (never guesses or falls back to ID 1).
+  /// 2. Performs authoritative checkout against Laravel REST API (MySQL).
+  /// 3. Propagates all errors (insufficient stock, unauthorized, validation, network) to caller.
+  /// 4. Once confirmed by MySQL, updates secondary cache in Firestore for reporting/offline view.
+  Future<void> checkoutSale(
+    SaleModel sale, {
+    String? clientOperationId,
+    Map<String, dynamic>? cartDraft,
+    Map<String, dynamic>? immutablePayload,
+  }) async {
+    final rawOpId = clientOperationId ?? (sale.id.length >= 8 ? sale.id : 'op_sale_${sale.id}_${sale.invoiceNumber}');
+    final opId = rawOpId;
+
+    // Use original persisted immutable checkout payload if provided on retry, preventing UI drift
+    final payload = immutablePayload ?? buildCheckoutPayload(
+      sale: sale,
+      clientOperationId: opId,
+    );
+
+    // Persist pending checkout state before remote network transmission (fails closed)
     await persistPendingCheckout(
       operationId: opId,
-      invoiceNumber: sale.invoiceNumber,
+      invoiceNumber: payload['invoice_number']?.toString() ?? sale.invoiceNumber,
       payload: payload,
       status: 'pending',
       cartDraft: cartDraft,

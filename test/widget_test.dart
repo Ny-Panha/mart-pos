@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
 import 'package:mart_pos/core/role_route_guard.dart';
 import 'package:mart_pos/core/utils/money.dart';
 import 'package:mart_pos/data/firestore/models/audit_log_model.dart';
@@ -905,7 +907,7 @@ void main() {
       // Attempt Dismiss when server is unreachable
       expect(
         () => notifier.cancelOrDismissUnresolvedCheckout(),
-        throwsA(predicate((e) => e.toString().contains('Network failure cannot be treated as proof'))),
+        throwsA(predicate((e) => e.toString().contains('unresolved checkout cannot be dismissed'))),
       );
 
       // Unresolved state and cart items are safely preserved!
@@ -955,6 +957,296 @@ void main() {
 
       final changeRiel = (changeUsd * 4100).round();
       expect(changeRiel, 3198); // ~3200 Riel
+    });
+
+    test('Original POST still executing when GET returns 404: Dismiss attempts abort, detects delayed commit, and reconciles instead of deleting', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer();
+      final notifier = container.read(posCartProvider.notifier);
+
+      final opId = 'op_inflight_delayed_001';
+      container.read(posCartProvider.notifier).state = container.read(posCartProvider).copyWith(
+        activeOperationId: opId,
+        activeInvoiceNumber: 'INV-INFLIGHT-001',
+        checkoutStatus: CheckoutStatus.pending,
+      );
+
+      // Setup controllable mock client:
+      // GET returns 404 (POST hasn't committed yet)
+      // But POST /orders/abort-operation detects the order just committed and returns 409 committed!
+      ApiService.client = http_testing.MockClient((request) async {
+        if (request.url.path.contains('/orders/by-operation/')) {
+          return http.Response(jsonEncode({
+            'success': false,
+            'message': 'Operation not found',
+          }), 404, headers: {'content-type': 'application/json'});
+        }
+        if (request.url.path.contains('/orders/abort-operation/')) {
+          return http.Response(jsonEncode({
+            'success': false,
+            'committed': true,
+            'message': 'Cannot abort: Order has already committed.',
+            'data': {
+              'id': 101,
+              'invoice_number': 'INV-INFLIGHT-001',
+              'client_operation_id': opId,
+              'total_riel': 5000,
+              'payment_method': 'cash_riel',
+            },
+          }), 409, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('{"success": false}', 500);
+      });
+
+      // Cashier tries to dismiss:
+      await notifier.cancelOrDismissUnresolvedCheckout();
+
+      // Assert behavior: it did NOT delete or dismiss the sale!
+      // It caught the committed order and completed reconciliation!
+      expect(container.read(posCartProvider).checkoutStatus, CheckoutStatus.confirmed);
+      expect(container.read(posCartProvider).lastCompletedInvoice, 'INV-INFLIGHT-001');
+
+      ApiService.client = null;
+    });
+
+    test('Timeout followed by delayed server commit: reconciliation recovers confirmed order and cleans pending state', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      final opId = 'op_timeout_delayed_commit';
+      SharedPreferences.setMockInitialValues({
+        'mart_pos_pending_checkout_op_id': opId,
+        'mart_pos_pending_checkout_invoice': 'INV-DELAYED-777',
+        'mart_pos_pending_checkout_status': 'failed',
+      });
+
+      // Controllable mock client: delayed commit is now ready (HTTP 200)
+      ApiService.client = http_testing.MockClient((request) async {
+        if (request.url.path.contains('/orders/by-operation/$opId')) {
+          return http.Response(jsonEncode({
+            'success': true,
+            'data': {
+              'id': 202,
+              'invoice_number': 'INV-DELAYED-777',
+              'client_operation_id': opId,
+              'total_riel': 8200,
+              'payment_method': 'cash_usd',
+            },
+          }), 200, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('{"success": false}', 404);
+      });
+
+      final resolution = await saleRepo.resolveOperationStatus(opId);
+      expect(resolution.status, OperationResolution.confirmed);
+      expect(resolution.orderData!['invoice_number'], 'INV-DELAYED-777');
+
+      // Now clean up pending checkout upon confirmed completion
+      await saleRepo.clearPendingCheckout();
+      final pending = await saleRepo.getPendingCheckout();
+      expect(pending, isNull);
+
+      ApiService.client = null;
+    });
+
+    test('Persisted Cash USD checkout restored after restart transmits exact immutable payload on retry', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+
+      final opId = 'op_cash_usd_restored_999';
+      final persistedPayload = {
+        'client_operation_id': opId,
+        'invoice_number': 'INV-USD-999',
+        'items': [
+          {'product_id': 1, 'qty': 2, 'custom_price': 4000}
+        ],
+        'discount_riel': 500,
+        'tax_rate': 0.10,
+        'tax_riel': 750,
+        'total_riel': 8250,
+        'total_usd': '2.01',
+        'received_riel': 0,
+        'received_usd': '10.00',
+        'change_riel': 0,
+        'change_usd': '7.99',
+        'payment_method': 'cash_usd',
+        'notes': 'Invoice: INV-USD-999',
+      };
+
+      final persistedDraft = {
+        'items': [
+          {
+            'product': {
+              'id': '1',
+              'name': 'Tiger Beer',
+              'code': 'T01',
+              'sale_price': 4100,
+              'cost_price': 3000,
+              'stock_qty': 50,
+              'tax': 0.10,
+            },
+            'qty': 2,
+            'customPrice': 4000,
+          }
+        ],
+        'discount': 500,
+        'taxRate': 0.10,
+      };
+
+      SharedPreferences.setMockInitialValues({
+        'mart_pos_pending_checkout_op_id': opId,
+        'mart_pos_pending_checkout_invoice': 'INV-USD-999',
+        'mart_pos_pending_checkout_status': 'failed',
+        'mart_pos_pending_checkout_payload': jsonEncode(persistedPayload),
+        'mart_pos_pending_checkout_cart_draft': jsonEncode(persistedDraft),
+      });
+
+      final container = ProviderContainer();
+      final notifier = container.read(posCartProvider.notifier);
+
+      // Simulate app restart restoration
+      await notifier.restorePendingCheckout();
+
+      expect(container.read(posCartProvider).activeOperationId, opId);
+      expect(container.read(posCartProvider).activeCheckoutPayload, isNotNull);
+
+      // Track exact body transmitted during retry
+      Map<String, dynamic>? transmittedBody;
+      ApiService.client = http_testing.MockClient((request) async {
+        if (request.url.path == '/api/orders') {
+          transmittedBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(jsonEncode({
+            'success': true,
+            'data': {'id': 303, 'invoice_number': 'INV-USD-999'},
+          }), 201, headers: {'content-type': 'application/json'});
+        }
+        return http.Response('{"success": false}', 404);
+      });
+
+      // Retry checkout using default parameters from UI call
+      // The provider MUST NOT rebuild from UI defaults; it MUST send the original immutable payload!
+      await notifier.checkout(cashierId: 'cashier_test_01');
+
+      expect(transmittedBody, isNotNull);
+      expect(transmittedBody!['payment_method'], 'cash_usd');
+      expect(transmittedBody!['received_usd'], '10.00');
+      expect(transmittedBody!['change_usd'], '7.99');
+      expect(transmittedBody!['discount_riel'], 500);
+      expect(transmittedBody!['items'][0]['custom_price'], 4000);
+
+      ApiService.client = null;
+    });
+
+    test('SharedPreferences write failure fails closed and blocks remote transmission', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      int httpCallsCount = 0;
+      ApiService.client = http_testing.MockClient((request) async {
+        httpCallsCount++;
+        return http.Response('{"success": true}', 201);
+      });
+
+      final dummySale = SaleModel(
+        id: 'op_persist_fail_01',
+        invoiceNumber: 'INV-FAIL-01',
+        cashierId: 'c1',
+        items: [
+          SaleItem(productId: '1', name: 'Item', qty: 1, unitPrice: 1000, totalPrice: 1000)
+        ],
+        subtotal: 1000,
+        discount: 0,
+        totalTax: 0,
+        total: 1000,
+        paidAmount: 1000,
+        changeAmount: 0,
+        paymentMethod: 'cash_riel',
+        paymentStatus: 'paid',
+        createdAt: DateTime.now(),
+      );
+
+      // Verify that if persistPendingCheckout throws, checkoutSale aborts and post is NEVER called
+      final unencodablePayload = <String, dynamic>{
+        'client_operation_id': 'op_persist_fail_01',
+        'invoice_number': 'INV-FAIL-01',
+        'unserializable': Object(), // jsonEncode will throw
+      };
+
+      expect(
+        () => saleRepo.checkoutSale(
+          dummySale,
+          clientOperationId: 'op_persist_fail_01',
+          immutablePayload: unencodablePayload,
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      expect(httpCallsCount, 0, reason: 'Remote HTTP POST must NEVER be transmitted if persistence fails!');
+
+      ApiService.client = null;
+    });
+
+    test('HTTP 404, confirmed response, and network failure distinct handling in resolveOperationStatus', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      // Case A: 200 Confirmed response
+      ApiService.client = http_testing.MockClient((request) async {
+        return http.Response(jsonEncode({
+          'success': true,
+          'data': {'id': 1, 'invoice_number': 'INV-200'}
+        }), 200, headers: {'content-type': 'application/json'});
+      });
+      final res200 = await saleRepo.resolveOperationStatus('op_test_200');
+      expect(res200.status, OperationResolution.confirmed);
+      expect(res200.orderData!['invoice_number'], 'INV-200');
+
+      // Case B: 404 Not Found (Authoritative proof that order was never committed)
+      ApiService.client = http_testing.MockClient((request) async {
+        return http.Response(jsonEncode({
+          'success': false,
+          'message': 'Operation not found'
+        }), 404, headers: {'content-type': 'application/json'});
+      });
+      final res404 = await saleRepo.resolveOperationStatus('op_test_404');
+      expect(res404.status, OperationResolution.notFound);
+      expect(res404.errorMessage, contains('Operation not found'));
+
+      // Case C: Network Failure / Socket error
+      ApiService.client = http_testing.MockClient((request) async {
+        throw http.ClientException('Connection refused');
+      });
+      final resNetwork = await saleRepo.resolveOperationStatus('op_test_network');
+      expect(resNetwork.status, OperationResolution.unknown);
+      expect(resNetwork.errorMessage, contains('Connection refused'));
+
+      ApiService.client = null;
+    });
+
+    test('Correct cache reconciliation and pending-state cleanup', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final saleRepo = SaleRepository();
+
+      final opId = 'op_reconcile_cleanup_001';
+      SharedPreferences.setMockInitialValues({
+        'mart_pos_pending_checkout_op_id': opId,
+        'mart_pos_pending_checkout_invoice': 'INV-CLEAN-001',
+        'mart_pos_pending_checkout_status': 'pending',
+        'mart_pos_pending_checkout_payload': jsonEncode({'total_riel': 5000}),
+        'mart_pos_pending_checkout_cart_draft': jsonEncode({'items': []}),
+      });
+
+      // Verify pending checkout exists before cleanup
+      final before = await saleRepo.getPendingCheckout();
+      expect(before, isNotNull);
+      expect(before!['operation_id'], opId);
+
+      // Perform cleanup
+      await saleRepo.clearPendingCheckout();
+
+      // Assert that all pending state keys are removed
+      final after = await saleRepo.getPendingCheckout();
+      expect(after, isNull);
     });
   });
 }

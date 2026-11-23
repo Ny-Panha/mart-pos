@@ -834,4 +834,67 @@ class OrderAndInventoryTest extends TestCase
         $this->assertGreaterThanOrEqual(5000, $res->json('data.today.total_sales_riel'));
         $this->assertGreaterThanOrEqual(2000, $res->json('data.today.total_profit_riel'));
     }
+
+    public function test_abort_operation_tombstones_operation_and_prevents_commit(): void
+    {
+        $opId = 'op_abort_test_tombstone_' . uniqid();
+
+        // 1. Authoritative abort before POST arrives
+        $abortRes = $this->actingAs($this->cashier, 'sanctum')->postJson("/api/orders/abort-operation/{$opId}");
+        $abortRes->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'aborted' => true,
+            ]);
+
+        // 2. An in-flight or delayed POST with this client_operation_id must be rejected with 409 conflict
+        $stockBefore = $this->product->fresh()->stock_qty;
+        $postRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => $opId,
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'total_riel' => 2500,
+            'received_riel' => 2500,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ]);
+
+        $postRes->assertStatus(409)
+            ->assertJson([
+                'success' => false,
+            ]);
+
+        // Ensure no stock was deducted
+        $this->assertEquals($stockBefore, $this->product->fresh()->stock_qty);
+    }
+
+    public function test_abort_operation_returns_committed_order_if_already_completed(): void
+    {
+        $opId = 'op_abort_test_already_committed_' . uniqid();
+
+        // 1. Order commits first
+        $postRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => $opId,
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'total_riel' => 2500,
+            'received_riel' => 2500,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ])->assertStatus(201);
+
+        $committedInvoice = $postRes->json('data.invoice_number');
+
+        // 2. Abort attempt detects committed order and rejects abort with 409
+        $abortRes = $this->actingAs($this->cashier, 'sanctum')->postJson("/api/orders/abort-operation/{$opId}");
+        $abortRes->assertStatus(409)
+            ->assertJson([
+                'success' => false,
+                'committed' => true,
+            ]);
+
+        $this->assertEquals($committedInvoice, $abortRes->json('data.invoice_number'));
+    }
 }

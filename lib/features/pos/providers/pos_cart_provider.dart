@@ -53,6 +53,7 @@ class PosCartState {
   final String? lastCompletedInvoice;
   final String? activeOperationId;
   final String? activeInvoiceNumber;
+  final Map<String, dynamic>? activeCheckoutPayload;
   final CheckoutStatus checkoutStatus;
 
   PosCartState({
@@ -67,6 +68,7 @@ class PosCartState {
     this.lastCompletedInvoice,
     this.activeOperationId,
     this.activeInvoiceNumber,
+    this.activeCheckoutPayload,
     this.checkoutStatus = CheckoutStatus.idle,
   });
 
@@ -96,6 +98,7 @@ class PosCartState {
     String? lastCompletedInvoice,
     String? activeOperationId,
     String? activeInvoiceNumber,
+    Map<String, dynamic>? activeCheckoutPayload,
     CheckoutStatus? checkoutStatus,
     bool clearLastScan = false,
     bool clearActiveOperation = false,
@@ -117,6 +120,7 @@ class PosCartState {
       lastCompletedInvoice: lastCompletedInvoice ?? this.lastCompletedInvoice,
       activeOperationId: shouldClearOp ? null : (activeOperationId ?? this.activeOperationId),
       activeInvoiceNumber: shouldClearOp ? null : (activeInvoiceNumber ?? this.activeInvoiceNumber),
+      activeCheckoutPayload: shouldClearOp ? null : (activeCheckoutPayload ?? this.activeCheckoutPayload),
       checkoutStatus: effectiveStatus,
     );
   }
@@ -186,6 +190,9 @@ class PosCartNotifier extends Notifier<PosCartState> {
         }
 
         final draft = (pending['cart_draft'] is Map) ? pending['cart_draft'] as Map<String, dynamic> : null;
+        final persistedPayload = (pending['payload'] is Map)
+            ? Map<String, dynamic>.from(pending['payload'] as Map)
+            : null;
 
         state = state.copyWith(
           items: restoredItems.isNotEmpty ? restoredItems : state.items,
@@ -195,6 +202,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
           taxRate: (draft?['taxRate'] is num) ? (draft!['taxRate'] as num).toDouble() : state.taxRate,
           activeOperationId: opId,
           activeInvoiceNumber: inv.isNotEmpty ? inv : null,
+          activeCheckoutPayload: persistedPayload,
           checkoutStatus: status,
         );
 
@@ -267,16 +275,22 @@ class PosCartNotifier extends Notifier<PosCartState> {
     }
 
     final saleRepo = ref.read(saleRepositoryProvider);
-    final resolution = await saleRepo.resolveOperationStatus(opId);
 
-    if (resolution.status == OperationResolution.confirmed) {
-      // Order actually exists on the server! Must reconcile and confirm, NEVER dismiss!
-      await reconcileActiveCheckout();
+    // Authoritative cancellation procedure:
+    // Calling abortOperation guarantees that even if an earlier POST timed out and is still in flight,
+    // the server either:
+    // 1) Atomically tombstones the operation so the in-flight POST cannot commit, OR
+    // 2) Detects that the in-flight POST already committed, returning the order for reconciliation.
+    final abortResult = await saleRepo.abortOperation(opId);
+
+    if (abortResult['committed'] == true && abortResult['data'] != null) {
+      // It actually committed! Must reconcile and confirm, NOT dismiss!
+      await reconcileActiveCheckout(preloadedOrder: abortResult['data'] as Map<String, dynamic>);
       return;
     }
 
-    if (resolution.status == OperationResolution.notFound) {
-      // Server authoritatively confirmed order does not exist
+    if (abortResult['aborted'] == true) {
+      // Authoritatively aborted on server: in-flight POST can never commit.
       await saleRepo.clearPendingCheckout();
       state = PosCartState(
         recentScans: state.recentScans,
@@ -285,20 +299,19 @@ class PosCartNotifier extends Notifier<PosCartState> {
       return;
     }
 
-    // Network failure or unknown response: FAIL CLOSED!
+    // Network failure, unknown response, or abort failed: FAIL CLOSED!
     throw Exception(
-      'Cannot dismiss unresolved checkout ($opId): Server outcome is unknown (${resolution.errorMessage}). Network failure cannot be treated as proof that an order was not committed.',
+      'Cannot dismiss unresolved checkout ($opId): Authoritative abort failed (${abortResult['message']}). An unresolved checkout cannot be dismissed while server outcome is unknown or in flight.',
     );
   }
 
   /// Manually triggers reconciliation of the active unresolved checkout with the backend
-  Future<String?> reconcileActiveCheckout() async {
+  Future<String?> reconcileActiveCheckout({Map<String, dynamic>? preloadedOrder}) async {
     if (state.activeOperationId == null) return null;
     final opId = state.activeOperationId!;
     final saleRepo = ref.read(saleRepositoryProvider);
-    final resolution = await saleRepo.resolveOperationStatus(opId);
-    if (resolution.status == OperationResolution.confirmed && resolution.orderData != null) {
-      final existingOrder = resolution.orderData!;
+    final existingOrder = preloadedOrder ?? (await saleRepo.resolveOperationStatus(opId)).orderData;
+    if (existingOrder != null) {
       final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? state.activeInvoiceNumber ?? opId;
 
       final saleItems = state.items.map((i) {
@@ -585,11 +598,23 @@ class PosCartNotifier extends Notifier<PosCartState> {
         return confirmedInvoice;
       }
 
-      // 3. Authoritative checkout request to Laravel API
+      // 3. Authoritative checkout request to Laravel API using original immutable payload if retrying
+      final Map<String, dynamic> immutablePayload;
+      if (state.activeCheckoutPayload != null && state.activeCheckoutPayload!['client_operation_id'] == opId) {
+        immutablePayload = Map<String, dynamic>.from(state.activeCheckoutPayload!);
+      } else {
+        immutablePayload = saleRepo.buildCheckoutPayload(
+          sale: sale,
+          clientOperationId: opId,
+        );
+        state = state.copyWith(activeCheckoutPayload: immutablePayload);
+      }
+
       await saleRepo.checkoutSale(
         sale,
         clientOperationId: opId,
         cartDraft: _serializeCartDraft(),
+        immutablePayload: immutablePayload,
       );
 
       // Fire-and-forget Audit Log

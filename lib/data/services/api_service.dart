@@ -38,6 +38,29 @@ class ApiService {
 
   static String _baseUrl = defaultBaseUrl();
   static String? _token;
+  static http.Client? _client;
+
+  static set client(http.Client? c) => _client = c;
+
+  static Future<http.Response> _httpGet(Uri uri, {Map<String, String>? headers}) {
+    if (_client != null) return _client!.get(uri, headers: headers);
+    return http.get(uri, headers: headers);
+  }
+
+  static Future<http.Response> _httpPost(Uri uri, {Map<String, String>? headers, Object? body}) {
+    if (_client != null) return _client!.post(uri, headers: headers, body: body);
+    return http.post(uri, headers: headers, body: body);
+  }
+
+  static Future<http.Response> _httpPut(Uri uri, {Map<String, String>? headers, Object? body}) {
+    if (_client != null) return _client!.put(uri, headers: headers, body: body);
+    return http.put(uri, headers: headers, body: body);
+  }
+
+  static Future<http.Response> _httpDelete(Uri uri, {Map<String, String>? headers}) {
+    if (_client != null) return _client!.delete(uri, headers: headers);
+    return http.delete(uri, headers: headers);
+  }
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -84,15 +107,14 @@ class ApiService {
   static Future<dynamic> get(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API GET: $uri');
-    final response = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+    final response = await _httpGet(uri, headers: _headers()).timeout(const Duration(seconds: 10));
     return _processResponse(response);
   }
 
   static Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API POST: $uri');
-    final response = await http
-        .post(uri, headers: _headers(), body: jsonEncode(body))
+    final response = await _httpPost(uri, headers: _headers(), body: jsonEncode(body))
         .timeout(const Duration(seconds: 10));
     return _processResponse(response);
   }
@@ -100,8 +122,7 @@ class ApiService {
   static Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API PUT: $uri');
-    final response = await http
-        .put(uri, headers: _headers(), body: jsonEncode(body))
+    final response = await _httpPut(uri, headers: _headers(), body: jsonEncode(body))
         .timeout(const Duration(seconds: 10));
     return _processResponse(response);
   }
@@ -109,7 +130,7 @@ class ApiService {
   static Future<dynamic> delete(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API DELETE: $uri');
-    final response = await http.delete(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+    final response = await _httpDelete(uri, headers: _headers()).timeout(const Duration(seconds: 10));
     return _processResponse(response);
   }
 

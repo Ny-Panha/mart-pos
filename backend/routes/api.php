@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders', [OrderController::class, 'store']);
         Route::get('/orders', [OrderController::class, 'index']);
         Route::get('/orders/by-operation/{opId}', [OrderController::class, 'findByOperationId']);
+        Route::post('/orders/abort-operation/{opId}', [OrderController::class, 'abortOperation']);
         Route::get('/orders/{id}', [OrderController::class, 'show']);
     });
 

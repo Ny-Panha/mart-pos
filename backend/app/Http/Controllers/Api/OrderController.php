@@ -63,6 +63,68 @@ class OrderController extends Controller
         ]);
     }
 
+    public function abortOperation(Request $request, $opId)
+    {
+        $user = $request->user();
+
+        return DB::transaction(function () use ($opId, $user) {
+            $existing = Order::with(['cashier:id,name', 'items'])
+                ->where('client_operation_id', $opId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                if ($existing->cashier_id !== $user->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cross-user violation: Operation ID belongs to another user.',
+                    ], 403);
+                }
+
+                if ($existing->status === 'cancelled') {
+                    return response()->json([
+                        'success' => true,
+                        'aborted' => true,
+                        'message' => 'Operation was already cancelled.',
+                    ]);
+                }
+
+                // Order has already committed as completed!
+                return response()->json([
+                    'success' => false,
+                    'committed' => true,
+                    'message' => 'Cannot abort: Order has already committed.',
+                    'data' => $existing,
+                ], 409);
+            }
+
+            // Order does not exist yet. Atomically claim client_operation_id with a cancelled tombstone record!
+            // Any in-flight POST /orders that attempts to commit will collide on the unique index.
+            $invoiceNumber = 'ABORT-' . strtoupper(Str::random(12));
+            $cancelledOrder = Order::create([
+                'invoice_number' => $invoiceNumber,
+                'client_operation_id' => $opId,
+                'cashier_id' => $user->id,
+                'total_riel' => 0,
+                'total_usd' => 0.00,
+                'received_riel' => 0,
+                'received_usd' => 0.00,
+                'change_riel' => 0,
+                'change_usd' => 0.00,
+                'payment_method' => 'cash_riel',
+                'status' => 'cancelled',
+                'notes' => 'Authoritatively aborted by cashier prior to completion.',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'aborted' => true,
+                'message' => 'Operation authoritatively aborted.',
+                'data' => $cancelledOrder,
+            ]);
+        });
+    }
+
     private function isEquivalentPayload(Order $existing, array $validated): bool
     {
         // 1. Validate complete financial totals
@@ -139,6 +201,13 @@ class OrderController extends Controller
 
     private function resolveIdempotentOrder(Order $order, array $validated, $user): \Illuminate\Http\JsonResponse
     {
+        if ($order->status === 'cancelled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Conflict: Operation ID was aborted/cancelled and cannot be committed.',
+            ], 409);
+        }
+
         if ($order->cashier_id !== $user->id) {
             return response()->json([
                 'success' => false,
