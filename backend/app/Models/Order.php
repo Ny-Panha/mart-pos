@@ -11,8 +11,11 @@ class Order extends Model
 
     protected $fillable = [
         'invoice_number',
+        'client_operation_id',
         'cashier_id',
         'customer_id',
+        'discount_riel',
+        'tax_riel',
         'total_riel',
         'total_usd',
         'received_riel',
@@ -25,6 +28,8 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'discount_riel' => 'integer',
+        'tax_riel' => 'integer',
         'total_riel' => 'integer',
         'total_usd' => 'decimal:2',
         'received_riel' => 'integer',

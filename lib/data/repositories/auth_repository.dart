@@ -20,56 +20,86 @@ class AuthRepository {
     }
 
     final email = (updated.email ?? user.email ?? '').toLowerCase().trim();
-    if (email == 'admin@bbu.edu.kh') {
-      if (updated.name != 'ផ្កាយ') {
+    if (email == 'admin@bbu.edu.kh' || email == 'admin@martpos.com') {
+      if (updated.name != 'ផ្កាយ' && email == 'admin@bbu.edu.kh') {
         try {
           await FirestoreCollections.users.doc(user.uid).update({'name': 'ផ្កាយ'});
         } catch (_) {}
         updated = updated.copyWith(name: 'ផ្កាយ');
       }
-    } else if (email == 'cashier@bbu.edu.kh') {
-      if (updated.name != 'នី បញ្ញា') {
+    } else if (email == 'cashier@bbu.edu.kh' || email == 'cashier@martpos.com') {
+      if (updated.name != 'បញ្ញា' && email == 'cashier@bbu.edu.kh') {
         try {
-          await FirestoreCollections.users.doc(user.uid).update({'name': 'នី បញ្ញា'});
+          await FirestoreCollections.users.doc(user.uid).update({'name': 'បញ្ញា'});
         } catch (_) {}
-        updated = updated.copyWith(name: 'នី បញ្ញា');
+        updated = updated.copyWith(name: 'បញ្ញា');
       }
     }
     return updated;
   }
 
+  /// Authoritative Session Restoration:
+  /// 1. Validates stored Laravel Sanctum token with `GET /me`.
+  /// 2. If valid, restores authoritative user profile and permissions.
+  /// 3. Falls back to Firebase session if available.
   Future<UserModel?> getCurrentUserProfile() async {
+    // 1. Check Laravel Sanctum session
+    if (ApiService.token != null && ApiService.token!.isNotEmpty) {
+      try {
+        final res = await ApiService.get('/me');
+        if (res != null && res['success'] == true && res['data'] != null) {
+          final userData = res['data'] as Map<String, dynamic>;
+          final laravelUser = UserModel.fromJson(userData);
+          debugPrint('Restored authoritative session via Laravel API: ${laravelUser.name} (${laravelUser.role})');
+          return laravelUser;
+        }
+      } catch (e) {
+        debugPrint('Laravel session validation notice: $e');
+        if (e.toString().contains('401') || e.toString().contains('Unauthenticated')) {
+          await ApiService.clearToken();
+        }
+      }
+    }
+
+    // 2. Fall back to Firebase session
     final user = _auth.currentUser;
     if (user == null) return null;
 
-    final doc = await FirestoreCollections.users.doc(user.uid).get();
-    if (!doc.exists || doc.data() == null) {
-      throw Exception('Account not set up — contact admin');
-    }
+    try {
+      final doc = await FirestoreCollections.users.doc(user.uid).get();
+      if (!doc.exists || doc.data() == null) {
+        return null;
+      }
 
-    var profile = doc.data()!;
-    profile = await _syncUserProfile(profile, user);
+      var profile = doc.data()!;
+      profile = await _syncUserProfile(profile, user);
 
-    if (!profile.isManager &&
-        (profile.shopId == null || profile.shopId!.isEmpty)) {
-      await signOut();
-      throw Exception(
-        'Your account is not assigned to a shop. Contact the platform manager.',
-      );
-    }
-    if (!profile.active) {
-      await signOut();
-      throw Exception('Account deactivated');
-    }
+      if (!profile.isManager &&
+          (profile.shopId == null || profile.shopId!.isEmpty)) {
+        await signOut();
+        throw Exception(
+          'Your account is not assigned to a shop. Contact the platform manager.',
+        );
+      }
+      if (!profile.active) {
+        await signOut();
+        throw Exception('Account deactivated');
+      }
 
-    return profile;
+      return profile;
+    } catch (_) {
+      return null;
+    }
   }
 
+  /// Sign In with unified Laravel + Firebase authentication
   Future<UserModel> signIn({
     required String email,
     required String password,
   }) async {
-    // 1. Try Laravel REST API login first
+    UserModel? laravelUser;
+
+    // 1. Authoritative login on Laravel REST API
     try {
       final res = await ApiService.post('/login', {
         'email': email.trim(),
@@ -82,44 +112,38 @@ class AuthRepository {
           await ApiService.saveToken(token);
         }
         final userData = res['data']['user'] as Map<String, dynamic>;
-        final userModel = UserModel.fromJson(userData);
-        debugPrint('Signed in via Laravel REST API: ${userModel.name} (${userModel.role})');
-        return userModel;
+        laravelUser = UserModel.fromJson(userData);
+        debugPrint('Signed in via Laravel REST API: ${laravelUser.name} (${laravelUser.role})');
       }
     } catch (e) {
-      debugPrint('Laravel API login notice (falling back to Firebase): $e');
+      debugPrint('Laravel API login notice: $e');
     }
 
-    // 2. Fallback to Firebase Auth
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    final user = credential.user!;
-    final uid = user.uid;
-
-    final doc = await FirestoreCollections.users.doc(uid).get();
-    if (!doc.exists || doc.data() == null) {
-      await _auth.signOut();
-      throw Exception('Account not set up — contact admin');
-    }
-
-    var profile = doc.data()!;
-    profile = await _syncUserProfile(profile, user);
-
-    if (!profile.isManager &&
-        (profile.shopId == null || profile.shopId!.isEmpty)) {
-      await _auth.signOut();
-      throw Exception(
-        'Your account is not assigned to a shop. Contact the platform manager.',
+    // 2. Also authenticate to Firebase if configured
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-    }
-    if (!profile.active) {
-      await _auth.signOut();
-      throw Exception('Account deactivated');
+      final user = credential.user!;
+      final uid = user.uid;
+
+      final doc = await FirestoreCollections.users.doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        var profile = doc.data()!;
+        profile = await _syncUserProfile(profile, user);
+        return profile;
+      }
+    } catch (e) {
+      debugPrint('Firebase signIn notice: $e');
     }
 
-    return profile;
+    // If Laravel authentication was successful, return the authoritative profile
+    if (laravelUser != null) {
+      return laravelUser;
+    }
+
+    throw Exception('ចូលប្រើប្រាស់បរាជ័យ (Invalid email/password or server connection failed)');
   }
 
   /// Completes the one-time manager bootstrap for the UID allowlisted by the
@@ -143,7 +167,6 @@ class AuthRepository {
       }
       return profile;
     } catch (_) {
-      // Keep the Firebase session only when the callable provisioned a profile.
       final doc = await FirestoreCollections.users
           .doc(credential.user!.uid)
           .get();
@@ -153,7 +176,14 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    try {
+      if (ApiService.token != null) {
+        await ApiService.post('/logout', {});
+      }
+    } catch (_) {}
     await ApiService.clearToken();
-    await _auth.signOut();
+    try {
+      await _auth.signOut();
+    } catch (_) {}
   }
 }

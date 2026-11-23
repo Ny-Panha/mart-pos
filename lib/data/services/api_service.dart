@@ -97,12 +97,21 @@ class ApiService {
 
   static dynamic _processResponse(http.Response response) {
     debugPrint('API Response [${response.statusCode}]');
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    } catch (_) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true};
+      }
+      throw Exception('Server error: HTTP ${response.statusCode}');
+    }
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded;
     } else {
-      final msg = decoded['message'] ?? 'API Error: ${response.statusCode}';
-      throw Exception(msg);
+      final msg = decoded is Map ? (decoded['message'] ?? decoded['error']) : null;
+      throw Exception(msg ?? 'API Error: ${response.statusCode}');
     }
   }
 }

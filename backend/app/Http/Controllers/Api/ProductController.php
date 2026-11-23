@@ -78,6 +78,20 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->filled('category_id')) {
+            $catVal = (string) $request->category_id;
+            if (!is_numeric($catVal)) {
+                $cleanSlug = str_replace('cat_', '', strtolower(trim($catVal)));
+                $foundCat = \App\Models\Category::where('slug', $cleanSlug)
+                    ->orWhere('slug', $catVal)
+                    ->orWhere('name', $catVal)
+                    ->first();
+                if ($foundCat) {
+                    $request->merge(['category_id' => $foundCat->id]);
+                }
+            }
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|unique:products,code',
@@ -104,6 +118,20 @@ class ProductController extends Controller
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
+
+        if ($request->filled('category_id')) {
+            $catVal = (string) $request->category_id;
+            if (!is_numeric($catVal)) {
+                $cleanSlug = str_replace('cat_', '', strtolower(trim($catVal)));
+                $foundCat = \App\Models\Category::where('slug', $cleanSlug)
+                    ->orWhere('slug', $catVal)
+                    ->orWhere('name', $catVal)
+                    ->first();
+                if ($foundCat) {
+                    $request->merge(['category_id' => $foundCat->id]);
+                }
+            }
+        }
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',

@@ -9,7 +9,10 @@ import '../firestore/shop_scope.dart';
 import '../services/api_service.dart';
 
 class SaleRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore? _dbInstance;
+  FirebaseFirestore get _db => _dbInstance ?? FirebaseFirestore.instance;
+
+  SaleRepository({FirebaseFirestore? db}) : _dbInstance = db;
 
   Stream<List<SaleModel>> watchSales() {
     var query = ShopScope.query(FirestoreCollections.sales);
@@ -29,82 +32,88 @@ class SaleRepository {
         });
   }
 
-  /// Critical Rule: Checkout MUST use WriteBatch (works offline, queues in cache):
-  /// 1. set sales/{id}
-  /// 2. FieldValue.increment(-qty) on each product's stockQty
-  /// 3. set stockMovements docs with type "out"
-  /// batch.commit()
-  /// NEVER use transactions for checkout (they fail when offline)
+  /// Authoritative Checkout:
+  /// 1. Validates Product IDs (never guesses or falls back to ID 1).
+  /// 2. Performs authoritative checkout against Laravel REST API (MySQL).
+  /// 3. Propagates all errors (insufficient stock, unauthorized, validation, network) to caller.
+  /// 4. Once confirmed by MySQL, updates secondary cache in Firestore for reporting/offline view.
   Future<void> checkoutSale(SaleModel sale) async {
-    final batch = _db.batch();
-
-    // 1. Set sale document
-    final saleDocRef = FirestoreCollections.sales.doc(sale.id);
-    batch.set(saleDocRef, sale);
-
-    // 2. Decrement stock for each item & 3. Create stock movements
-    for (var item in sale.items) {
-      final productDocRef = _db.collection('products').doc(item.productId);
-      batch.set(productDocRef, {
-        'stockQty': FieldValue.increment(-item.qty),
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
-
-      final movementRef = FirestoreCollections.stockMovements.doc();
-      final movement = StockMovementModel(
-        id: movementRef.id,
-        productId: item.productId,
-        type: 'out',
-        qty: item.qty,
-        note: 'POS Sale: ${sale.invoiceNumber}',
-        refId: sale.id,
-        createdBy: sale.cashierId,
-        createdAt: DateTime.now(),
-      );
-      batch.set(movementRef, movement);
+    // 1. Explicit and validated product ID mapping
+    final itemsPayload = <Map<String, dynamic>>[];
+    for (final item in sale.items) {
+      final prodId = int.tryParse(item.productId);
+      if (prodId == null || prodId <= 0) {
+        throw Exception(
+          'Invalid product ID "${item.productId}" for "${item.name}". An authoritative MySQL Product ID is required.',
+        );
+      }
+      itemsPayload.add({
+        'product_id': prodId,
+        'qty': item.qty,
+        if (item.originalPrice != null && item.unitPrice != item.originalPrice)
+          'custom_price': item.unitPrice,
+      });
     }
 
-    // 4. Update customer totalSpent in the same batch if customerId exists
-    if (sale.customerId != null && sale.customerId!.isNotEmpty) {
-      final customerDocRef = _db.collection('customers').doc(sale.customerId);
-      batch.set(customerDocRef, {
-        'totalSpent': FieldValue.increment(sale.total),
-      }, SetOptions(merge: true));
+    final payload = <String, dynamic>{
+      'client_operation_id': sale.id,
+      'invoice_number': sale.invoiceNumber,
+      'items': itemsPayload,
+      'discount_riel': sale.discount,
+      'tax_riel': sale.totalTax,
+      'total_riel': sale.total,
+      'total_usd': (sale.total / 4100).toStringAsFixed(2),
+      'received_riel': sale.paidAmount,
+      'received_usd': '0.00',
+      'change_riel': sale.changeAmount,
+      'change_usd': '0.00',
+      'payment_method': sale.paymentMethod == 'khqr'
+          ? 'khqr'
+          : (sale.paymentMethod == 'cash_usd' ? 'cash_usd' : 'cash_riel'),
+      'notes': 'Invoice: ${sale.invoiceNumber}',
+    };
+
+    // 2. Authoritative request to Laravel REST API
+    final res = await ApiService.post('/orders', payload);
+    if (res == null || res['success'] != true) {
+      final msg = res?['message'] ?? 'Authoritative checkout failed on server.';
+      throw Exception(msg);
     }
 
-    // Commit atomic batch in Firestore
-    await batch.commit();
-
-    // Sync to Laravel REST API (MySQL DB)
+    // 3. Update secondary cache in Firestore with confirmed status
     try {
-      final itemsPayload = sale.items.map((item) {
-        // Map product id (numeric id or fallback)
-        int prodId = int.tryParse(item.productId) ?? 1;
-        if (item.productId.startsWith('p')) {
-          prodId = int.tryParse(item.productId.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
-        }
-        return {
-          'product_id': prodId,
-          'qty': item.qty,
-        };
-      }).toList();
+      final batch = _db.batch();
 
-      final payload = <String, dynamic>{
-        'items': itemsPayload,
-        'total_riel': sale.total,
-        'total_usd': (sale.total / 4100).toStringAsFixed(2),
-        'received_riel': sale.paidAmount,
-        'received_usd': '0.00',
-        'change_riel': sale.changeAmount,
-        'change_usd': '0.00',
-        'payment_method': sale.paymentMethod == 'khqr' ? 'khqr' : 'cash_riel',
-        'notes': 'Invoice: ${sale.invoiceNumber}',
-      };
+      final saleDocRef = FirestoreCollections.sales.doc(sale.id);
+      final saleData = sale.toFirestore()..['syncStatus'] = 'confirmed';
+      batch.set(saleDocRef, saleData);
 
-      await ApiService.post('/orders', payload);
-      debugPrint('Sale successfully posted to Laravel API & MySQL stock auto-cut!');
+      // Record movement in Firestore for audit / reporting
+      for (var item in sale.items) {
+        final movementRef = FirestoreCollections.stockMovements.doc();
+        final movement = StockMovementModel(
+          id: movementRef.id,
+          productId: item.productId,
+          type: 'sale',
+          qty: -item.qty,
+          note: 'POS Sale: ${sale.invoiceNumber}',
+          refId: sale.id,
+          createdBy: sale.cashierId,
+          createdAt: DateTime.now(),
+        );
+        batch.set(movementRef, movement);
+      }
+
+      if (sale.customerId != null && sale.customerId!.isNotEmpty) {
+        final customerDocRef = _db.collection('customers').doc(sale.customerId);
+        batch.set(customerDocRef, {
+          'totalSpent': FieldValue.increment(sale.total),
+        }, SetOptions(merge: true));
+      }
+
+      await batch.commit();
     } catch (e) {
-      debugPrint('Laravel API checkoutSale notice: $e');
+      debugPrint('Firestore sale cache update notice: $e');
     }
   }
 

@@ -5,6 +5,7 @@ import '../../core/utils/money.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/purchase_model.dart';
 import '../firestore/models/stock_movement_model.dart';
+import '../services/api_service.dart';
 import '../services/audit_service.dart';
 import '../firestore/shop_scope.dart';
 
@@ -79,10 +80,10 @@ class PurchaseRepository {
         });
   }
 
-  /// Create a purchase in ONE WriteBatch (offline-safe):
-  /// 1. For each item: increment products.stockQty, update products.costPrice, update updatedAt
-  /// 2. For each item: create stockMovements doc (type: "in", refId: purchaseId)
-  /// 3. Create purchases doc
+  /// Authoritative Purchase:
+  /// 1. Updates stock quantities and cost prices in Laravel API (MySQL authoritative).
+  /// 2. Propagates any backend failure immediately to caller.
+  /// 3. Records confirmed purchase and movements in Firestore cache.
   Future<String> createPurchase({
     required String supplierId,
     required List<PurchaseItem> items,
@@ -102,53 +103,79 @@ class PurchaseRepository {
     // 2. Validate input guards
     validatePurchaseInput(isSupplierActive: supplier.active, items: items);
 
+    // 3. Prepare payload for Laravel API
+    final backendItems = items.map((item) {
+      final pId = int.tryParse(item.productId);
+      if (pId == null || pId <= 0) {
+        throw Exception(
+          'Invalid Product ID "${item.productId}" for "${item.name}". An authoritative MySQL Product ID is required.',
+        );
+      }
+      return {
+        'product_id': pId,
+        'qty': item.qty,
+        'cost_price': item.costPrice,
+      };
+    }).toList();
+
+    // 4. Authoritative request to Laravel API
+    final res = await ApiService.post('/inventory/purchase', {
+      'supplier_name': supplier.name,
+      'supplier_id': supplierId,
+      'note': note?.trim().isEmpty ?? true ? null : note!.trim(),
+      'items': backendItems,
+    });
+
+    if (res == null || res['success'] != true) {
+      final msg = res?['message'] ?? 'Purchase creation failed on backend.';
+      throw Exception(msg);
+    }
+
     final totalCost = calculateTotalCost(items);
     final now = DateTime.now();
-
-    final batch = _db.batch();
     final purchaseRef = FirestoreCollections.purchases.doc();
     final purchaseId = purchaseRef.id;
 
-    // 3. Update products and stock movements for each item
-    for (final item in items) {
-      // 3.1 Increment stock and update cost price on product doc
-      final productRef = FirestoreCollections.products.doc(item.productId);
-      batch.update(productRef, {
-        'stockQty': FieldValue.increment(item.qty),
-        'costPrice': item.costPrice,
-        'updatedAt': Timestamp.now(),
-      });
+    // 5. Update products and stock movements in Firestore cache
+    try {
+      final batch = _db.batch();
+      for (final item in items) {
+        final productRef = FirestoreCollections.products.doc(item.productId);
+        batch.set(productRef, {
+          'stockQty': FieldValue.increment(item.qty),
+          'costPrice': item.costPrice,
+          'updatedAt': Timestamp.now(),
+        }, SetOptions(merge: true));
 
-      // 3.2 Create stock movement doc (type "in")
-      final movementRef = FirestoreCollections.stockMovements.doc();
-      final movement = StockMovementModel(
-        id: movementRef.id,
-        productId: item.productId,
-        type: 'in',
-        qty: item.qty,
-        note: 'Purchase from ${supplier.name}',
-        refId: purchaseId,
+        final movementRef = FirestoreCollections.stockMovements.doc();
+        final movement = StockMovementModel(
+          id: movementRef.id,
+          productId: item.productId,
+          type: 'in',
+          qty: item.qty,
+          note: 'Purchase from ${supplier.name}',
+          refId: purchaseId,
+          createdBy: userId,
+          createdAt: now,
+        );
+        batch.set(movementRef, movement);
+      }
+
+      final purchase = PurchaseModel(
+        id: purchaseId,
+        supplierId: supplierId,
+        supplierName: supplier.name,
+        items: items,
+        totalCost: totalCost,
+        note: note?.trim().isEmpty ?? true ? null : note!.trim(),
         createdBy: userId,
         createdAt: now,
       );
-      batch.set(movementRef, movement);
+      batch.set(purchaseRef, purchase);
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Firestore purchase cache update notice: $e');
     }
-
-    // 4. Create purchase document
-    final purchase = PurchaseModel(
-      id: purchaseId,
-      supplierId: supplierId,
-      supplierName: supplier.name,
-      items: items,
-      totalCost: totalCost,
-      note: note?.trim().isEmpty ?? true ? null : note!.trim(),
-      createdBy: userId,
-      createdAt: now,
-    );
-    batch.set(purchaseRef, purchase);
-
-    // 5. Commit batch atomically
-    await batch.commit();
 
     // Fire-and-forget Audit Log
     AuditService.log(

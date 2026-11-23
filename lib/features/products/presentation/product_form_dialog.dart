@@ -389,15 +389,15 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           updatedAt: DateTime.now(),
         );
 
-        await repo.createProduct(newProduct);
+        final created = await repo.createProduct(newProduct);
 
         // Fire-and-forget Audit Log
         AuditService.logFromRef(
           ref,
           action: 'product.create',
           entityType: 'product',
-          entityId: newProduct.id,
-          details: '${newProduct.name} (${newProduct.code})',
+          entityId: created.id,
+          details: '${created.name} (${created.code})',
         );
 
         if (mounted) {

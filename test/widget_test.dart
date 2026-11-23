@@ -13,6 +13,7 @@ import 'package:mart_pos/data/repositories/inventory_repository.dart';
 import 'package:mart_pos/data/repositories/product_repository.dart';
 import 'package:mart_pos/data/repositories/purchase_repository.dart';
 import 'package:mart_pos/data/repositories/report_repository.dart';
+import 'package:mart_pos/data/repositories/sale_repository.dart';
 import 'package:mart_pos/data/repositories/shift_repository.dart';
 import 'package:mart_pos/data/repositories/supplier_repository.dart';
 import 'package:mart_pos/data/repositories/user_repository.dart';
@@ -548,6 +549,118 @@ void main() {
           details: 'Unit test log swallowing',
         ),
         completes,
+      );
+    });
+  });
+
+  group('Authoritative Backend Integration Tests', () {
+    test('ProductModel.fromJson and toJson correctly maps backend MySQL fields', () {
+      final json = {
+        'id': 15,
+        'name': 'Angkor Beer',
+        'code': 'BEER-001',
+        'barcode': '884111222',
+        'sku': 'ANGKOR-330',
+        'category_id': 1,
+        'cost_price': 2000,
+        'sale_price': 3000,
+        'stock_qty': 24,
+        'unit': 'កំប៉ុង',
+        'low_stock_threshold': 5,
+        'tax': '0.00',
+        'status': 'active',
+      };
+
+      final product = ProductModel.fromJson(json);
+      expect(product.id, '15');
+      expect(product.name, 'Angkor Beer');
+      expect(product.costPrice, 2000);
+      expect(product.salePrice, 3000);
+      expect(product.stockQty, 24);
+
+      final outJson = product.toJson();
+      expect(outJson['category_id'], 1);
+      expect(outJson['code'], 'BEER-001');
+      expect(outJson['cost_price'], 2000);
+      expect(outJson['sale_price'], 3000);
+      expect(outJson['stock_qty'], 24);
+    });
+
+    test('CategoryModel.fromJson correctly maps MySQL category data', () {
+      final json = {
+        'id': 2,
+        'name': 'Snacks',
+        'name_kh': 'នំចំណី',
+        'slug': 'snacks',
+        'icon': 'cookie',
+      };
+
+      final category = CategoryModel.fromJson(json);
+      expect(category.id, '2');
+      expect(category.name, 'នំចំណី (Snacks)');
+    });
+
+    test('SaleRepository.checkoutSale rejects non-numeric product ID and never falls back to 1', () async {
+      final repo = SaleRepository();
+      final invalidSale = SaleModel(
+        id: 'sale_invalid_test',
+        invoiceNumber: 'INV-TEST-999',
+        cashierId: 'cashier-1',
+        items: [
+          SaleItem(
+            productId: 'invalid_firestore_id', // Invalid non-numeric ID
+            name: 'Corrupted Item',
+            qty: 1,
+            unitPrice: 2000,
+            totalPrice: 2000,
+          ),
+        ],
+        subtotal: 2000,
+        total: 2000,
+        paidAmount: 2000,
+      );
+
+      expect(
+        () => repo.checkoutSale(invalidSale),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('An authoritative MySQL Product ID is required'),
+        )),
+      );
+    });
+
+    test('InventoryRepository stock guards reject invalid inputs', () async {
+      final repo = InventoryRepository();
+
+      // Zero or negative Stock In
+      expect(
+        () => repo.stockIn(productId: '1', qty: 0, userId: 'u1'),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // Non-numeric Product ID Stock In
+      expect(
+        () => repo.stockIn(productId: 'non_numeric', qty: 5, userId: 'u1'),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // Zero or negative Stock Out
+      expect(
+        () => repo.stockOut(productId: '1', currentQty: 10, qty: 0, note: 'Loss', userId: 'u1'),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // Empty note Stock Out
+      expect(
+        () => repo.stockOut(productId: '1', currentQty: 10, qty: 2, note: '', userId: 'u1'),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // Negative New Qty Adjust
+      expect(
+        () => repo.adjustStock(productId: '1', currentQty: 10, newQty: -5, note: 'Audit', userId: 'u1'),
+        throwsA(isA<ArgumentError>()),
       );
     });
   });
