@@ -18,6 +18,7 @@ class SaleRepository {
   static const _prefPendingInvoice = 'mart_pos_pending_checkout_invoice';
   static const _prefPendingPayload = 'mart_pos_pending_checkout_payload';
   static const _prefPendingStatus = 'mart_pos_pending_checkout_status';
+  static const _prefPendingCartDraft = 'mart_pos_pending_checkout_cart_draft';
 
   SaleRepository({FirebaseFirestore? db}) : _dbInstance = db;
 
@@ -27,6 +28,7 @@ class SaleRepository {
     required String invoiceNumber,
     required Map<String, dynamic> payload,
     required String status,
+    Map<String, dynamic>? cartDraft,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -34,6 +36,9 @@ class SaleRepository {
       await prefs.setString(_prefPendingInvoice, invoiceNumber);
       await prefs.setString(_prefPendingPayload, jsonEncode(payload));
       await prefs.setString(_prefPendingStatus, status);
+      if (cartDraft != null) {
+        await prefs.setString(_prefPendingCartDraft, jsonEncode(cartDraft));
+      }
     } catch (e) {
       debugPrint('Failed to persist pending checkout: $e');
     }
@@ -47,6 +52,7 @@ class SaleRepository {
       final invoice = prefs.getString(_prefPendingInvoice);
       final status = prefs.getString(_prefPendingStatus);
       final payloadStr = prefs.getString(_prefPendingPayload);
+      final draftStr = prefs.getString(_prefPendingCartDraft);
 
       if (opId != null && opId.isNotEmpty) {
         Map<String, dynamic>? payload;
@@ -55,12 +61,24 @@ class SaleRepository {
             payload = jsonDecode(payloadStr) as Map<String, dynamic>?;
           } catch (_) {}
         }
-        return {
+
+        Map<String, dynamic>? cartDraft;
+        if (draftStr != null && draftStr.isNotEmpty) {
+          try {
+            cartDraft = jsonDecode(draftStr) as Map<String, dynamic>?;
+          } catch (_) {}
+        }
+
+        final result = <String, dynamic>{
           'operation_id': opId,
           'invoice_number': invoice ?? '',
           'status': status ?? 'pending',
           'payload': payload ?? <String, dynamic>{},
         };
+        if (cartDraft != null) {
+          result['cart_draft'] = cartDraft;
+        }
+        return result;
       }
     } catch (e) {
       debugPrint('Failed to read pending checkout: $e');
@@ -76,6 +94,7 @@ class SaleRepository {
       await prefs.remove(_prefPendingInvoice);
       await prefs.remove(_prefPendingPayload);
       await prefs.remove(_prefPendingStatus);
+      await prefs.remove(_prefPendingCartDraft);
     } catch (e) {
       debugPrint('Failed to clear pending checkout: $e');
     }
@@ -181,7 +200,7 @@ class SaleRepository {
   /// 2. Performs authoritative checkout against Laravel REST API (MySQL).
   /// 3. Propagates all errors (insufficient stock, unauthorized, validation, network) to caller.
   /// 4. Once confirmed by MySQL, updates secondary cache in Firestore for reporting/offline view.
-  Future<void> checkoutSale(SaleModel sale, {String? clientOperationId}) async {
+  Future<void> checkoutSale(SaleModel sale, {String? clientOperationId, Map<String, dynamic>? cartDraft}) async {
     // 1. Explicit and validated product ID mapping
     final itemsPayload = <Map<String, dynamic>>[];
     for (final item in sale.items) {
@@ -235,6 +254,7 @@ class SaleRepository {
       invoiceNumber: sale.invoiceNumber,
       payload: payload,
       status: 'pending',
+      cartDraft: cartDraft,
     );
 
     // 2. Authoritative request to Laravel REST API
@@ -247,6 +267,7 @@ class SaleRepository {
           invoiceNumber: sale.invoiceNumber,
           payload: payload,
           status: 'failed',
+          cartDraft: cartDraft,
         );
         throw Exception(msg);
       }
@@ -261,6 +282,7 @@ class SaleRepository {
         invoiceNumber: sale.invoiceNumber,
         payload: payload,
         status: 'failed',
+        cartDraft: cartDraft,
       );
       rethrow;
     }

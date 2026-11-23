@@ -12,6 +12,8 @@ class PaymentDialog extends StatefulWidget {
     required String paymentMethod,
     required int paidAmount,
     required int changeAmount,
+    double? receivedUsd,
+    double? changeUsd,
   }) onConfirmPayment;
 
   const PaymentDialog({
@@ -28,27 +30,40 @@ class PaymentDialog extends StatefulWidget {
 class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _cashController = TextEditingController();
+  final TextEditingController _usdController = TextEditingController();
+
   int _receivedAmount = 0;
+  double _receivedUsd = 0.0;
   bool _isProcessing = false;
+
+  double get _totalUsd => double.parse((widget.totalAmount / 4100.0).toStringAsFixed(2));
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _receivedAmount = widget.totalAmount;
     _cashController.text = '$_receivedAmount';
+
+    _receivedUsd = _totalUsd;
+    _usdController.text = _totalUsd.toStringAsFixed(2);
+
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _cashController.dispose();
+    _usdController.dispose();
     super.dispose();
   }
 
+  // KHR Calculations
   int get _changeAmount =>
       _receivedAmount >= widget.totalAmount ? _receivedAmount - widget.totalAmount : 0;
-
   bool get _isCashValid => _receivedAmount >= widget.totalAmount;
 
   void _setCash(int amount) {
@@ -65,16 +80,43 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
     });
   }
 
+  // USD Calculations
+  double get _changeUsd =>
+      _receivedUsd >= _totalUsd ? double.parse((_receivedUsd - _totalUsd).toStringAsFixed(2)) : 0.0;
+  int get _changeRielFromUsd => (_changeUsd * 4100).round();
+  bool get _isUsdValid => _receivedUsd >= _totalUsd && _receivedUsd > 0;
+
+  void _setUsd(double amount) {
+    setState(() {
+      _receivedUsd = double.parse(amount.toStringAsFixed(2));
+      _usdController.text = _receivedUsd.toStringAsFixed(2);
+    });
+  }
+
   Future<void> _submit(String method) async {
     setState(() => _isProcessing = true);
     try {
-      final paid = method == 'khqr' ? widget.totalAmount : _receivedAmount;
-      final change = method == 'khqr' ? 0 : _changeAmount;
-      await widget.onConfirmPayment(
-        paymentMethod: method,
-        paidAmount: paid,
-        changeAmount: change,
-      );
+      if (method == 'khqr') {
+        await widget.onConfirmPayment(
+          paymentMethod: 'khqr',
+          paidAmount: widget.totalAmount,
+          changeAmount: 0,
+        );
+      } else if (method == 'cash_usd') {
+        await widget.onConfirmPayment(
+          paymentMethod: 'cash_usd',
+          paidAmount: (_receivedUsd * 4100).round(),
+          changeAmount: _changeRielFromUsd,
+          receivedUsd: _receivedUsd,
+          changeUsd: _changeUsd,
+        );
+      } else {
+        await widget.onConfirmPayment(
+          paymentMethod: 'cash_riel',
+          paidAmount: _receivedAmount,
+          changeAmount: _changeAmount,
+        );
+      }
       if (mounted) {
         Navigator.pop(context);
       }
@@ -95,11 +137,15 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final bool isCurrentTabValid = _tabController.index == 0
+        ? _isCashValid
+        : (_tabController.index == 1 ? _isUsdValid : true);
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
       backgroundColor: isDark ? AppColors.darkCard : Colors.white,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 540),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -148,8 +194,8 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
                         ),
                       ),
                       Text(
-                        MoneyUtils.formatUSD(MoneyUtils.rielToUsd(widget.totalAmount)),
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        '≈ \$${_totalUsd.toStringAsFixed(2)} (@ 4,100៛)',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -158,14 +204,15 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
             ),
             const SizedBox(height: 16),
 
-            // Payment Method Tabs
+            // Payment Method Tabs (KHR, USD, KHQR)
             TabBar(
               controller: _tabController,
               labelColor: AppColors.primary,
               unselectedLabelColor: Colors.grey,
               indicatorColor: AppColors.primary,
               tabs: const [
-                Tab(icon: Icon(Icons.payments_outlined), text: 'Cash (សាច់ប្រាក់)'),
+                Tab(icon: Icon(Icons.payments_outlined), text: 'Cash (៛ KHR)'),
+                Tab(icon: Icon(Icons.attach_money_rounded), text: 'Cash (\$ USD)'),
                 Tab(icon: Icon(Icons.qr_code_rounded), text: 'Bakong KHQR'),
               ],
             ),
@@ -173,12 +220,15 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
 
             // Tab Views
             SizedBox(
-              height: 240,
+              height: 250,
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Tab 1: Cash Payment
-                  _buildCashTab(isDark),
+                  // Tab 0: Cash KHR
+                  _buildCashKhrTab(isDark),
+
+                  // Tab 1: Cash USD
+                  _buildCashUsdTab(isDark),
 
                   // Tab 2: KHQR Payment
                   _buildKhqrTab(isDark),
@@ -202,9 +252,17 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
                   child: AppButton(
                     text: 'បញ្ជាក់ការទូទាត់ (CONFIRM)',
                     isLoading: _isProcessing,
-                    onPressed: (_tabController.index == 0 && !_isCashValid)
+                    onPressed: !isCurrentTabValid
                         ? null
-                        : () => _submit(_tabController.index == 0 ? 'cash' : 'khqr'),
+                        : () {
+                            if (_tabController.index == 0) {
+                              _submit('cash_riel');
+                            } else if (_tabController.index == 1) {
+                              _submit('cash_usd');
+                            } else {
+                              _submit('khqr');
+                            }
+                          },
                   ),
                 ),
               ],
@@ -215,12 +273,11 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
     );
   }
 
-  Widget _buildCashTab(bool isDark) {
+  Widget _buildCashKhrTab(bool isDark) {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Received Cash Input
           Row(
             children: [
               Expanded(
@@ -232,7 +289,7 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
                     setState(() => _receivedAmount = parsed);
                   },
                   decoration: const InputDecoration(
-                    labelText: 'ប្រាក់ទទួល (Cash Received)',
+                    labelText: 'ប្រាក់រៀលទទួល (KHR Received)',
                     suffixText: '៛',
                     isDense: true,
                   ),
@@ -246,8 +303,6 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
             ],
           ),
           const SizedBox(height: 12),
-
-          // Quick Cash Suggestions
           Wrap(
             spacing: 8,
             runSpacing: 6,
@@ -256,14 +311,10 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
               _buildQuickCashChip('+10,000៛', () => _addCash(10000)),
               _buildQuickCashChip('+20,000៛', () => _addCash(20000)),
               _buildQuickCashChip('+50,000៛', () => _addCash(50000)),
-              _buildQuickCashChip('\$5 (20,500៛)', () => _setCash(20500)),
-              _buildQuickCashChip('\$10 (41,000៛)', () => _setCash(41000)),
-              _buildQuickCashChip('\$20 (82,000៛)', () => _setCash(82000)),
+              _buildQuickCashChip('+100,000៛', () => _addCash(100000)),
             ],
           ),
           const SizedBox(height: 14),
-
-          // Change Display
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -291,6 +342,86 @@ class _PaymentDialogState extends State<PaymentDialog> with SingleTickerProvider
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                     color: _isCashValid ? AppColors.success : AppColors.danger,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCashUsdTab(bool isDark) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _usdController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (v) {
+                    final parsed = double.tryParse(v.trim()) ?? 0.0;
+                    setState(() => _receivedUsd = parsed);
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'ប្រាក់ដុល្លារទទួល (USD Received)',
+                    prefixText: '\$ ',
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => _setUsd(_totalUsd),
+                child: const Text('គ្រប់ល្មម (Exact)'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _buildQuickCashChip('Exact (\$${_totalUsd.toStringAsFixed(2)})', () => _setUsd(_totalUsd)),
+              if (_totalUsd <= 5.0) _buildQuickCashChip('\$5', () => _setUsd(5.0)),
+              _buildQuickCashChip('\$10', () => _setUsd(10.0)),
+              _buildQuickCashChip('\$20', () => _setUsd(20.0)),
+              _buildQuickCashChip('\$50', () => _setUsd(50.0)),
+              _buildQuickCashChip('\$100', () => _setUsd(100.0)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _isUsdValid
+                  ? AppColors.success.withValues(alpha: 0.1)
+                  : AppColors.danger.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _isUsdValid ? 'ប្រាក់អាប់ជូន (Change Due):' : 'ប្រាក់មិនទាន់គ្រប់ (Still Due):',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: _isUsdValid ? AppColors.success : AppColors.danger,
+                  ),
+                ),
+                Text(
+                  _isUsdValid
+                      ? '\$${_changeUsd.toStringAsFixed(2)} (${MoneyUtils.formatRiel(_changeRielFromUsd)})'
+                      : '\$${(_totalUsd - _receivedUsd).toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: _isUsdValid ? AppColors.success : AppColors.danger,
                   ),
                 ),
               ],

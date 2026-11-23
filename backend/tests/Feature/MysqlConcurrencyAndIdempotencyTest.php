@@ -284,17 +284,36 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
         $resConflict->assertStatus(409);
     }
 
-    public function test_mysql_simultaneous_database_operations_with_independent_connections(): void
+    public function test_mysql_concurrent_in_flight_transactions_and_unique_key_collision(): void
     {
-        $opId = 'op_mysql_simult_' . $this->runKey . '_' . time();
+        $opId = 'op_mysql_concurrent_' . $this->runKey . '_' . time();
 
-        // Independent connection 1 begins transaction and inserts operation
         $conn1 = DB::connection('mysql');
         $conn2 = DB::connection('mysql_secondary');
 
+        // Configure connection 2 with a 1-second lock wait timeout
+        $conn2->statement('SET SESSION innodb_lock_wait_timeout = 1');
+
+        // 1. Connection 1 begins transaction and inserts operation, BUT DOES NOT COMMIT YET
         $conn1->beginTransaction();
+        $conn1->table('inventory_operations')->insert([
+            'client_operation_id' => $opId,
+            'operation_type' => 'in',
+            'user_id' => $this->admin->id,
+            'product_id' => $this->product->id,
+            'qty' => 5,
+            'payload_hash' => hash('sha256', 'test_payload'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // 2. While Connection 1 is actively open and uncommitted,
+        // Connection 2 attempts to insert the identical client_operation_id.
+        // Because Connection 1 holds an uncommitted lock on this unique key,
+        // Connection 2 is blocked and experiences lock wait contention!
+        $concurrencyBlockedCaught = false;
         try {
-            $conn1->table('inventory_operations')->insert([
+            $conn2->table('inventory_operations')->insert([
                 'client_operation_id' => $opId,
                 'operation_type' => 'in',
                 'user_id' => $this->admin->id,
@@ -304,15 +323,22 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-
-            // Commit connection 1 so record is durable in MySQL
-            $conn1->commit();
-        } catch (\Throwable $e) {
-            $conn1->rollBack();
-            throw $e;
+        } catch (\Illuminate\Database\QueryException $e) {
+            $concurrencyBlockedCaught = str_contains($e->getMessage(), '1205')
+                || str_contains($e->getMessage(), 'Lock wait timeout')
+                || str_contains($e->getMessage(), 'Duplicate entry')
+                || $e->getCode() === '23000';
         }
 
-        // Independent connection 2 (separate session / PDO process) attempts duplicate insert
+        $this->assertTrue(
+            $concurrencyBlockedCaught,
+            'Connection 2 must be blocked by Connection 1 holding an active uncommitted transaction on the same client_operation_id.'
+        );
+
+        // 3. Connection 1 now commits safely
+        $conn1->commit();
+
+        // 4. Now that Connection 1 is committed, Connection 2 immediately gets a permanent Duplicate Entry violation
         $duplicateCaught = false;
         try {
             $conn2->table('inventory_operations')->insert([
@@ -326,10 +352,62 @@ class MysqlConcurrencyAndIdempotencyTest extends TestCase
                 'updated_at' => now(),
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
-            // MySQL error 23000 indicates duplicate key constraint violation
             $duplicateCaught = ($e->getCode() === '23000' || str_contains($e->getMessage(), 'Duplicate entry'));
         }
 
-        $this->assertTrue($duplicateCaught, 'Simultaneous duplicate operation on independent connection must be rejected by MySQL UNIQUE constraint.');
+        $this->assertTrue($duplicateCaught, 'After Connection 1 commits, Connection 2 must be permanently rejected by UNIQUE constraint.');
+    }
+
+    public function test_mysql_concurrent_pessimistic_row_locking_prevents_stock_double_spend(): void
+    {
+        $conn1 = DB::connection('mysql');
+        $conn2 = DB::connection('mysql_secondary');
+
+        // Set 1-second lock wait timeout for Connection 2
+        $conn2->statement('SET SESSION innodb_lock_wait_timeout = 1');
+
+        // 1. Connection 1 begins transaction and acquires exclusive pessimistic lock on the product row
+        $conn1->beginTransaction();
+        $p1 = $conn1->table('products')
+            ->where('id', $this->product->id)
+            ->lockForUpdate()
+            ->first();
+
+        $this->assertNotNull($p1);
+        $this->assertEquals(50, $p1->stock_qty);
+
+        // 2. While Connection 1 holds the exclusive lock, Connection 2 attempts to lock the exact same product row
+        $rowLockBlocked = false;
+        $conn2->beginTransaction();
+        try {
+            $conn2->table('products')
+                ->where('id', $this->product->id)
+                ->lockForUpdate()
+                ->first();
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Lock wait timeout exceeded proves that Connection 2 was physically blocked from accessing the locked row concurrently!
+            $rowLockBlocked = str_contains($e->getMessage(), '1205')
+                || str_contains($e->getMessage(), 'Lock wait timeout');
+        } finally {
+            $conn2->rollBack();
+        }
+
+        $this->assertTrue($rowLockBlocked, 'Pessimistic lock on Connection 1 must block concurrent lockForUpdate on Connection 2.');
+
+        // 3. Connection 1 decrements stock and commits
+        $conn1->table('products')
+            ->where('id', $this->product->id)
+            ->decrement('stock_qty', 50);
+        $conn1->commit();
+
+        // 4. Once Connection 1 commits, Connection 2 can inspect the updated row: stock is now 0!
+        $conn2->beginTransaction();
+        $p2After = $conn2->table('products')
+            ->where('id', $this->product->id)
+            ->lockForUpdate()
+            ->first();
+        $conn2->rollBack();
+
+        $this->assertEquals(0, $p2After->stock_qty, 'Stock was atomically decremented by Connection 1 before Connection 2 could access it.');
     }
 }

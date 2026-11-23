@@ -186,12 +186,16 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           required String paymentMethod,
           required int paidAmount,
           required int changeAmount,
+          double? receivedUsd,
+          double? changeUsd,
         }) async {
           final invoiceNum = await ref.read(posCartProvider.notifier).checkout(
                 cashierId: cashierId,
                 paymentMethod: paymentMethod,
                 paidAmount: paidAmount,
                 changeAmount: changeAmount,
+                receivedUsd: receivedUsd,
+                changeUsd: changeUsd,
               );
           completedInvoice = invoiceNum;
           finalPaidAmount = paidAmount;
@@ -490,6 +494,10 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           // 2. Warning banner when no cashier shift is open
           if (openShift == null && !openShiftAsync.isLoading)
             _buildNoShiftWarningBanner(context),
+
+          // 2.1 Warning banner when an unresolved checkout is pending
+          if (cart.isPendingUnresolved)
+            _buildUnresolvedCheckoutBanner(context, cart),
 
           // 3. Main Content Area
           Expanded(
@@ -1385,6 +1393,70 @@ class _PosScreenState extends ConsumerState<PosScreen> with SingleTickerProvider
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildUnresolvedCheckoutBanner(BuildContext context, PosCartState cart) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.deepOrange.shade800,
+      child: Row(
+        children: [
+          const Icon(Icons.sync_problem_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '⚠️ ប្រតិបត្តិការ Checkout (${cart.activeInvoiceNumber ?? cart.activeOperationId}) កំពុងរង់ចាំផ្ទៀងផ្ទាត់។ កន្ត្រកទំនិញត្រូវបានចាក់សោរដើម្បីការពារទិន្នន័យ។',
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.deepOrange.shade900,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+            child: const Text('ផ្ទៀងផ្ទាត់ (Reconcile)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              try {
+                final confirmedInv = await ref.read(posCartProvider.notifier).reconcileActiveCheckout();
+                if (context.mounted) {
+                  if (confirmedInv != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Reconciled order: $confirmedInv successfully!'), backgroundColor: AppColors.success),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Order not found on server. Ready to retry checkout.'), backgroundColor: Colors.amber),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Reconciliation notice: $e'), backgroundColor: AppColors.danger),
+                  );
+                }
+              }
+            },
+          ),
+          const SizedBox(width: 6),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white70,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+            child: const Text('បោះបង់ (Dismiss)', style: TextStyle(fontSize: 11)),
+            onPressed: () async {
+              await ref.read(posCartProvider.notifier).cancelOrDismissUnresolvedCheckout();
+            },
+          ),
+        ],
+      ),
     );
   }
 

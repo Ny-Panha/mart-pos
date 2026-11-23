@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/money.dart';
 import '../../../data/firestore/models/product_model.dart';
@@ -74,6 +75,10 @@ class PosCartState {
   int get total => (subtotal - discount + totalTax) > 0 ? (subtotal - discount + totalTax) : 0;
   int get totalItemCount => items.fold(0, (sum, i) => sum + i.qty);
 
+  bool get isPendingUnresolved =>
+      (checkoutStatus == CheckoutStatus.pending || checkoutStatus == CheckoutStatus.failed) &&
+      activeOperationId != null;
+
   int getQtyForProduct(String productId) {
     final found = items.where((i) => i.product.id == productId);
     return found.isEmpty ? 0 : found.first.qty;
@@ -130,7 +135,26 @@ class PosCartNotifier extends Notifier<PosCartState> {
     return PosCartState();
   }
 
-  /// Restores unresolved checkout identity from durable local storage upon application start
+  Map<String, dynamic> _serializeCartDraft() {
+    return {
+      'items': state.items.map((i) => {
+        'product': {
+          'id': i.product.id,
+          ...i.product.toJson(),
+        },
+        'qty': i.qty,
+        'customPrice': i.customPrice,
+      }).toList(),
+      'customerId': state.customerId,
+      'customerName': state.customerName,
+      'discount': state.discount,
+      'taxRate': state.taxRate,
+      'activeOperationId': state.activeOperationId,
+      'activeInvoiceNumber': state.activeInvoiceNumber,
+    };
+  }
+
+  /// Restores unresolved checkout identity and cart payload from durable local storage upon application start
   Future<void> restorePendingCheckout() async {
     try {
       final saleRepo = ref.read(saleRepositoryProvider);
@@ -143,19 +167,125 @@ class PosCartNotifier extends Notifier<PosCartState> {
             ? CheckoutStatus.confirmed
             : (statusStr == 'failed' ? CheckoutStatus.failed : CheckoutStatus.pending);
 
+        // 1. Restore complete cart draft and items if available
+        final restoredItems = <CartItemState>[];
+        if (pending['cart_draft'] is Map && pending['cart_draft']['items'] is List) {
+          for (final raw in pending['cart_draft']['items']) {
+            if (raw is Map) {
+              try {
+                final productMap = Map<String, dynamic>.from(raw['product'] as Map);
+                final product = ProductModel.fromJson(productMap);
+                final qty = (raw['qty'] is num) ? (raw['qty'] as num).toInt() : 1;
+                final customPrice = (raw['customPrice'] is num) ? (raw['customPrice'] as num).toInt() : null;
+                restoredItems.add(CartItemState(product: product, qty: qty, customPrice: customPrice));
+              } catch (e) {
+                debugPrint('Failed to deserialize cart item draft: $e');
+              }
+            }
+          }
+        }
+
+        final draft = (pending['cart_draft'] is Map) ? pending['cart_draft'] as Map<String, dynamic> : null;
+
         state = state.copyWith(
+          items: restoredItems.isNotEmpty ? restoredItems : state.items,
+          customerId: draft?['customerId'] ?? state.customerId,
+          customerName: draft?['customerName'] ?? state.customerName,
+          discount: (draft?['discount'] is num) ? (draft!['discount'] as num).toInt() : state.discount,
+          taxRate: (draft?['taxRate'] is num) ? (draft!['taxRate'] as num).toDouble() : state.taxRate,
           activeOperationId: opId,
           activeInvoiceNumber: inv.isNotEmpty ? inv : null,
           checkoutStatus: status,
         );
+
+        // 2. Perform background reconciliation with backend
+        final existingOrder = await saleRepo.checkOperationStatus(opId);
+        if (existingOrder != null) {
+          final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? inv;
+          await saleRepo.clearPendingCheckout();
+          state = PosCartState(
+            recentScans: state.recentScans,
+            lastCompletedInvoice: confirmedInvoice,
+            checkoutStatus: CheckoutStatus.confirmed,
+          );
+        }
       }
     } catch (e) {
-      // Ignore background restore error
+      debugPrint('Background restorePendingCheckout error: $e');
     }
+  }
+
+  /// Cancels or dismisses an unresolved pending checkout after confirmation
+  Future<void> cancelOrDismissUnresolvedCheckout() async {
+    final saleRepo = ref.read(saleRepositoryProvider);
+    await saleRepo.clearPendingCheckout();
+    state = PosCartState(
+      recentScans: state.recentScans,
+      checkoutStatus: CheckoutStatus.idle,
+    );
+  }
+
+  /// Manually triggers reconciliation of the active unresolved checkout with the backend
+  Future<String?> reconcileActiveCheckout() async {
+    if (state.activeOperationId == null) return null;
+    final opId = state.activeOperationId!;
+    final saleRepo = ref.read(saleRepositoryProvider);
+    final existingOrder = await saleRepo.checkOperationStatus(opId);
+    if (existingOrder != null) {
+      final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? state.activeInvoiceNumber ?? opId;
+
+      final saleItems = state.items.map((i) {
+        return SaleItem(
+          productId: i.product.id,
+          name: i.product.name,
+          qty: i.qty,
+          unitPrice: i.unitPrice,
+          originalPrice: i.product.salePrice,
+          totalPrice: i.lineTotal,
+          tax: i.product.tax,
+        );
+      }).toList();
+
+      final user = ref.read(authProvider).value;
+      final sale = SaleModel(
+        id: opId,
+        invoiceNumber: confirmedInvoice,
+        cashierId: user?.id ?? 'cashier',
+        cashierName: user?.name,
+        customerId: state.customerId,
+        customerName: state.customerName,
+        items: saleItems,
+        subtotal: state.subtotal,
+        discount: state.discount,
+        totalTax: state.totalTax,
+        total: state.total,
+        paidAmount: state.total,
+        changeAmount: 0,
+        paymentMethod: 'cash_riel',
+        paymentStatus: 'paid',
+        createdAt: DateTime.now(),
+      );
+
+      await saleRepo.reconcileConfirmedOrder(existingOrder, sale);
+      await saleRepo.clearPendingCheckout();
+
+      state = PosCartState(
+        recentScans: state.recentScans,
+        lastCompletedInvoice: confirmedInvoice,
+        checkoutStatus: CheckoutStatus.confirmed,
+      );
+      return confirmedInvoice;
+    }
+    return null;
   }
 
   /// Returns null on success, or an error message if stock exceeded or double scanned
   String? addProduct(ProductModel product, {bool isBarcodeScan = false}) {
+    // Lock cart mutation if an operation is pending resolution
+    if (state.isPendingUnresolved) {
+      return 'Cannot modify cart: an active checkout attempt (${state.activeInvoiceNumber}) is unresolved. Please reconcile or resolve it first.';
+    }
+
     // 1. Anti-double-scan validation (1.5 seconds)
     final now = DateTime.now();
     if (isBarcodeScan && product.barcode.isNotEmpty) {
@@ -203,6 +333,10 @@ class PosCartNotifier extends Notifier<PosCartState> {
   }
 
   String? updateQty(String productId, int newQty) {
+    if (state.isPendingUnresolved) {
+      return 'Cannot update quantity: checkout (${state.activeInvoiceNumber}) is unresolved.';
+    }
+
     final updatedList = List<CartItemState>.from(state.items);
     final index = updatedList.indexWhere((i) => i.product.id == productId);
 
@@ -225,6 +359,8 @@ class PosCartNotifier extends Notifier<PosCartState> {
   }
 
   void updateItemPrice(String productId, int? customPrice) {
+    if (state.isPendingUnresolved) return;
+
     final updatedList = List<CartItemState>.from(state.items);
     final index = updatedList.indexWhere((i) => i.product.id == productId);
 
@@ -238,12 +374,16 @@ class PosCartNotifier extends Notifier<PosCartState> {
   }
 
   void removeItem(String productId) {
+    if (state.isPendingUnresolved) return;
+
     final updatedList = List<CartItemState>.from(state.items)
       ..removeWhere((i) => i.product.id == productId);
     state = state.copyWith(items: updatedList, clearActiveOperation: true);
   }
 
   void setCustomer(String? id, String name) {
+    if (state.isPendingUnresolved) return;
+
     state = state.copyWith(
       customerId: id,
       customerName: name,
@@ -252,14 +392,20 @@ class PosCartNotifier extends Notifier<PosCartState> {
   }
 
   void setDiscount(int discountRiel) {
+    if (state.isPendingUnresolved) return;
+
     state = state.copyWith(discount: discountRiel, clearActiveOperation: true);
   }
 
   void setTaxRate(double rate) {
+    if (state.isPendingUnresolved) return;
+
     state = state.copyWith(taxRate: rate, clearActiveOperation: true);
   }
 
   void clearCart() {
+    if (state.isPendingUnresolved) return;
+
     state = state.copyWith(
       items: [],
       discount: 0,
@@ -367,7 +513,11 @@ class PosCartNotifier extends Notifier<PosCartState> {
       }
 
       // 3. Authoritative checkout request to Laravel API
-      await saleRepo.checkoutSale(sale, clientOperationId: opId);
+      await saleRepo.checkoutSale(
+        sale,
+        clientOperationId: opId,
+        cartDraft: _serializeCartDraft(),
+      );
 
       // Fire-and-forget Audit Log
       AuditService.logFromRef(

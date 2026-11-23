@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:mart_pos/core/role_route_guard.dart';
 import 'package:mart_pos/core/utils/money.dart';
@@ -798,6 +800,61 @@ void main() {
       final reportRepo = ReportRepository();
       final summary = await reportRepo.getAuthoritativeSummary();
       expect(summary, isNull);
+    });
+
+    test('PosCartNotifier blocks addProduct and updateQty when checkout is unresolved', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer();
+      final notifier = container.read(posCartProvider.notifier);
+
+      final dummyProduct = ProductModel(
+        id: '1',
+        name: 'Anchor Beer',
+        code: 'P001',
+        categoryId: 'cat_drinks',
+        costPrice: 2000,
+        salePrice: 3000,
+        stockQty: 20,
+      );
+
+      // Normal state: add product works
+      final res1 = notifier.addProduct(dummyProduct);
+      expect(res1, isNull);
+      expect(container.read(posCartProvider).items.length, 1);
+
+      // Transition to unresolved pending checkout
+      container.read(posCartProvider.notifier).state = container.read(posCartProvider).copyWith(
+        activeOperationId: 'op_unresolved_001',
+        activeInvoiceNumber: 'INV-20261123-9999',
+        checkoutStatus: CheckoutStatus.pending,
+      );
+      expect(container.read(posCartProvider).isPendingUnresolved, isTrue);
+
+      // Mutation while unresolved is strictly blocked!
+      final blockedAdd = notifier.addProduct(dummyProduct);
+      expect(blockedAdd, contains('Cannot modify cart'));
+
+      final blockedQty = notifier.updateQty('1', 5);
+      expect(blockedQty, contains('Cannot update quantity'));
+
+      // Dismiss unresolved checkout resets status to idle and allows mutation again
+      await notifier.cancelOrDismissUnresolvedCheckout();
+      expect(container.read(posCartProvider).isPendingUnresolved, isFalse);
+      expect(container.read(posCartProvider).items, isEmpty);
+    });
+
+    test('Cash USD math converts Riel correctly with 4,100 exchange rate and computes change', () {
+      final totalRiel = 5000;
+      final expectedTotalUsd = double.parse((totalRiel / 4100.0).toStringAsFixed(2)); // 1.22
+      expect(expectedTotalUsd, 1.22);
+
+      final receivedUsd = 2.00;
+      final changeUsd = double.parse((receivedUsd - expectedTotalUsd).toStringAsFixed(2)); // 0.78
+      expect(changeUsd, 0.78);
+
+      final changeRiel = (changeUsd * 4100).round();
+      expect(changeRiel, 3198); // ~3200 Riel
     });
   });
 }
