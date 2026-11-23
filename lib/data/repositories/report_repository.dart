@@ -4,8 +4,33 @@ import '../firestore/firestore_collections.dart';
 import '../firestore/models/product_model.dart';
 import '../firestore/models/sale_model.dart';
 import '../firestore/shop_scope.dart';
+import '../services/api_service.dart';
 
 class ReportRepository {
+  /// Fetch authoritative sales and profit summary from Laravel/MySQL backend
+  Future<Map<String, dynamic>?> getAuthoritativeSummary({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final queryParams = <String>[];
+      if (startDate != null) {
+        queryParams.add('start_date=${startDate.toIso8601String().substring(0, 10)}');
+      }
+      if (endDate != null) {
+        queryParams.add('end_date=${endDate.toIso8601String().substring(0, 10)}');
+      }
+      final queryString = queryParams.isNotEmpty ? '?${queryParams.join('&')}' : '';
+      final res = await ApiService.get('/reports/summary$queryString');
+      if (res != null && res['success'] == true && res['data'] != null) {
+        return res['data'] as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('ReportRepository.getAuthoritativeSummary notice: $e');
+    }
+    return null;
+  }
+
   /// Pure profit calculation helper (tested in unit tests)
   /// profit = sale.total - Σ(item.qty * product.costPrice)
   static int calculateProfit({

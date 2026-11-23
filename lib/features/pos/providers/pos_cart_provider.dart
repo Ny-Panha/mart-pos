@@ -48,6 +48,8 @@ class PosCartState {
   final List<ProductModel> recentScans;
   final bool isCheckingOut;
   final String? lastCompletedInvoice;
+  final String? activeOperationId;
+  final String? activeInvoiceNumber;
 
   PosCartState({
     this.items = const [],
@@ -59,6 +61,8 @@ class PosCartState {
     this.recentScans = const [],
     this.isCheckingOut = false,
     this.lastCompletedInvoice,
+    this.activeOperationId,
+    this.activeInvoiceNumber,
   });
 
   int get subtotal => items.fold(0, (sum, i) => sum + i.lineTotal);
@@ -81,7 +85,10 @@ class PosCartState {
     List<ProductModel>? recentScans,
     bool? isCheckingOut,
     String? lastCompletedInvoice,
+    String? activeOperationId,
+    String? activeInvoiceNumber,
     bool clearLastScan = false,
+    bool clearActiveOperation = false,
   }) {
     return PosCartState(
       items: items ?? this.items,
@@ -93,6 +100,8 @@ class PosCartState {
       recentScans: recentScans ?? this.recentScans,
       isCheckingOut: isCheckingOut ?? this.isCheckingOut,
       lastCompletedInvoice: lastCompletedInvoice ?? this.lastCompletedInvoice,
+      activeOperationId: clearActiveOperation ? null : (activeOperationId ?? this.activeOperationId),
+      activeInvoiceNumber: clearActiveOperation ? null : (activeInvoiceNumber ?? this.activeInvoiceNumber),
     );
   }
 }
@@ -151,6 +160,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
       items: updatedList,
       lastScannedProduct: product,
       recentScans: updatedRecent,
+      clearActiveOperation: true,
     );
 
     return null;
@@ -164,7 +174,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
 
     if (newQty <= 0) {
       updatedList.removeAt(index);
-      state = state.copyWith(items: updatedList);
+      state = state.copyWith(items: updatedList, clearActiveOperation: true);
       return null;
     }
 
@@ -174,7 +184,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
     }
 
     updatedList[index] = updatedList[index].copyWith(qty: newQty);
-    state = state.copyWith(items: updatedList);
+    state = state.copyWith(items: updatedList, clearActiveOperation: true);
     return null;
   }
 
@@ -187,29 +197,30 @@ class PosCartNotifier extends Notifier<PosCartState> {
         customPrice: customPrice,
         clearCustomPrice: customPrice == null,
       );
-      state = state.copyWith(items: updatedList);
+      state = state.copyWith(items: updatedList, clearActiveOperation: true);
     }
   }
 
   void removeItem(String productId) {
     final updatedList = List<CartItemState>.from(state.items)
       ..removeWhere((i) => i.product.id == productId);
-    state = state.copyWith(items: updatedList);
+    state = state.copyWith(items: updatedList, clearActiveOperation: true);
   }
 
   void setCustomer(String? id, String name) {
     state = state.copyWith(
       customerId: id,
       customerName: name,
+      clearActiveOperation: true,
     );
   }
 
   void setDiscount(int discountRiel) {
-    state = state.copyWith(discount: discountRiel);
+    state = state.copyWith(discount: discountRiel, clearActiveOperation: true);
   }
 
   void setTaxRate(double rate) {
-    state = state.copyWith(taxRate: rate);
+    state = state.copyWith(taxRate: rate, clearActiveOperation: true);
   }
 
   void clearCart() {
@@ -220,6 +231,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
       clearLastScan: true,
       customerId: null,
       customerName: 'អតិថិជនទូទៅ (Walk-in)',
+      clearActiveOperation: true,
     );
   }
 
@@ -234,12 +246,20 @@ class PosCartNotifier extends Notifier<PosCartState> {
       throw Exception('Cart is empty');
     }
 
-    state = state.copyWith(isCheckingOut: true);
+    final saleRepo = ref.read(saleRepositoryProvider);
+
+    // 1. Establish stable, durable operation identity for this checkout attempt
+    final invoiceNum = state.activeInvoiceNumber ?? await _invoiceService.getNextInvoiceNumber();
+    final opId = state.activeOperationId ??
+        'op_pos_${DateTime.now().millisecondsSinceEpoch}_${invoiceNum.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+
+    state = state.copyWith(
+      isCheckingOut: true,
+      activeOperationId: opId,
+      activeInvoiceNumber: invoiceNum,
+    );
 
     try {
-      final invoiceNum = await _invoiceService.getNextInvoiceNumber();
-      final saleId = 'sale_${DateTime.now().millisecondsSinceEpoch}';
-
       final saleItems = state.items.map((i) {
         return SaleItem(
           productId: i.product.id,
@@ -257,7 +277,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
 
       final user = ref.read(authProvider).value;
       final sale = SaleModel(
-        id: saleId,
+        id: opId,
         invoiceNumber: invoiceNum,
         cashierId: cashierId,
         cashierName: user?.name,
@@ -275,16 +295,37 @@ class PosCartNotifier extends Notifier<PosCartState> {
         createdAt: DateTime.now(),
       );
 
-      final saleRepo = ref.read(saleRepositoryProvider);
-      // Execute WriteBatch (works offline)
-      await saleRepo.checkoutSale(sale);
+      // 2. Before retrying, reconcile previous operation with Laravel to prevent duplicate sales
+      final existingOrder = await saleRepo.checkOperationStatus(opId);
+      if (existingOrder != null) {
+        final confirmedInvoice = (existingOrder['invoice_number'] as String?) ?? invoiceNum;
+        await saleRepo.reconcileConfirmedOrder(existingOrder, sale);
+
+        AuditService.logFromRef(
+          ref,
+          action: 'sale.reconcile',
+          entityType: 'sale',
+          entityId: opId,
+          details: '$confirmedInvoice (reconciled) · ${MoneyUtils.formatRiel(sale.total)}',
+        );
+
+        state = PosCartState(
+          recentScans: state.recentScans,
+          lastCompletedInvoice: confirmedInvoice,
+        );
+
+        return confirmedInvoice;
+      }
+
+      // 3. Authoritative checkout request to Laravel API
+      await saleRepo.checkoutSale(sale, clientOperationId: opId);
 
       // Fire-and-forget Audit Log
       AuditService.logFromRef(
         ref,
         action: 'sale.checkout',
         entityType: 'sale',
-        entityId: saleId,
+        entityId: opId,
         details: '$invoiceNum · ${MoneyUtils.formatRiel(sale.total)}',
       );
 
@@ -294,8 +335,10 @@ class PosCartNotifier extends Notifier<PosCartState> {
       );
 
       return invoiceNum;
-    } finally {
+    } catch (e) {
+      // Preserve cart items, activeOperationId, and activeInvoiceNumber on failure
       state = state.copyWith(isCheckingOut: false);
+      rethrow;
     }
   }
 }

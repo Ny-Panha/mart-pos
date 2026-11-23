@@ -20,6 +20,7 @@ import 'package:mart_pos/data/repositories/shift_repository.dart';
 import 'package:mart_pos/data/repositories/supplier_repository.dart';
 import 'package:mart_pos/data/repositories/user_repository.dart';
 import 'package:mart_pos/features/customers/providers/customer_provider.dart';
+import 'package:mart_pos/features/pos/providers/pos_cart_provider.dart';
 
 void main() {
   group('MoneyUtils Tests', () {
@@ -708,6 +709,36 @@ void main() {
           contains('Malformed server response (HTTP 200): invalid JSON'),
         )),
       );
+    });
+
+    test('PosCartState maintains activeOperationId on failure and resets on cart mutation', () {
+      final initial = PosCartState(
+        activeOperationId: 'op_test_12345678',
+        activeInvoiceNumber: 'INV-20261123-0001',
+      );
+
+      // On failure, copyWith(isCheckingOut: false) preserves operation identity
+      final failureState = initial.copyWith(isCheckingOut: false);
+      expect(failureState.activeOperationId, 'op_test_12345678');
+      expect(failureState.activeInvoiceNumber, 'INV-20261123-0001');
+
+      // On cart item or price modification, clearActiveOperation resets them
+      final mutatedState = initial.copyWith(
+        discount: 500,
+        clearActiveOperation: true,
+      );
+      expect(mutatedState.activeOperationId, isNull);
+      expect(mutatedState.activeInvoiceNumber, isNull);
+    });
+
+    test('SaleRepository and ReportRepository handle network failure gracefully without throwing unhandled exceptions', () async {
+      final saleRepo = SaleRepository();
+      final status = await saleRepo.checkOperationStatus('op_non_existent');
+      expect(status, isNull);
+
+      final reportRepo = ReportRepository();
+      final summary = await reportRepo.getAuthoritativeSummary();
+      expect(summary, isNull);
     });
   });
 }

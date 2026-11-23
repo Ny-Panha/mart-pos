@@ -32,6 +32,80 @@ class SaleRepository {
         });
   }
 
+  /// Check existing operation with authoritative backend
+  Future<Map<String, dynamic>?> checkOperationStatus(String operationId) async {
+    try {
+      final res = await ApiService.get('/orders/by-operation/$operationId');
+      if (res != null && res['success'] == true && res['data'] != null) {
+        return res['data'] as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('checkOperationStatus notice: $e');
+    }
+    return null;
+  }
+
+  /// Reconcile confirmed order into secondary Firestore cache idempotently
+  Future<void> reconcileConfirmedOrder(Map<String, dynamic> serverOrder, SaleModel sale) async {
+    try {
+      final batch = _db.batch();
+
+      final saleDocRef = FirestoreCollections.sales.doc(sale.id);
+      final existingSale = await saleDocRef.get();
+      final wasAlreadyConfirmed = existingSale.exists;
+
+      final confirmedSale = (serverOrder['invoice_number'] != null && serverOrder['invoice_number'] != sale.invoiceNumber)
+          ? SaleModel(
+              id: sale.id,
+              invoiceNumber: serverOrder['invoice_number'].toString(),
+              cashierId: sale.cashierId,
+              cashierName: sale.cashierName,
+              customerId: sale.customerId,
+              customerName: sale.customerName,
+              items: sale.items,
+              subtotal: sale.subtotal,
+              discount: sale.discount,
+              totalTax: sale.totalTax,
+              total: sale.total,
+              paidAmount: sale.paidAmount,
+              changeAmount: sale.changeAmount,
+              paymentMethod: sale.paymentMethod,
+              paymentStatus: sale.paymentStatus,
+              createdAt: sale.createdAt,
+            )
+          : sale;
+      batch.set(saleDocRef, confirmedSale);
+
+      // Record movement in Firestore idempotently with deterministic doc ID
+      for (var item in sale.items) {
+        final movementRef = FirestoreCollections.stockMovements.doc('${sale.id}_${item.productId}');
+        final movement = StockMovementModel(
+          id: movementRef.id,
+          productId: item.productId,
+          type: 'sale',
+          qty: -item.qty,
+          note: 'POS Sale: ${serverOrder['invoice_number'] ?? sale.invoiceNumber}',
+          refId: sale.id,
+          createdBy: sale.cashierId,
+          createdAt: DateTime.now(),
+        );
+        batch.set(movementRef, movement);
+      }
+
+      // Customer spending: only increment if this sale was not already confirmed!
+      if (!wasAlreadyConfirmed && sale.customerId != null && sale.customerId!.isNotEmpty) {
+        final customerDocRef = _db.collection('customers').doc(sale.customerId);
+        batch.set(customerDocRef, {
+          'totalSpent': FieldValue.increment(sale.total),
+        }, SetOptions(merge: true));
+      }
+
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Firestore sale cache reconciliation notice: $e');
+    }
+  }
+
   /// Authoritative Checkout:
   /// 1. Validates Product IDs (never guesses or falls back to ID 1).
   /// 2. Performs authoritative checkout against Laravel REST API (MySQL).
@@ -86,41 +160,9 @@ class SaleRepository {
       throw Exception(msg);
     }
 
-    // 3. Update secondary cache in Firestore with confirmed status
-    try {
-      final batch = _db.batch();
-
-      final saleDocRef = FirestoreCollections.sales.doc(sale.id);
-      final saleData = sale.toFirestore()..['syncStatus'] = 'confirmed';
-      batch.set(saleDocRef, saleData);
-
-      // Record movement in Firestore for audit / reporting
-      for (var item in sale.items) {
-        final movementRef = FirestoreCollections.stockMovements.doc();
-        final movement = StockMovementModel(
-          id: movementRef.id,
-          productId: item.productId,
-          type: 'sale',
-          qty: -item.qty,
-          note: 'POS Sale: ${sale.invoiceNumber}',
-          refId: sale.id,
-          createdBy: sale.cashierId,
-          createdAt: DateTime.now(),
-        );
-        batch.set(movementRef, movement);
-      }
-
-      if (sale.customerId != null && sale.customerId!.isNotEmpty) {
-        final customerDocRef = _db.collection('customers').doc(sale.customerId);
-        batch.set(customerDocRef, {
-          'totalSpent': FieldValue.increment(sale.total),
-        }, SetOptions(merge: true));
-      }
-
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Firestore sale cache update notice: $e');
-    }
+    // 3. Update secondary cache in Firestore with confirmed status idempotently
+    final serverOrder = (res['data'] is Map<String, dynamic>) ? res['data'] as Map<String, dynamic> : <String, dynamic>{};
+    await reconcileConfirmedOrder(serverOrder, sale);
   }
 
   // Held Bills

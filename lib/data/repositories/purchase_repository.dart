@@ -138,18 +138,32 @@ class PurchaseRepository {
     final totalCost = calculateTotalCost(items);
     final now = DateTime.now();
 
-    // 5. Update products and stock movements in Firestore cache
+    // 5. Update products and stock movements in Firestore cache idempotently
     try {
+      final confirmedProducts = <String, int>{};
+      if (res['data']?['products'] is List) {
+        for (final p in res['data']['products']) {
+          if (p is Map && p['id'] != null && p['stock_qty'] != null) {
+            confirmedProducts[p['id'].toString()] = (p['stock_qty'] as num).toInt();
+          }
+        }
+      }
+
       final batch = _db.batch();
       for (final item in items) {
         final productRef = FirestoreCollections.products.doc(item.productId);
+        final confirmedStock = confirmedProducts[item.productId];
         batch.set(productRef, {
-          'stockQty': FieldValue.increment(item.qty),
+          if (confirmedStock != null)
+            'stockQty': confirmedStock
+          else
+            'stockQty': FieldValue.increment(item.qty),
           'costPrice': item.costPrice,
           'updatedAt': Timestamp.now(),
         }, SetOptions(merge: true));
 
-        final movementRef = FirestoreCollections.stockMovements.doc();
+        // Deterministic document ID to prevent duplicate stock movements on retry
+        final movementRef = FirestoreCollections.stockMovements.doc('po_${purchaseId}_${item.productId}');
         final movement = StockMovementModel(
           id: movementRef.id,
           productId: item.productId,

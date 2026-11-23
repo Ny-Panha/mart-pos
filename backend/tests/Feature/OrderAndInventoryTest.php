@@ -493,6 +493,7 @@ class OrderAndInventoryTest extends TestCase
 
         // 5. Adjust Stock
         $adjRes = $this->actingAs($this->admin, 'sanctum')->postJson('/api/inventory/adjust', [
+            'client_operation_id' => 'op_adjust_test_01',
             'product_id' => $this->product->id,
             'new_qty' => 20,
             'note' => 'Monthly inventory audit count',
@@ -578,5 +579,215 @@ class OrderAndInventoryTest extends TestCase
                     'code' => 'TEST-003',
                 ],
             ]);
+    }
+
+    public function test_find_order_by_operation_id(): void
+    {
+        // 1. Create order with client_operation_id
+        $opId = 'op_lookup_test_888';
+        $createRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => $opId,
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'total_riel' => 2500,
+            'received_riel' => 2500,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ]);
+        $createRes->assertStatus(201);
+
+        // 2. Query own operation ID -> 200 OK
+        $findRes = $this->actingAs($this->cashier, 'sanctum')->getJson("/api/orders/by-operation/{$opId}");
+        $findRes->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'data' => [
+                    'client_operation_id' => $opId,
+                    'total_riel' => 2500,
+                ],
+            ]);
+
+        // 3. Query non-existent operation ID -> 404
+        $notFoundRes = $this->actingAs($this->cashier, 'sanctum')->getJson('/api/orders/by-operation/op_non_existent_999');
+        $notFoundRes->assertStatus(404);
+
+        // 4. Query another user's operation ID -> 403 Forbidden
+        $crossRes = $this->actingAs($this->otherCashier, 'sanctum')->getJson("/api/orders/by-operation/{$opId}");
+        $crossRes->assertStatus(403);
+    }
+
+    public function test_tax_calculation_policy_and_limits(): void
+    {
+        // 1. Valid tax_rate 10% (0.10) with subtotal 2500 -> tax 250 -> total 2750
+        $validTaxRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_tax_valid_10pct',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'tax_rate' => 0.10,
+            'tax_riel' => 250,
+            'total_riel' => 2750,
+            'received_riel' => 3000,
+            'change_riel' => 250,
+            'payment_method' => 'cash_riel',
+        ]);
+        $validTaxRes->assertStatus(201);
+
+        // 2. Manipulated excessive tax (> 25% policy limit) without tax_rate
+        $manipulatedTaxRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_tax_manipulated_fail',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'tax_riel' => 99999, // Absurdly high tax
+            'total_riel' => 102499,
+            'received_riel' => 102499,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ]);
+        $manipulatedTaxRes->assertStatus(422);
+
+        // 3. Total mismatch where client sends arbitrary total_riel
+        $mismatchRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_total_mismatch_fail',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'total_riel' => 1000, // Client claimed total is 1000 when subtotal is 2500
+            'received_riel' => 1000,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ]);
+        $mismatchRes->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+            ]);
+    }
+
+    public function test_cash_usd_payment_flow_and_rejection_of_unsupported_methods(): void
+    {
+        // 1. Cash USD supported flow: 2 items @ 2500 = 5000 Riel (or custom 4100 x 2 = 8200 Riel = $2.00)
+        // Let's test with 2 items = 5000 Riel, total_usd = 1.22, received $2.00, change $0.78
+        $usdRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_usd_checkout_success',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 2]
+            ],
+            'total_riel' => 5000,
+            'total_usd' => 1.22,
+            'received_usd' => 2.00,
+            'change_usd' => 0.78,
+            'payment_method' => 'cash_usd',
+        ]);
+        $usdRes->assertStatus(201);
+
+        // 2. Cash USD with insufficient received amount
+        $insufficientUsdRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_usd_insufficient_fail',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 2]
+            ],
+            'total_riel' => 5000,
+            'total_usd' => 1.22,
+            'received_usd' => 1.00, // Less than $1.22
+            'change_usd' => 0.00,
+            'payment_method' => 'cash_usd',
+        ]);
+        $insufficientUsdRes->assertStatus(422);
+
+        // 3. Unsupported payment method (e.g. crypto, bitcoin)
+        $unsupportedRes = $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_unsupported_pay_fail',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 1]
+            ],
+            'total_riel' => 2500,
+            'payment_method' => 'bitcoin',
+        ]);
+        $unsupportedRes->assertStatus(422);
+    }
+
+    public function test_inventory_database_idempotency_conflicts_and_ownership(): void
+    {
+        $opId = 'op_db_idemp_stockin_01';
+
+        // 1. Initial Stock In
+        $res1 = $this->actingAs($this->admin, 'sanctum')->postJson('/api/inventory/stock-in', [
+            'client_operation_id' => $opId,
+            'product_id' => $this->product->id,
+            'qty' => 4,
+            'note' => 'Original shipment',
+        ]);
+        $res1->assertStatus(200);
+
+        // 2. Identical retry returns 200 idempotent recovery
+        $res2 = $this->actingAs($this->admin, 'sanctum')->postJson('/api/inventory/stock-in', [
+            'client_operation_id' => $opId,
+            'product_id' => $this->product->id,
+            'qty' => 4,
+            'note' => 'Original shipment',
+        ]);
+        $res2->assertStatus(200)
+            ->assertJson(['message' => 'Stock In already processed (idempotent recovery)']);
+
+        // 3. Retry same operation ID with conflicting quantity -> 409 Conflict
+        $conflictQtyRes = $this->actingAs($this->admin, 'sanctum')->postJson('/api/inventory/stock-in', [
+            'client_operation_id' => $opId,
+            'product_id' => $this->product->id,
+            'qty' => 10, // Conflicting qty
+            'note' => 'Different shipment',
+        ]);
+        $conflictQtyRes->assertStatus(409);
+
+        // 4. Retry same operation ID with conflicting operation type (stock-out) -> 409 Conflict
+        $conflictTypeRes = $this->actingAs($this->admin, 'sanctum')->postJson('/api/inventory/stock-out', [
+            'client_operation_id' => $opId,
+            'product_id' => $this->product->id,
+            'qty' => 4,
+            'note' => 'Trying to use stock-in op id for stock-out',
+        ]);
+        $conflictTypeRes->assertStatus(409);
+    }
+
+    public function test_authoritative_reports_summary_with_profit(): void
+    {
+        // 1. Create a sale: product cost_price=1500, sale_price=2500, qty=2 -> profit=(2500-1500)*2 = 2000 Riel
+        $this->actingAs($this->cashier, 'sanctum')->postJson('/api/orders', [
+            'client_operation_id' => 'op_report_sale_profit_01',
+            'items' => [
+                ['product_id' => $this->product->id, 'qty' => 2]
+            ],
+            'total_riel' => 5000,
+            'received_riel' => 5000,
+            'change_riel' => 0,
+            'payment_method' => 'cash_riel',
+        ])->assertStatus(201);
+
+        // 2. Fetch authoritative report summary as Admin
+        $res = $this->actingAs($this->admin, 'sanctum')->getJson('/api/reports/summary');
+        $res->assertStatus(200)
+            ->assertJsonStructure([
+                'success',
+                'data' => [
+                    'period' => [
+                        'total_sales_riel',
+                        'total_sales_usd',
+                        'total_orders',
+                        'total_profit_riel',
+                    ],
+                    'today' => [
+                        'total_sales_riel',
+                        'total_profit_riel',
+                    ],
+                    'inventory' => [
+                        'total_products',
+                        'low_stock_count',
+                    ],
+                ],
+            ]);
+
+        $this->assertGreaterThanOrEqual(5000, $res->json('data.today.total_sales_riel'));
+        $this->assertGreaterThanOrEqual(2000, $res->json('data.today.total_profit_riel'));
     }
 }

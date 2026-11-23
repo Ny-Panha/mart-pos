@@ -128,13 +128,14 @@ class InventoryRepository {
         }, SetOptions(merge: true));
       }
 
-      final movementRef = FirestoreCollections.stockMovements.doc();
+      final movementRef = FirestoreCollections.stockMovements.doc(opId);
       final movement = StockMovementModel(
         id: movementRef.id,
         productId: productId,
         type: 'in',
         qty: qty,
         note: note?.trim().isEmpty ?? true ? null : note!.trim(),
+        refId: opId,
         createdBy: userId,
         createdAt: DateTime.now(),
       );
@@ -212,13 +213,14 @@ class InventoryRepository {
         }, SetOptions(merge: true));
       }
 
-      final movementRef = FirestoreCollections.stockMovements.doc();
+      final movementRef = FirestoreCollections.stockMovements.doc(opId);
       final movement = StockMovementModel(
         id: movementRef.id,
         productId: productId,
         type: 'out',
         qty: qty,
         note: note.trim(),
+        refId: opId,
         createdBy: userId,
         createdAt: DateTime.now(),
       );
@@ -292,13 +294,14 @@ class InventoryRepository {
         'updatedAt': Timestamp.now(),
       }, SetOptions(merge: true));
 
-      final movementRef = FirestoreCollections.stockMovements.doc();
+      final movementRef = FirestoreCollections.stockMovements.doc(opId);
       final movement = StockMovementModel(
         id: movementRef.id,
         productId: productId,
         type: 'adjust',
         qty: diff,
         note: note.trim(),
+        refId: opId,
         createdBy: userId,
         createdAt: DateTime.now(),
       );

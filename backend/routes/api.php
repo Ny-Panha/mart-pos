@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:CASHIER,ADMIN,ADMIN_MANAGER')->group(function () {
         Route::post('/orders', [OrderController::class, 'store']);
         Route::get('/orders', [OrderController::class, 'index']);
+        Route::get('/orders/by-operation/{opId}', [OrderController::class, 'findByOperationId']);
         Route::get('/orders/{id}', [OrderController::class, 'show']);
     });
 

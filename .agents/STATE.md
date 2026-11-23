@@ -2,49 +2,41 @@
 
 ## Last Session
 - **Environment**: Antigravity IDE
-- **Timestamp**: 2026-11-23 20:55 (ICT)
-- **Branch**: `fix/p0-p1-regressions`
-- **Base Branch**: `fix/safe-backend-integration` (Commit: `18819911be23bc8e3c54e37b245dd4854618b9c1`)
+- **Timestamp**: 2026-11-23 21:13 (ICT)
+- **Branch**: `fix/targeted-release-blockers`
+- **Base Branch**: `fix/p0-p1-regressions` (Commit: `1d8d67c967b510fd21538b634e0cf69a15307523`)
 - **Author**: Ny Panha & Antigravity
 
-## Summary: Post-Fix P0/P1 Regression Repair & Authoritative Verification
+## Summary: Targeted Release-Blocker Repair
 
-### 1. P0 Checkout Correctness & Concurrency Guards
-- **Aggregate Quantity Calculation**: `OrderController::store` now calculates total quantity demanded per `product_id` prior to checking inventory. Prevents negative stock when identical products appear in multiple order lines.
-- **Deterministic Row-Locking**: Product IDs are sorted in ascending order before row-level locking (`Product::lockForUpdate()`) to prevent database transaction deadlocks under concurrent checkout requests.
-- **Trusted Server-side Totals Recalculation**: Server independently validates and recalculates item subtotals, order subtotal, discount, and tax. Rejects manipulated totals with HTTP 422.
-- **Role Permission Enforcement for Pricing/Discounts**: Restricts discounts and custom pricing overrides to `ADMIN` / `ADMIN_MANAGER` roles. Cashiers attempting price discounts receive HTTP 403.
-- **Strict Payment Validation**:
-  - `khqr`: Requires `received_riel == total_riel` and `change_riel == 0`.
-  - `cash`: Requires `received_riel >= total_riel` and exact `change_riel == received_riel - total_riel`.
+### 1. P0 — Stable Checkout Operation Identity (Flutter)
+- **Durable Identity**: `PosCartState` now tracks `activeOperationId` and `activeInvoiceNumber`. These are preserved across network timeouts, application re-renders, and failed checkout attempts.
+- **Pre-retry Reconciliation**: In `PosCartNotifier.checkout`, before issuing a checkout mutation, the client queries `GET /orders/by-operation/{opId}`. If the order was already recorded by Laravel (e.g. response was lost due to network drop), the client reconciles the confirmed invoice, updates the local cache idempotently, clears the cart, and completes payment without duplicate orders.
+- **Cart & Operation Reset**: Any cart item modification, quantity change, customer update, discount, or tax change automatically clears `activeOperationId` (`clearActiveOperation: true`) to avoid reusing operation IDs for altered payloads.
 
-### 2. P0 Idempotency & Security Isolation
-- **Stable Operation ID**: Enforces `client_operation_id` (min 8 characters) for all orders.
-- **User-bound Scope**: Binds each operation ID to the authenticated cashier (`cashier_id == $user->id`). Cross-user reuse is rejected with HTTP 403.
-- **Payload Equivalence & Conflict Guard**: Verifies matching order totals, payment method, and item quantities. A retry with identical payload returns HTTP 200 idempotent recovery; an altered payload returns HTTP 409 Conflict.
-- **Concurrent Duplicate Protection**: In-flight concurrent duplicate submissions are trapped gracefully without unhandled 500 database errors.
+### 2. P0 — Secure Idempotency Recovery (Laravel)
+- **Unified Recovery Path**: In `OrderController.php`, unified all recovery points (pre-transaction lookup, transaction row-lock check, and `QueryException` catch block) through a single `resolveIdempotentOrder` method.
+- **Canonical Payload Validation**: `isEquivalentPayload` validates total amount, discount, tax, payment method, tendered amount, change amount, and line item quantities/prices.
+- **Strict Ownership & Conflict Handling**: Cross-user operation ID reuse returns HTTP 403 Forbidden. Conflicting payloads return HTTP 409 Conflict. Identical retries return HTTP 200 OK idempotent recovery.
 
-### 3. P0 Role-Based Authorization
-- **Server-side Middleware**: Added `CheckRole` middleware registered as `'role'` in `bootstrap/app.php`.
-- **Protected Routes**:
-  - Cashier: Authorized POS checkout (`/orders`) and catalog read access (`/products`, `/categories`).
-  - Admin/Manager: Products & Categories CRUD, Inventory adjustments (`/inventory/stock-in`, `/inventory/stock-out`, `/inventory/adjust`, `/inventory/purchase`), and Reports (`/reports/summary`).
-  - Cashier attempts to access Admin endpoints return HTTP 403.
+### 3. P1 — Totals and Payment Verification (Laravel)
+- **Server-side Tax Policy**: Explicitly validates `tax_rate` (0.0 to 0.30) and calculates expected tax server-side. Arbitrary client-provided tax amounts exceeding policy limits (> 25% of subtotal) are rejected with HTTP 422.
+- **Multi-currency & Method Validation**:
+  - `khqr`: Requires exact received amount and zero change.
+  - `cash_riel` / `cash`: Requires `received_riel >= total_riel` and exact change calculation.
+  - `cash_usd`: Converts totals using standard 4100 Riel/USD rate, validates USD tendered and change amounts in USD or Riel.
+  - Unsupported payment methods (e.g. `crypto`, `bitcoin`) are rejected with HTTP 422.
 
-### 4. P1 Product & Category Consistency
-- **Product Code Uniqueness**: `ProductController::update` validates code uniqueness excluding the current product ID (`unique:products,code,$id`).
-- **Fresh Authoritative Data**: Product and category mutations return freshly refreshed server models loaded with relations.
-- **Category Usage Guard**: In-use category deletion is rejected with HTTP 422.
+### 4. P1 — Inventory Database Idempotency (Laravel & MySQL)
+- **Database Unique Constraint**: Created `inventory_operations` migration and model with a unique constraint on `client_operation_id`.
+- **Database-level Mutation Guards**: All stock mutations (`stockIn`, `stockOut`, `adjustStock`, `purchase`) require `client_operation_id` (min 8 chars) and record an `InventoryOperation`.
+- **Conflict Prevention**: Concurrent retries and reuse with conflicting products, quantities, or operation types are rejected with HTTP 409 Conflict or HTTP 403 Forbidden without mutating stock twice.
 
-### 5. P1 Inventory, Purchases & Cache
-- **Idempotency on Inventory Mutations**: Added `client_operation_id` support and idempotent recovery for Stock In, Stock Out, Adjust, and Purchases.
-- **Safe Note Access**: Resolved null/missing `note` in `InventoryController::purchase`.
-- **Client Cache Reconciliation**: `InventoryRepository` uses server-confirmed `stock_qty` from response to update local Firestore documents.
-
-### 6. P1 Authentication & API Responses
-- **Sanctum Authoritative Session**: `AuthRepository` strictly verifies active Sanctum token and rejects treating Firebase-only sessions as authenticated Laravel sessions.
-- **Strict JSON Parsing**: `ApiService` rejects non-JSON HTTP responses with clear exceptions instead of generating synthetic success objects.
-- **Credential & Config Hardening**: Removed hardcoded default DB password `'123456'` in `backend/config/database.php` (`env('DB_PASSWORD', '')`). Removed hardcoded IP address in `api_service.dart`.
+### 5. P1 — Cache Reconciliation & Reports (Flutter & Laravel)
+- **Idempotent Firestore Reconciliation**: Replaced additive cache writes in `sale_repository.dart` and `purchase_repository.dart`. Customer `totalSpent` is only incremented if the sale was not already confirmed in Firestore.
+- **Deterministic Movement IDs**: Uses deterministic Firestore document IDs (`opId` and `po_${purchaseId}_${item.productId}`) to prevent duplicate stock movements upon retry.
+- **Server-confirmed Stock Updates**: Reconciles local product cache with exact server-returned `stock_qty`.
+- **Authoritative Reports**: `ReportController::summary` calculates authoritative sales, orders, and net profit from MySQL `orders` and `order_items` over requested date periods. Added `ReportRepository.getAuthoritativeSummary`.
 
 ## Active Environment
 - **Flutter App**: `e:\Project\flutter\project\mart_pos`
@@ -53,10 +45,13 @@
 - **MySQL Database**: `mart_pos_db` on `127.0.0.1:3306`
 
 ## Verification & Test Results
-- `flutter analyze lib/`: **No issues found!** (Passed cleanly in 0 errors/warnings)
-- `flutter test`: **All 50 tests passed!** (Including MoneyUtils, Role guards, Code uniqueness, Profit math, Sale guards, and ApiService JSON error rejection)
-- `cd backend; php artisan test`: **All 16 tests passed (72 assertions)!** (Covering authentication, aggregate stock, cashier pricing guards, cross-user idempotency, 409 conflict, role middleware, category CRUD, inventory idempotency, and product code update uniqueness)
+- `flutter analyze lib/`: **No issues found!** (ran in 9.4s)
+- `flutter test`: **All 52 tests passed!** (Including MoneyUtils, Role guards, Code uniqueness, Profit math, Stable checkout identity preservation, and Graceful network handling)
+- `cd backend; php artisan test`: **All 23 tests passed (123 assertions)!**
+  - Includes isolated MySQL concurrency & database uniqueness tests: `MysqlConcurrencyAndIdempotencyTest` (testing real MySQL transactions and UNIQUE constraint on `inventory_operations.client_operation_id`).
+  - Includes `OrderAndInventoryTest` covering lookup by operation ID, server-side tax limits, cash USD flow, and inventory idempotency.
 
 ## Next Steps
-- Verify Git diff and push `fix/p0-p1-regressions` branch to origin.
-- Do NOT merge into `main` without review.
+- Commit all changes to review branch `fix/targeted-release-blockers`.
+- Push branch to origin.
+- Do NOT merge into `main`.

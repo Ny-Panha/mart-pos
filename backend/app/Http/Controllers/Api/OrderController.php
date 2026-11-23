@@ -36,31 +36,120 @@ class OrderController extends Controller
         ]);
     }
 
+    public function findByOperationId(Request $request, $opId)
+    {
+        $user = $request->user();
+        $order = Order::with(['cashier:id,name', 'items.product'])
+            ->where('client_operation_id', $opId)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Operation not found',
+            ], 404);
+        }
+
+        if ($order->cashier_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cross-user idempotency violation: Operation ID is already registered to another user.',
+            ], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $order,
+        ]);
+    }
+
     private function isEquivalentPayload(Order $existing, array $validated): bool
     {
+        // 1. Validate complete financial totals
         if ((int) $existing->total_riel !== (int) $validated['total_riel']) {
             return false;
         }
-        if ($existing->payment_method !== $validated['payment_method']) {
+        if ((int) $existing->discount_riel !== (int) ($validated['discount_riel'] ?? 0)) {
+            return false;
+        }
+        if ((int) $existing->tax_riel !== (int) ($validated['tax_riel'] ?? 0)) {
             return false;
         }
 
+        // 2. Validate payment method and tendered amounts
+        if ($existing->payment_method !== $validated['payment_method']) {
+            return false;
+        }
+        if (isset($validated['received_riel']) && (int) $existing->received_riel !== (int) $validated['received_riel']) {
+            return false;
+        }
+        if (isset($validated['change_riel']) && (int) $existing->change_riel !== (int) $validated['change_riel']) {
+            return false;
+        }
+
+        // 3. Validate line items: product_id, aggregate qty, and unit price
         $existingItems = [];
         foreach ($existing->items as $item) {
             $pid = (int) $item->product_id;
-            $existingItems[$pid] = ($existingItems[$pid] ?? 0) + (int) $item->qty;
+            if (!isset($existingItems[$pid])) {
+                $existingItems[$pid] = ['qty' => 0, 'sale_price' => (int) $item->sale_price];
+            }
+            $existingItems[$pid]['qty'] += (int) $item->qty;
         }
 
         $incomingItems = [];
         foreach ($validated['items'] as $item) {
             $pid = (int) $item['product_id'];
-            $incomingItems[$pid] = ($incomingItems[$pid] ?? 0) + (int) $item['qty'];
+            if (!isset($incomingItems[$pid])) {
+                $customPrice = isset($item['custom_price']) && $item['custom_price'] !== null ? (int) $item['custom_price'] : null;
+                $incomingItems[$pid] = ['qty' => 0, 'custom_price' => $customPrice];
+            }
+            $incomingItems[$pid]['qty'] += (int) $item['qty'];
+        }
+
+        if (count($existingItems) !== count($incomingItems)) {
+            return false;
         }
 
         ksort($existingItems);
         ksort($incomingItems);
 
-        return $existingItems === $incomingItems;
+        foreach ($incomingItems as $pid => $data) {
+            if (!isset($existingItems[$pid])) {
+                return false;
+            }
+            if ($existingItems[$pid]['qty'] !== $data['qty']) {
+                return false;
+            }
+            if ($data['custom_price'] !== null && $existingItems[$pid]['sale_price'] !== $data['custom_price']) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function resolveIdempotentOrder(Order $order, array $validated, $user): \Illuminate\Http\JsonResponse
+    {
+        if ($order->cashier_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cross-user idempotency violation: Operation ID is already registered to another user.',
+            ], 403);
+        }
+
+        if (!$this->isEquivalentPayload($order, $validated)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Conflict: client_operation_id already used with a different payload.',
+            ], 409);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order already processed (idempotent recovery)',
+            'data' => $order->loadMissing(['cashier:id,name', 'items.product']),
+        ], 200);
     }
 
     public function store(Request $request)
@@ -81,6 +170,7 @@ class OrderController extends Controller
             'items.*.qty' => 'required|integer|min:1',
             'items.*.custom_price' => 'nullable|integer|min:0',
             'discount_riel' => 'nullable|integer|min:0',
+            'tax_rate' => 'nullable|numeric|min:0|max:0.30',
             'tax_riel' => 'nullable|integer|min:0',
             'total_riel' => 'required|integer|min:0',
             'total_usd' => 'nullable|numeric|min:0',
@@ -101,25 +191,7 @@ class OrderController extends Controller
             ->first();
 
         if ($existing) {
-            if ($existing->cashier_id !== $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cross-user idempotency violation: Operation ID is already registered to another user.',
-                ], 403);
-            }
-
-            if (!$this->isEquivalentPayload($existing, $validated)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Conflict: client_operation_id already used with a different payload.',
-                ], 409);
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Order already processed (idempotent recovery)',
-                'data' => $existing,
-            ], 200);
+            return $this->resolveIdempotentOrder($existing, $validated, $user);
         }
 
         try {
@@ -129,23 +201,7 @@ class OrderController extends Controller
                     ->lockForUpdate()
                     ->first();
                 if ($dup) {
-                    if ($dup->cashier_id !== $user->id) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Cross-user idempotency violation: Operation ID is already registered to another user.',
-                        ], 403);
-                    }
-                    if (!$this->isEquivalentPayload($dup, $validated)) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Conflict: client_operation_id already used with a different payload.',
-                        ], 409);
-                    }
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Order already processed (idempotent recovery)',
-                        'data' => $dup->load(['cashier:id,name', 'items']),
-                    ], 200);
+                    return $this->resolveIdempotentOrder($dup, $validated, $user);
                 }
 
                 // 2. Aggregate quantities by product ID
@@ -227,7 +283,21 @@ class OrderController extends Controller
                     ], 422);
                 }
 
-                $taxRiel = (int) ($validated['tax_riel'] ?? 0);
+                // Server-side Tax Policy: explicit calculation policy
+                if (isset($validated['tax_rate']) && $validated['tax_rate'] !== null) {
+                    $taxRate = (float) $validated['tax_rate'];
+                    $taxRiel = (int) round(max(0, $calculatedSubtotal - $discountRiel) * $taxRate);
+                } else {
+                    $taxRiel = (int) ($validated['tax_riel'] ?? 0);
+                    $maxAllowableTax = (int) round(max(0, $calculatedSubtotal - $discountRiel) * 0.25);
+                    if ($taxRiel > $maxAllowableTax) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Invalid or manipulated tax amount: {$taxRiel} Riel exceeds allowable policy limit.",
+                        ], 422);
+                    }
+                }
+
                 $expectedTotalRiel = max(0, $calculatedSubtotal - $discountRiel + $taxRiel);
 
                 if ((int) $validated['total_riel'] !== $expectedTotalRiel) {
@@ -253,6 +323,26 @@ class OrderController extends Controller
                         return response()->json([
                             'success' => false,
                             'message' => 'KHQR payment cannot have change amount.',
+                        ], 422);
+                    }
+                } elseif ($paymentMethod === 'cash_usd') {
+                    $expectedTotalUsd = round($expectedTotalRiel / 4100, 2);
+                    $receivedUsd = (float) ($validated['received_usd'] ?? 0.0);
+                    $changeUsd = (float) ($validated['change_usd'] ?? 0.0);
+
+                    if ($receivedUsd < $expectedTotalUsd) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Insufficient USD payment received. Total: \${$expectedTotalUsd}, received: \${$receivedUsd}.",
+                        ], 422);
+                    }
+
+                    $expectedChangeUsd = round($receivedUsd - $expectedTotalUsd, 2);
+                    $expectedChangeRielFromUsd = (int) round($expectedChangeUsd * 4100);
+                    if (abs($changeUsd - $expectedChangeUsd) > 0.02 && abs($changeRiel - $expectedChangeRielFromUsd) > 100) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "USD change mismatch. Expected: \${$expectedChangeUsd} (or {$expectedChangeRielFromUsd} Riel), received: \${$changeUsd} / {$changeRiel} Riel.",
                         ], 422);
                     }
                 } else {
@@ -339,16 +429,12 @@ class OrderController extends Controller
             });
         } catch (\Illuminate\Database\QueryException $e) {
             // Handle race-condition unique constraint duplicate entry
-            if ($e->getCode() === '23000') {
+            if ($e->getCode() === '23000' || str_contains($e->getMessage(), 'Duplicate entry')) {
                 $committed = Order::with(['cashier:id,name', 'items'])
                     ->where('client_operation_id', $opId)
                     ->first();
                 if ($committed) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Order already processed (idempotent recovery)',
-                        'data' => $committed,
-                    ], 200);
+                    return $this->resolveIdempotentOrder($committed, $validated, $user);
                 }
             }
             throw $e;
