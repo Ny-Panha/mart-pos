@@ -55,7 +55,7 @@ class ManagerPage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      Text(title, style: AppTextStyles.title2XL),
+                      Text(title, style: AppTextStyles.titleXL),
                       if (description.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Text(
@@ -67,36 +67,36 @@ class ManagerPage extends StatelessWidget {
                     ],
                   )
                 else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'MINI-MART PLATFORM',
-                            style: AppTextStyles.eyebrow.copyWith(
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(title, style: AppTextStyles.title2XL),
-                          if (description.isNotEmpty) ...[
-                            const SizedBox(height: 5),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              description,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.grey[600]),
+                              'MINI-MART PLATFORM',
+                              style: AppTextStyles.eyebrow.copyWith(
+                                color: AppColors.primary,
+                              ),
                             ),
+                            const SizedBox(height: 5),
+                            Text(title, style: AppTextStyles.title2XL),
+                            if (description.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                description,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: Colors.grey[600]),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (actions.isNotEmpty)
-                      Wrap(spacing: 8, runSpacing: 8, children: actions),
-                  ],
-                ),
+                      if (actions.isNotEmpty)
+                        Wrap(spacing: 8, runSpacing: 8, children: actions),
+                    ],
+                  ),
                 SizedBox(height: constraints.maxWidth < 600 ? 18 : 24),
                 child,
               ],
