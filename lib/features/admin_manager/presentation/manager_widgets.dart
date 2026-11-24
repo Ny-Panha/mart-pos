@@ -29,6 +29,44 @@ class ManagerPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (constraints.maxWidth < 600)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'MINI-MART PLATFORM',
+                              style: AppTextStyles.eyebrow.copyWith(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          if (actions.isNotEmpty)
+                            Flexible(
+                              child: Wrap(
+                                alignment: WrapAlignment.end,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: actions,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(title, style: AppTextStyles.title2XL),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          description,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ],
+                  )
+                else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -59,7 +97,7 @@ class ManagerPage extends StatelessWidget {
                       Wrap(spacing: 8, runSpacing: 8, children: actions),
                   ],
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: constraints.maxWidth < 600 ? 18 : 24),
                 child,
               ],
             ),
@@ -76,6 +114,7 @@ class ManagerMetricCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String? footnote;
+  final bool compact;
 
   const ManagerMetricCard({
     super.key,
@@ -84,10 +123,50 @@ class ManagerMetricCard extends StatelessWidget {
     required this.icon,
     required this.color,
     this.footnote,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .12),
+                  borderRadius: AppRadius.mdBorder,
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: (Theme.of(context).textTheme.titleLarge ??
+                        AppTextStyles.titleLG)
+                    .copyWith(fontSize: 21, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 11.5,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
