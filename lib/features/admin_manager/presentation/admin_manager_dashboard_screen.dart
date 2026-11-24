@@ -20,7 +20,11 @@ class AdminManagerDashboardScreen extends ConsumerWidget {
           'ទិដ្ឋភាពទូទៅនៃប្រតិបត្តិការហាងទាំងអស់ កញ្ចប់សេវា និងស្ថានភាពប្រព័ន្ធ',
       actions: [
         OutlinedButton.icon(
-          onPressed: () => ref.invalidate(managerDashboardProvider),
+          onPressed: () {
+            ref.invalidate(managerDashboardProvider);
+            ref.invalidate(managerShopsProvider);
+            ref.invalidate(managerAlertsProvider);
+          },
           icon: const Icon(Icons.refresh),
           label: const Text('Refresh'),
         ),
@@ -59,76 +63,95 @@ class _DashboardBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GridView.count(
-          crossAxisCount: MediaQuery.sizeOf(context).width >= 1100
-              ? 4
-              : MediaQuery.sizeOf(context).width >= 650
-              ? 2
-              : 1,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-          childAspectRatio: 2.2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            ManagerMetricCard(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isCompact = width < 650;
+            final columns = width >= 1100
+                ? 4
+                : width >= 750
+                    ? 3
+                    : width >= 320
+                        ? 2
+                        : 1;
+
+            return GridView.count(
+              crossAxisCount: columns,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              mainAxisExtent: isCompact ? 138 : 112,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Total shops',
               value: '${metrics.shops == 0 ? shopList.length : metrics.shops}',
               icon: Icons.storefront_outlined,
               color: AppColors.primary,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Active shops',
               value: '${metrics.activeShops}',
               icon: Icons.verified_outlined,
               color: AppColors.success,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Administrators',
               value: '${metrics.admins}',
               icon: Icons.manage_accounts_outlined,
               color: AppColors.secondary,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Cashiers',
               value: '${metrics.cashiers}',
               icon: Icons.point_of_sale_outlined,
               color: AppColors.warning,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Products',
               value: '${metrics.products}',
               icon: Icons.inventory_2_outlined,
               color: AppColors.info,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Low stock',
               value: '${metrics.lowStock}',
               icon: Icons.warning_amber_outlined,
               color: AppColors.danger,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: '30 day revenue',
               value: managerMoney(metrics.revenue),
               icon: Icons.payments_outlined,
               color: AppColors.success,
             ),
-            ManagerMetricCard(
+                ManagerMetricCard(
+                  compact: isCompact,
               label: 'Orders',
               value: '${metrics.orders}',
               icon: Icons.receipt_long_outlined,
               color: AppColors.primaryLight,
             ),
-          ],
+              ],
+            );
+          },
         ),
         const SizedBox(height: 18),
         LayoutBuilder(
           builder: (context, constraints) {
             if (constraints.maxWidth < 800) {
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _shopsCard(shopList),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
                   _alertsCard(alertList),
                 ],
               );
