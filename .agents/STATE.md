@@ -2,49 +2,39 @@
 
 ## Last Session
 
-- Antigravity IDE · 2026-11-24 15:18 ICT
-- Branch `ui/admin-manager-premium-rebuild`
+- Antigravity IDE · 2026-11-24 17:58 ICT
+- Branch `ui/full-frontend-rebuild`
 
-## Summary: Global Products Catalog Premium Rebuild (`/manager/products`)
+## Summary: Firebase Callable Serialization & Error Safety Fix
 
-- **Root Cause & Fix for Identical UI between `/manager/products` and `/manager/stock`**:
-  - Previously, Global Products shared a flat inventory table structure similar to Stock Overview without product imagery, category segmentation, or store merchandising.
-  - Rebuilt `/manager/products` as a modern, high-end E-Commerce / Marketplace Showcase (Purrweb Furniture Marketplace & Stripe Catalog baseline).
-- **Core Improvements in Global Products (`AdminManagerCatalogScreen`)**:
-  1. **Catalog KPI Bar**: 4 key performance metrics (Catalog Items, Total Valuation in Riel, Active Participating Shops, and Category count).
-  2. **Multi-Axis Merchandising Toolbar**:
-     - Live search by Name, Barcode, SKU, or Category.
-     - Shop-level filter dropdown (`All Shops` + dynamically populated shop list).
-     - Sorting selector (`Name A-Z`, `Price: Low → High`, `Price: High → Low`, `Highest Stock`).
-     - Horizontally scrollable Category pills ribbon (`All`, `Beverages`, `Food & Snacks`, `Personal Care`, `General`).
-  3. **Visual Grid View (Purrweb E-Commerce Style)**:
-     - 135px dedicated product photo container powered by `ProductThumbnail` (auto-maps high-res local assets `coca_cola.jpg`, `angkor_water.jpg`, `sting_energy.jpg`, `mama_noodles.jpg`, etc., and network URLs).
-     - Floating frosted category chip on top-left of image.
-     - Floating stock level badge on top-right (`In stock`, `Low`, `Out of stock`).
-     - Product title, storefront shop badge, and barcode/SKU chips.
-     - Large bold formatted price in Riel (`managerMoney`) + unit (`/កំប៉ុង`).
-     - "Details" action button with chevron.
-  4. **Visual List View Toggle**:
-     - User can toggle between Visual Grid View and Visual List View.
-     - List cards render 68x68 thumbnail, category badge, shop pill, price, and stock status.
-  5. **Interactive Product Details Modal (`_showProductDetails`)**:
-     - Tapping any card opens a 480px dialog with 180x180 preview photo, full pricing breakdown (Sale, Cost, Margin %), stock level & threshold, barcode, SKU, Product ID, and Shop ID.
-- **Verification**:
-  - `flutter analyze`: **0 issues found** across all files.
-  - `flutter test test/admin_manager_redesign_test.dart`: **All 10 tests passed (100%)** including responsive tests at 360px and 1024px.
-  - Resolved `activeColor` deprecation on `Switch` in `admin_manager_system_screen.dart` (`activeThumbColor`).
+- **Root Cause & Permanent Fix**:
+  - `functions.call('getPlatformDashboard')` previously passed Firestore `Timestamp` objects (`Timestamp.fromDate(from)`).
+  - Firebase `HttpsCallable.call(parameters)` runs `assert(_debugIsValidParameterType(parameters))`, allowing only JSON primitive types (`String`, `num`, `bool`, `null`, `List`, `Map`).
+  - Replaced parameters with UTC ISO 8601 strings: `from.toUtc().toIso8601String()` and `to.toUtc().toIso8601String()`.
+- **Backend & Parity Verification (`functions/index.js`)**:
+  - Verified backend `timestampFromInput(value)` parses ISO 8601 strings (`new Date(value)`).
+  - Date range filtering `(!from || date >= from) && (!to || date <= to)` verified.
+  - Added matching `from`/`to` date range filtering to Firestore fallback.
+- **Error Handling Transparency**:
+  - `FirebaseFunctionsException` with `unauthenticated`, `permission-denied`, or `invalid-argument` are explicitly rethrown, preventing silent fallback or masking of authentication/authorization failures.
+  - Fallback errors rethrow clear error context rather than returning empty zero-state dashboards.
+- **Verification & Regression Suite**:
+  - Created `test/admin_manager_callable_serialization_test.dart` (3/3 passed).
+  - `flutter test test/admin_manager_redesign_test.dart` (10/10 passed).
+  - `flutter test test/widget_test.dart` (63/63 passed).
+  - `flutter analyze`: **0 issues found**.
 
 ## Active Environment
 
 - Flutter SDK: 3.x / Dart 3.x
 - Backend: Laravel API on `http://localhost:8080`, MySQL on port 3306
 - Platform Dashboard, Admin Operations, and POS Shell operational
-- Current test URL: `http://localhost:44409/#/manager/products`
+- Current test URL: `http://localhost:44409/#/manager/dashboard`
 
 ## Next Steps
 
-- Test on active browser (`http://localhost:44409/#/manager/products`).
-- Commit and push branch `ui/admin-manager-premium-rebuild`.
+- Continue full frontend presentation rebuild across Cashier, Shop Admin, and Shared navigation layers.
+
 
 ## Previous Session
 

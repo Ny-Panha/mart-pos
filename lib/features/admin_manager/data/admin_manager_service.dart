@@ -146,12 +146,21 @@ class AdminManagerService {
   }) async {
     try {
       final result = await functions.call('getPlatformDashboard', {
-        if (from != null) 'from': from.toIso8601String(),
-        if (to != null) 'to': to.toIso8601String(),
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
       });
       return PlatformDashboard.fromMap(result);
     } catch (e) {
-      // Fallback directly to Firestore collections if Cloud Functions are not deployed, unauthenticated, or unreachable
+      // Do not silently hide authentication, permission, or argument validation errors.
+      if (e is FirebaseFunctionsException) {
+        if (e.code == 'unauthenticated' ||
+            e.code == 'permission-denied' ||
+            e.code == 'invalid-argument') {
+          rethrow;
+        }
+      }
+
+      // Fallback directly to Firestore collections if Cloud Functions are not deployed, unauthenticated on endpoint, or unreachable
       try {
         final shopsSnap = await _shops.get();
         final usersSnap = await _users.get();
@@ -183,7 +192,6 @@ class AdminManagerService {
 
         for (final s in sales) {
           final total = (s['total'] is num) ? (s['total'] as num).toInt() : 0;
-          totalRevenue += total;
 
           DateTime? date;
           final createdAt = s['createdAt'];
@@ -193,9 +201,15 @@ class AdminManagerService {
             date = DateTime.tryParse(createdAt);
           }
           if (date != null) {
+            if (from != null && date.isBefore(from)) continue;
+            if (to != null && date.isAfter(to)) continue;
+
+            totalRevenue += total;
             final key =
                 '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
             revenueMap[key] = (revenueMap[key] ?? 0) + total;
+          } else {
+            totalRevenue += total;
           }
         }
 
@@ -216,7 +230,9 @@ class AdminManagerService {
           revenueSeries: series,
         );
       } catch (fallbackError) {
-        return const PlatformDashboard();
+        throw Exception(
+          'Failed to load platform data: $e (Firestore fallback error: $fallbackError)',
+        );
       }
     }
   }
