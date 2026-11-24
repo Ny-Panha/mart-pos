@@ -293,7 +293,13 @@ class PlatformProduct {
   final String barcode;
   final int stockQty;
   final int salePrice;
+  final int costPrice;
   final int lowStockThreshold;
+  final String categoryId;
+  final String categoryName;
+  final String unit;
+  final String status;
+  final String? imageUrl;
 
   const PlatformProduct({
     required this.id,
@@ -304,7 +310,13 @@ class PlatformProduct {
     this.barcode = '',
     this.stockQty = 0,
     this.salePrice = 0,
+    this.costPrice = 0,
     this.lowStockThreshold = 0,
+    this.categoryId = '',
+    this.categoryName = '',
+    this.unit = 'កំប៉ុង',
+    this.status = 'active',
+    this.imageUrl,
   });
 
   factory PlatformProduct.fromDocument(
@@ -320,9 +332,17 @@ class PlatformProduct {
       barcode: _text(data['barcode']),
       stockQty: _number(data['stockQty'] ?? data['stock_qty']),
       salePrice: _number(data['salePrice'] ?? data['sale_price']),
+      costPrice: _number(data['costPrice'] ?? data['cost_price']),
       lowStockThreshold: _number(
         data['lowStockThreshold'] ?? data['low_stock_threshold'],
       ),
+      categoryId: _text(data['categoryId'] ?? data['category_id']),
+      categoryName: _text(data['categoryName'] ?? data['category']),
+      unit: _text(data['unit'], 'កំប៉ុង'),
+      status: _text(data['status'], 'active'),
+      imageUrl: (data['imageUrl'] != null && data['imageUrl'].toString().trim().isNotEmpty)
+          ? data['imageUrl'].toString().trim()
+          : null,
     );
   }
 }

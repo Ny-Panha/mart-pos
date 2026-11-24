@@ -543,7 +543,7 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
                 const SizedBox(width: 12),
                 Switch(
                   value: posEnabled,
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                   onChanged: (val) => setState(() => posEnabled = val),
                 ),
               ],

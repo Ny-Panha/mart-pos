@@ -360,6 +360,29 @@ void main() {
 
       expect(find.text('កាតាឡុកទំនិញរួម (Global Products)'), findsOneWidget);
       expect(find.text('Vital Premium Water 500ml'), findsOneWidget);
+      expect(find.text('Catalog Items'), findsOneWidget);
+      expect(find.text('Total Valuation'), findsOneWidget);
+
+      // Verify toggle to list view and back
+      final listViewButton = find.byTooltip('List view');
+      if (listViewButton.evaluate().isNotEmpty) {
+        await tester.tap(listViewButton);
+        await tester.pumpAndSettle();
+        expect(find.byType(AdminManagerCatalogScreen), findsOneWidget);
+
+        // Toggle back to grid view
+        await tester.tap(find.byTooltip('Grid view'));
+        await tester.pumpAndSettle();
+      }
+
+      // Tap card to open Product Details dialog
+      await tester.tap(find.text('Vital Premium Water 500ml'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      if (find.text('Product Details').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+      }
+
       expect(tester.takeException(), isNull);
     }
   });
