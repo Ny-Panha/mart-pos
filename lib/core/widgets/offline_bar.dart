@@ -1,13 +1,17 @@
 import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 class OfflineBar extends StatefulWidget {
   final int pendingSyncCount;
 
+  final ValueChanged<bool>? onConnectivityChanged;
+
   const OfflineBar({
     super.key,
     this.pendingSyncCount = 0,
+    this.onConnectivityChanged,
   });
 
   @override
@@ -25,7 +29,7 @@ class _OfflineBarState extends State<OfflineBar> {
     _subscription = Connectivity().onConnectivityChanged.listen((results) {
       final isNowOnline = !results.contains(ConnectivityResult.none);
       if (mounted) {
-        setState(() => _isOnline = isNowOnline);
+        _setOnline(isNowOnline);
       }
     });
   }
@@ -34,7 +38,7 @@ class _OfflineBarState extends State<OfflineBar> {
     try {
       final results = await Connectivity().checkConnectivity();
       if (mounted) {
-        setState(() => _isOnline = !results.contains(ConnectivityResult.none));
+        _setOnline(!results.contains(ConnectivityResult.none));
       }
     } catch (_) {
       // Keep default online
@@ -47,102 +51,43 @@ class _OfflineBarState extends State<OfflineBar> {
     super.dispose();
   }
 
+  void _setOnline(bool online) {
+    if (online == _isOnline) return;
+    setState(() => _isOnline = online);
+    widget.onConnectivityChanged?.call(online);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (_isOnline && widget.pendingSyncCount == 0) {
-      // Blue online bar
-      final barColor = isDark
-          ? const Color(0xFF0369A1).withValues(alpha: 0.25)
-          : const Color(0xFF0284C7).withValues(alpha: 0.12);
-      final accentColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1);
-
-      return Container(
-        height: 28,
-        width: double.infinity,
-        color: barColor,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+    final available = _isOnline && widget.pendingSyncCount == 0;
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: available ? colors.surface : colors.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Row(
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
-                shape: BoxShape.circle,
-              ),
+            Icon(
+              available ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+              size: 15,
+              color: available ? colors.secondary : colors.onErrorContainer,
             ),
             const SizedBox(width: 8),
-            Text(
-              'Online — Sync Active (Cloud Firestore Connected)',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: accentColor,
+            Expanded(
+              child: Text(
+                available ? 'Online' : 'Offline · Checkout unavailable',
+                style: Theme.of(context).textTheme.labelSmall,
               ),
             ),
-            const Spacer(),
             InkWell(
-              onTap: () {
-                setState(() => _isOnline = false);
-              },
+              onTap: () => _setOnline(!available),
               child: Text(
-                'Test Offline',
-                style: TextStyle(
-                  fontSize: 10,
-                  decoration: TextDecoration.underline,
-                  color: accentColor,
-                ),
+                available ? 'Test offline' : 'Resume online',
+                style: Theme.of(context).textTheme.labelSmall,
               ),
             ),
           ],
         ),
-      );
-    }
-
-    // Orange offline mode bar
-    return Container(
-      height: 32,
-      width: double.infinity,
-      color: Colors.amber.shade800,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '⚠️ Offline Mode — Active internet connection required for checkout (authoritative sync)',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: () {
-              setState(() => _isOnline = true);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'Resume Online',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

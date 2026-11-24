@@ -1,6 +1,29 @@
-# STATE: Mini-Mart POS Project Synchronization
+# MART POS shared state
 
 ## Last Session
+
+- Codex CLI · 2026-11-24 11:45 ICT
+- Branch `ui/premium-pos-redesign`, based on `fix/final-safety-repair` at `b77de897e5c2a0138ab9db319611999ddc753503`.
+
+## Summary
+
+- Redesigned the POS product browser, cart and payment dialog. Mobile has separate catalog and cart views with sticky actions. Desktop uses two panes. The existing app theme loads bundled Noto Sans Khmer assets.
+- Search, barcode entry, recent scans, category filters, customer selection, line-price overrides, quantity entry, tax and discount controls use the existing providers. Unresolved checkouts expose the existing reconciliation, retry and dismissal paths.
+- `flutter analyze` passed. `flutter test` passed all 81 tests, including 14 new POS widget tests. The cashier shell was exercised at 320, 360, 390, 430, 768, 1024 and 1440 logical pixels, including payment with keyboard insets.
+- Captured and inspected five Flutter-rendered screens in `docs/screenshots/pos/`. The widget harness uses a snapshot of local API products and categories, a test cashier and an open-shift fixture. To regenerate, run `flutter test --update-goldens test/pos_redesign_test.dart`.
+
+## Active Environment
+
+- Local Laravel API at `http://localhost:8080` served the catalog. MySQL was listening on port 3306.
+- The screenshots use Flutter's test renderer. No sale was submitted to the live backend during UI verification.
+
+## Next Steps
+
+- Physical-device camera scanning and live payment settlement were outside the widget test run.
+- The workspace contains prior edits in `backend/database/seeders/DatabaseSeeder.php` and `lib/features/admin_manager/data/admin_manager_service.dart`, excluded from this branch commit.
+
+## Previous Session
+
 - **Environment**: Antigravity IDE
 - **Timestamp**: 2026-11-24 00:05 (ICT)
 - **Branch**: `fix/final-safety-repair`

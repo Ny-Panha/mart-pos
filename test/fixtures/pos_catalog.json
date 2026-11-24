@@ -1,0 +1,116 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "code": "PROD-001",
+      "name": "Coca Cola 330ml",
+      "sku": "COCA-330",
+      "barcode": "884000101",
+      "category_id": 1,
+      "sale_price": 2500,
+      "cost_price": 1600,
+      "stock_qty": 48,
+      "unit": "កំប៉ុង",
+      "low_stock_threshold": 10,
+      "image_url": "assets/products/coca_cola.jpg"
+    },
+    {
+      "id": 2,
+      "code": "PROD-002",
+      "name": "Sting Energy Drink 330ml",
+      "sku": "STING-330",
+      "barcode": "884000102",
+      "category_id": 1,
+      "sale_price": 3000,
+      "cost_price": 1800,
+      "stock_qty": 36,
+      "unit": "ដប",
+      "low_stock_threshold": 10,
+      "image_url": "assets/products/sting_energy.jpg"
+    },
+    {
+      "id": 3,
+      "code": "PROD-003",
+      "name": "Red Bull Energy 250ml",
+      "sku": "REDBULL-250",
+      "barcode": "884000103",
+      "category_id": 1,
+      "sale_price": 3600,
+      "cost_price": 2400,
+      "stock_qty": 24,
+      "unit": "កំប៉ុង",
+      "low_stock_threshold": 10,
+      "image_url": "assets/products/red_bull.jpg"
+    },
+    {
+      "id": 5,
+      "code": "PROD-005",
+      "name": "Pure Drinking Water 500ml",
+      "sku": "WATER-500",
+      "barcode": "884000105",
+      "category_id": 1,
+      "sale_price": 1000,
+      "cost_price": 600,
+      "stock_qty": 60,
+      "unit": "ដប",
+      "low_stock_threshold": 15,
+      "image_url": "assets/products/water.jpg"
+    },
+    {
+      "id": 6,
+      "code": "PROD-006",
+      "name": "Mama Instant Noodles Tom Yum",
+      "sku": "MAMA-TOMYUM",
+      "barcode": "884000106",
+      "category_id": 3,
+      "sale_price": 1500,
+      "cost_price": 1000,
+      "stock_qty": 50,
+      "unit": "កញ្ចប់",
+      "low_stock_threshold": 10,
+      "image_url": "assets/products/mama.jpg"
+    },
+    {
+      "id": 7,
+      "code": "PROD-007",
+      "name": "Indomie Mi Goreng 85g",
+      "sku": "INDOMIE-GORENG",
+      "barcode": "884000107",
+      "category_id": 3,
+      "sale_price": 2000,
+      "cost_price": 1300,
+      "stock_qty": 45,
+      "unit": "កញ្ចប់",
+      "low_stock_threshold": 10,
+      "image_url": "assets/products/indomie.jpg"
+    },
+    {
+      "id": 8,
+      "code": "PROD-008",
+      "name": "Lays Classic Potato Chips 50g",
+      "sku": "LAYS-CLASSIC",
+      "barcode": "884000108",
+      "category_id": 2,
+      "sale_price": 4000,
+      "cost_price": 2800,
+      "stock_qty": 20,
+      "unit": "កញ្ចប់",
+      "low_stock_threshold": 5,
+      "image_url": "assets/products/lays.jpg"
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Beverages"
+    },
+    {
+      "id": 2,
+      "name": "Snacks & Bakery"
+    },
+    {
+      "id": 3,
+      "name": "Instant Food"
+    }
+  ]
+}
