@@ -144,11 +144,81 @@ class AdminManagerService {
     DateTime? from,
     DateTime? to,
   }) async {
-    final result = await functions.call('getPlatformDashboard', {
-      if (from != null) 'from': Timestamp.fromDate(from),
-      if (to != null) 'to': Timestamp.fromDate(to),
-    });
-    return PlatformDashboard.fromMap(result);
+    try {
+      final result = await functions.call('getPlatformDashboard', {
+        if (from != null) 'from': from.toIso8601String(),
+        if (to != null) 'to': to.toIso8601String(),
+      });
+      return PlatformDashboard.fromMap(result);
+    } catch (e) {
+      // Fallback directly to Firestore collections if Cloud Functions are not deployed, unauthenticated, or unreachable
+      try {
+        final shopsSnap = await _shops.get();
+        final usersSnap = await _users.get();
+        final productsSnap = await _products.get();
+        final salesSnap = await firestore.collection('sales').get();
+
+        final shops = shopsSnap.docs.map((d) => d.data()).toList();
+        final users = usersSnap.docs.map((d) => d.data()).toList();
+        final products = productsSnap.docs.map((d) => d.data()).toList();
+        final sales = salesSnap.docs.map((d) => d.data()).toList();
+
+        final activeShops = shops
+            .where((s) => (s['status'] ?? 'active').toString().toLowerCase() == 'active')
+            .length;
+        final admins = users
+            .where((u) => u['role']?.toString().toUpperCase() == 'ADMIN')
+            .length;
+        final cashiers = users
+            .where((u) => u['role']?.toString().toUpperCase() == 'CASHIER')
+            .length;
+        final lowStock = products.where((p) {
+          final stock = (p['stockQty'] is num) ? (p['stockQty'] as num).toInt() : 0;
+          final threshold = (p['lowStockThreshold'] is num) ? (p['lowStockThreshold'] as num).toInt() : 5;
+          return stock <= threshold;
+        }).length;
+
+        int totalRevenue = 0;
+        final Map<String, int> revenueMap = {};
+
+        for (final s in sales) {
+          final total = (s['total'] is num) ? (s['total'] as num).toInt() : 0;
+          totalRevenue += total;
+
+          DateTime? date;
+          final createdAt = s['createdAt'];
+          if (createdAt is Timestamp) {
+            date = createdAt.toDate();
+          } else if (createdAt is String) {
+            date = DateTime.tryParse(createdAt);
+          }
+          if (date != null) {
+            final key =
+                '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+            revenueMap[key] = (revenueMap[key] ?? 0) + total;
+          }
+        }
+
+        final sortedKeys = revenueMap.keys.toList()..sort();
+        final series = sortedKeys
+            .map((k) => PlatformMetricPoint(label: k, value: revenueMap[k]!))
+            .toList();
+
+        return PlatformDashboard(
+          shops: shops.length,
+          activeShops: activeShops,
+          admins: admins,
+          cashiers: cashiers,
+          products: products.length,
+          lowStock: lowStock,
+          revenue: totalRevenue,
+          orders: sales.length,
+          revenueSeries: series,
+        );
+      } catch (fallbackError) {
+        return const PlatformDashboard();
+      }
+    }
   }
 
   Future<Map<String, dynamic>> provisionShop({

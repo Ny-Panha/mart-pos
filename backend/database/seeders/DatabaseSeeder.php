@@ -36,6 +36,28 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        User::firstOrCreate(
+            ['email' => 'admin@bbu.edu.kh'],
+            [
+                'name' => 'Admin (ផ្កាយ)',
+                'role' => 'ADMIN_MANAGER',
+                'phone' => '012345678',
+                'status' => 'active',
+                'password' => Hash::make('12345678'),
+            ]
+        );
+
+        User::firstOrCreate(
+            ['email' => 'cashier@bbu.edu.kh'],
+            [
+                'name' => 'Cashier (បញ្ញា)',
+                'role' => 'CASHIER',
+                'phone' => '098765432',
+                'status' => 'active',
+                'password' => Hash::make('12345678'),
+            ]
+        );
+
         // 2. Customers
         Customer::firstOrCreate(
             ['phone' => '012999888'],

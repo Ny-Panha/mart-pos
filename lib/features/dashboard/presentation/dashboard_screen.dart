@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 import '../../../core/utils/money.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
@@ -92,11 +94,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         .clamp(0, products.length);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A1222) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(
-            MediaQuery.sizeOf(context).width < 600 ? 14.0 : 22.0,
+            MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,19 +259,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'LIVE OPERATIONS & ANALYTICS',
+                  'SHOP OPERATIONS & ANALYTICS',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.9,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    color: isDark ? AppColors.darkPrimary : AppColors.primary,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             Text(
-              "Tonight's Service",
+              'ផ្ទាំងគ្រប់គ្រងហាង (Shop Overview)',
               style: TextStyle(
                 fontSize: isWide ? 28 : 22,
                 fontWeight: FontWeight.w800,
@@ -278,7 +280,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
             Text(
-              "ប្រតិបត្តិការថ្ងៃនេះ • Mart Sales & Inventory Radar",
+              'សង្ខេបការលក់ ប្រាក់ចំណូល និងស្ថានភាពស្តុកទំនិញ',
               style: TextStyle(
                 fontSize: 12,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -299,7 +301,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 iconBg: const Color(0xFF6366F1).withValues(alpha: 0.18),
                 iconColor: const Color(0xFF818CF8),
                 value: MoneyUtils.formatRiel(todayRevenue),
-                badgeText: todayRevenue > 0 ? '+12% vs last week' : '0%',
+                badgeText: MoneyUtils.formatUSD(MoneyUtils.rielToUsd(todayRevenue)),
                 badgePositive: true,
                 subtitle: 'Revenue today',
               ),
@@ -312,7 +314,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 iconBg: const Color(0xFF10B981).withValues(alpha: 0.18),
                 iconColor: const Color(0xFF34D399),
                 value: '$todayOrders',
-                badgeText: 'Orders of 50 goal',
+                badgeText: '$todayOrders orders',
                 badgePositive: null,
                 subtitle: 'Completed sales',
               ),
@@ -529,7 +531,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Live service',
+                        'ទិដ្ឋភាពប្រាក់ចំណូល (Revenue Overview)',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -571,8 +573,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   Text(
                     _isRevenueMode
-                        ? 'taken today • -8% vs last week'
-                        : 'receipts today',
+                        ? 'សរុបថ្ងៃនេះ • $todayOrders វិក្កយបត្រ'
+                        : '$todayOrders វិក្កយបត្រថ្ងៃនេះ',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -600,7 +602,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Tonight (ថ្ងៃនេះ)',
+                        'ថ្ងៃនេះ (Today)',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -732,7 +734,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Live service',
+                              'ទិដ្ឋភាពប្រាក់ចំណូល (Revenue Overview)',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -1162,7 +1164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'The room',
+                    'សុខភាពស្តុក (Stock Health)',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -1170,7 +1172,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ),
                   Text(
-                    'សុខភាពស្តុកទំនិញ (Capacity)',
+                    'សមាមាត្រស្តុកទំនិញសរុប',
                     style: TextStyle(
                       fontSize: 10,
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -1313,7 +1315,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Still to come',
+                    'កិច្ចការរហ័ស (Quick Actions)',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -1321,7 +1323,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ),
                   Text(
-                    'កិច្ចការបន្ទាន់ & បញ្ជរលក់',
+                    'បញ្ជរលក់ & បន្ថែមទំនិញ',
                     style: TextStyle(
                       fontSize: 10,
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -1477,7 +1479,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'On the pass',
+                    'វិក្កយបត្រថ្មីៗ (Recent Transactions)',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -1485,7 +1487,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ),
                   Text(
-                    'វិក្កយបត្រថ្មីៗ (Recent Orders)',
+                    'ប្រតិបត្តិការលក់ចុងក្រោយបង្អស់',
                     style: TextStyle(
                       fontSize: 11,
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),

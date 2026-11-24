@@ -1,73 +1,178 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../models/admin_manager_models.dart';
 import '../providers/admin_manager_providers.dart';
 import 'manager_widgets.dart';
 
-class AdminManagerShopsScreen extends ConsumerWidget {
+// =============================================================================
+// SCREEN 2 — SHOPS
+// =============================================================================
+
+class AdminManagerShopsScreen extends ConsumerStatefulWidget {
   const AdminManagerShopsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shops = ref.watch(managerShopsProvider);
+  ConsumerState<AdminManagerShopsScreen> createState() =>
+      _AdminManagerShopsScreenState();
+}
+
+class _AdminManagerShopsScreenState
+    extends ConsumerState<AdminManagerShopsScreen> {
+  String _searchQuery = '';
+  String _selectedStatus = 'All';
+
+  @override
+  Widget build(BuildContext context) {
+    final shopsAsync = ref.watch(managerShopsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ManagerPage(
-      title: 'Shops',
-      description: 'Provision, monitor, and manage every Kambuja-POS shop.',
+      title: 'គ្រប់គ្រងហាង (Shops)',
+      description: 'បង្កើត និងគ្រប់គ្រងសាខាហាងទាំងអស់ក្នុងប្រព័ន្ធ Platform',
       actions: [
         FilledButton.icon(
           onPressed: () => _showProvisionShop(context, ref),
-          icon: const Icon(Icons.add_business_outlined),
-          label: const Text('New shop'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+          icon: const Icon(Icons.add_business_rounded, size: 18),
+          label: const Text('New Shop'),
         ),
       ],
-      child: shops.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      child: shopsAsync.when(
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(60),
+            child: CircularProgressIndicator(),
+          ),
+        ),
         error: (error, _) =>
             managerError(error, () => ref.invalidate(managerShopsProvider)),
-        data: (items) => ManagerSectionCard(
-          title: '${items.length} shops',
-          child: items.isEmpty
-              ? const Text('No shops have been provisioned.')
-              : _shopsTable(context, items),
-        ),
+        data: (shops) {
+          final filtered = shops.where((shop) {
+            final matchesSearch = shop.name.toLowerCase().contains(_searchQuery) ||
+                shop.ownerName.toLowerCase().contains(_searchQuery) ||
+                shop.ownerEmail.toLowerCase().contains(_searchQuery);
+            final matchesStatus = _selectedStatus == 'All' ||
+                shop.status.toLowerCase() == _selectedStatus.toLowerCase();
+            return matchesSearch && matchesStatus;
+          }).toList();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ManagerSearchFilterBar(
+                hintText: 'ស្វែងរកហាង ឬម្ចាស់ហាង (Search shops)...',
+                onSearch: (q) => setState(() => _searchQuery = q.toLowerCase()),
+                filters: const ['All', 'Active', 'Inactive'],
+                activeFilter: _selectedStatus,
+                onFilterChanged: (f) => setState(() => _selectedStatus = f),
+              ),
+              const SizedBox(height: 16),
+              ManagerSectionCard(
+                title: '${filtered.length} Shops Registered',
+                subtitle: 'Active business entities operating POS terminals',
+                child: shops.isEmpty
+                    ? ManagerEmptyState(
+                        icon: Icons.storefront_rounded,
+                        title: 'No shops created yet',
+                        description:
+                            'Get started by provisioning the first shop on your SaaS platform.',
+                        actionLabel: 'Provision First Shop',
+                        onAction: () => _showProvisionShop(context, ref),
+                      )
+                    : filtered.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text('No shops match your search criteria.'),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth < 750) {
+                                return _buildMobileShopList(filtered, isDark);
+                              }
+                              return _buildDesktopShopTable(filtered, isDark);
+                            },
+                          ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _shopsTable(BuildContext context, List<ShopSummary> shops) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Shop')),
-          DataColumn(label: Text('Owner')),
-          DataColumn(label: Text('Plan')),
-          DataColumn(label: Text('Status')),
-          DataColumn(label: Text('Created')),
-        ],
-        rows: shops
-            .map(
-              (shop) => DataRow(
+  Widget _buildDesktopShopTable(List<ShopSummary> shops, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D3442) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(
+              isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            ),
+            columnSpacing: 24,
+            columns: const [
+              DataColumn(label: Text('Shop Name')),
+              DataColumn(label: Text('Owner')),
+              DataColumn(label: Text('Subscription')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('Created Date')),
+            ],
+            rows: shops.map((shop) {
+              return DataRow(
                 cells: [
                   DataCell(
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        Text(
-                          shop.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        if (shop.address.isNotEmpty)
-                          Text(
-                            shop.address,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
-                            ),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
+                          child: const Icon(
+                            Icons.storefront_rounded,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              shop.name,
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            if (shop.address.isNotEmpty)
+                              Text(
+                                shop.address,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                ),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -75,332 +180,1425 @@ class AdminManagerShopsScreen extends ConsumerWidget {
                     Text(
                       shop.ownerEmail.isEmpty
                           ? shop.ownerName
-                          : shop.ownerEmail,
+                          : '${shop.ownerName} (${shop.ownerEmail})',
+                      style: const TextStyle(fontSize: 12.5),
                     ),
                   ),
-                  DataCell(Text(shop.subscription.toUpperCase())),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: .1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        shop.subscription.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
                   DataCell(
                     ManagerStatusChip(
                       label: shop.status,
-                      positive: shop.status == 'active',
+                      positive: shop.status.toLowerCase() == 'active',
                     ),
                   ),
-                  DataCell(Text(managerDate(shop.createdAt))),
+                  DataCell(
+                    Text(
+                      managerDate(shop.createdAt),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileShopList(List<ShopSummary> shops, bool isDark) {
+    return Column(
+      children: shops.map((shop) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      shop.name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  ManagerStatusChip(
+                    label: shop.status,
+                    positive: shop.status.toLowerCase() == 'active',
+                  ),
                 ],
               ),
-            )
-            .toList(),
-      ),
+              const SizedBox(height: 8),
+              if (shop.address.isNotEmpty) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        shop.address,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Owner: ${shop.ownerName}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.grey[400] : Colors.grey[700],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: .1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      shop.subscription.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }
 
-class AdminManagerAdminsScreen extends ConsumerWidget {
+// =============================================================================
+// SCREEN 3 — ADMIN OWNERS
+// =============================================================================
+
+class AdminManagerAdminsScreen extends ConsumerStatefulWidget {
   const AdminManagerAdminsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shops =
-        ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
-    final admins = ref.watch(managerAdminsProvider(null));
+  ConsumerState<AdminManagerAdminsScreen> createState() =>
+      _AdminManagerAdminsScreenState();
+}
+
+class _AdminManagerAdminsScreenState
+    extends ConsumerState<AdminManagerAdminsScreen> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final shops = ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
+    final adminsAsync = ref.watch(managerAdminsProvider(null));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ManagerPage(
-      title: 'Shop administrators',
-      description: 'Review shop owners and create administrator accounts through the trusted backend.',
+      title: 'អ្នកគ្រប់គ្រងហាង (Admin Owners)',
+      description: 'គណនីម្ចាស់ហាង និងអ្នកគ្រប់គ្រងប្រតិបត្តិការទាំងអស់',
       actions: [
         FilledButton.icon(
           onPressed: shops.isEmpty
               ? null
               : () => _showProvisionAdmin(context, ref, shops),
-          icon: const Icon(Icons.person_add_alt_1_outlined),
-          label: const Text('New administrator'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+          icon: const Icon(Icons.person_add_rounded, size: 18),
+          label: const Text('New Administrator'),
         ),
       ],
-      child: admins.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => managerError(
-          error,
-          () => ref.invalidate(managerAdminsProvider(null)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Banner when no shops exist
+          if (shops.isEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.warning.withValues(alpha: .3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: AppColors.warning),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'No shops registered yet',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          'Administrator accounts must belong to a shop. Please create a shop first.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.grey[400] : Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => context.go('/manager/shops'),
+                    icon: const Icon(Icons.storefront_rounded, size: 16),
+                    label: const Text('Go to Shops'),
+                  ),
+                ],
+              ),
+            ),
+
+          ManagerSearchFilterBar(
+            hintText: 'ស្វែងរក Admin តាមឈ្មោះ ឬ Email...',
+            onSearch: (q) => setState(() => _searchQuery = q.toLowerCase()),
+            onFilterChanged: (_) {},
+          ),
+          const SizedBox(height: 16),
+
+          adminsAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(60),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            error: (error, _) => managerError(
+              error,
+              () => ref.invalidate(managerAdminsProvider(null)),
+            ),
+            data: (admins) {
+              final filtered = admins.where((admin) {
+                return admin.displayName.toLowerCase().contains(_searchQuery) ||
+                    admin.email.toLowerCase().contains(_searchQuery) ||
+                    admin.shopName.toLowerCase().contains(_searchQuery);
+              }).toList();
+
+              return ManagerSectionCard(
+                title: '${filtered.length} Administrators Active',
+                subtitle: 'Authorized business managers and store owners',
+                child: admins.isEmpty
+                    ? ManagerEmptyState(
+                        icon: Icons.manage_accounts_rounded,
+                        title: 'No administrators found',
+                        description: shops.isEmpty
+                            ? 'Provision a shop first before creating administrator accounts.'
+                            : 'Click "New Administrator" above to grant shop owner credentials.',
+                      )
+                    : filtered.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text('No administrator matches your search.'),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth < 750) {
+                                return _buildMobileAdminList(filtered, isDark);
+                              }
+                              return _buildDesktopAdminTable(filtered, isDark);
+                            },
+                          ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopAdminTable(List<AdminOwner> admins, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D3442) : const Color(0xFFE2E8F0),
         ),
-        data: (items) => ManagerSectionCard(
-          title: '${items.length} administrators',
-          child: items.isEmpty
-              ? const Text('No shop administrators found.')
-              : _adminsTable(items),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(
+              isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            ),
+            columnSpacing: 24,
+            columns: const [
+              DataColumn(label: Text('Admin Name')),
+              DataColumn(label: Text('Email')),
+              DataColumn(label: Text('Assigned Shop')),
+              DataColumn(label: Text('Role')),
+              DataColumn(label: Text('Status')),
+            ],
+            rows: admins.map((admin) {
+              final initials = admin.displayName.isNotEmpty
+                  ? admin.displayName.split(' ').map((p) => p.isEmpty ? '' : p[0]).take(2).join().toUpperCase()
+                  : 'A';
+
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 15,
+                          backgroundColor: AppColors.primary.withValues(alpha: .15),
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          admin.displayName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  DataCell(Text(admin.email, style: const TextStyle(fontSize: 12.5))),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        admin.shopName.isEmpty ? admin.shopId : admin.shopName,
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  DataCell(Text(admin.role)),
+                  DataCell(
+                    ManagerStatusChip(
+                      label: admin.active ? 'active' : 'inactive',
+                      positive: admin.active,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
   }
 
-  Widget _adminsTable(List<AdminOwner> admins) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: DataTable(
-      columns: const [
-        DataColumn(label: Text('Name')),
-        DataColumn(label: Text('Email')),
-        DataColumn(label: Text('Shop')),
-        DataColumn(label: Text('Role')),
-        DataColumn(label: Text('Status')),
-      ],
-      rows: admins
-          .map(
-            (admin) => DataRow(
-              cells: [
-                DataCell(Text(admin.displayName)),
-                DataCell(Text(admin.email)),
-                DataCell(
-                  Text(admin.shopName.isEmpty ? admin.shopId : admin.shopName),
-                ),
-                DataCell(Text(admin.role)),
-                DataCell(
-                  ManagerStatusChip(
-                    label: admin.active ? 'active' : 'inactive',
-                    positive: admin.active,
+  Widget _buildMobileAdminList(List<AdminOwner> admins, bool isDark) {
+    return Column(
+      children: admins.map((admin) {
+        final initials = admin.displayName.isNotEmpty
+            ? admin.displayName.split(' ').map((p) => p.isEmpty ? '' : p[0]).take(2).join().toUpperCase()
+            : 'A';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.primary.withValues(alpha: .15),
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
-              ],
-            ),
-          )
-          .toList(),
-    ),
-  );
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      admin.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      admin.email,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Shop: ${admin.shopName.isEmpty ? admin.shopId : admin.shopName}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFFA78BFA) : AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ManagerStatusChip(
+                label: admin.active ? 'active' : 'inactive',
+                positive: admin.active,
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
 }
 
-class AdminManagerLocationsScreen extends ConsumerWidget {
+// =============================================================================
+// SCREEN 4 — LOCATIONS
+// =============================================================================
+
+class AdminManagerLocationsScreen extends ConsumerStatefulWidget {
   const AdminManagerLocationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shops =
-        ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
-    final locations = ref.watch(managerLocationsProvider(null));
+  ConsumerState<AdminManagerLocationsScreen> createState() =>
+      _AdminManagerLocationsScreenState();
+}
+
+class _AdminManagerLocationsScreenState
+    extends ConsumerState<AdminManagerLocationsScreen> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final shops = ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
+    final locationsAsync = ref.watch(managerLocationsProvider(null));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ManagerPage(
-      title: 'Locations',
-      description: 'Manage branches and selling locations across the platform.',
+      title: 'ទីតាំងសាខា (Locations)',
+      description: 'គ្រប់គ្រងសាខាលក់ និងឃ្លាំងទំនិញតាមហាងនីមួយៗ',
       actions: [
         FilledButton.icon(
           onPressed: shops.isEmpty
               ? null
               : () => _showLocationForm(context, ref, shops),
-          icon: const Icon(Icons.add_location_alt_outlined),
-          label: const Text('New location'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+          icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+          label: const Text('New Location'),
         ),
       ],
-      child: locations.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => managerError(
-          error,
-          () => ref.invalidate(managerLocationsProvider(null)),
-        ),
-        data: (items) => ManagerSectionCard(
-          title: '${items.length} locations',
-          child: items.isEmpty
-              ? const Text('No locations have been configured.')
-              : _locationsList(context, ref, items),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ManagerSearchFilterBar(
+            hintText: 'ស្វែងរកទីតាំងសាខា ឬអាសយដ្ឋាន...',
+            onSearch: (q) => setState(() => _searchQuery = q.toLowerCase()),
+            onFilterChanged: (_) {},
+          ),
+          const SizedBox(height: 16),
+          locationsAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(60),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            error: (error, _) => managerError(
+              error,
+              () => ref.invalidate(managerLocationsProvider(null)),
+            ),
+            data: (locations) {
+              final filtered = locations.where((loc) {
+                return loc.name.toLowerCase().contains(_searchQuery) ||
+                    loc.address.toLowerCase().contains(_searchQuery) ||
+                    loc.shopId.toLowerCase().contains(_searchQuery);
+              }).toList();
+
+              return ManagerSectionCard(
+                title: '${filtered.length} Locations Configured',
+                subtitle: 'Physical stores, warehouses, and checkout points',
+                child: locations.isEmpty
+                    ? ManagerEmptyState(
+                        icon: Icons.location_on_outlined,
+                        title: 'No locations configured',
+                        description:
+                            'Add branch locations for your registered shops.',
+                        actionLabel: shops.isNotEmpty ? 'Add First Location' : null,
+                        onAction: shops.isNotEmpty
+                            ? () => _showLocationForm(context, ref, shops)
+                            : null,
+                      )
+                    : Column(
+                        children: filtered.map((loc) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: .12),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.store_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        loc.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        [
+                                          'Shop: ${loc.shopId}',
+                                          if (loc.address.isNotEmpty) loc.address,
+                                          if (loc.phone.isNotEmpty) loc.phone,
+                                        ].join(' • '),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                ManagerStatusChip(
+                                  label: loc.active ? 'active' : 'inactive',
+                                  positive: loc.active,
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  tooltip: 'Delete location',
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: AppColors.danger,
+                                    size: 20,
+                                  ),
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Delete Location'),
+                                        content: Text('Are you sure you want to delete "${loc.name}"?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx, false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () => Navigator.pop(ctx, true),
+                                            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      try {
+                                        await ref
+                                            .read(adminManagerServiceProvider)
+                                            .deleteLocation(loc.id);
+                                        ref.invalidate(managerLocationsProvider(null));
+                                      } catch (error) {
+                                        if (context.mounted) showManagerError(context, error);
+                                      }
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
-
-  Widget _locationsList(
-    BuildContext context,
-    WidgetRef ref,
-    List<ShopLocation> locations,
-  ) => Column(
-    children: locations
-        .map(
-          (location) => ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const CircleAvatar(
-              child: Icon(Icons.location_on_outlined),
-            ),
-            title: Text(location.name),
-            subtitle: Text(
-              [
-                location.shopId,
-                location.address,
-                location.phone,
-              ].where((value) => value.isNotEmpty).join(' • '),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ManagerStatusChip(
-                  label: location.active ? 'active' : 'inactive',
-                  positive: location.active,
-                ),
-                IconButton(
-                  tooltip: 'Delete location',
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: AppColors.danger,
-                  ),
-                  onPressed: () async {
-                    try {
-                      await ref
-                          .read(adminManagerServiceProvider)
-                          .deleteLocation(location.id);
-                      ref.invalidate(managerLocationsProvider(null));
-                    } catch (error) {
-                      if (context.mounted) showManagerError(context, error);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        )
-        .toList(),
-  );
 }
 
-class AdminManagerSubscriptionsScreen extends ConsumerWidget {
+// =============================================================================
+// SCREEN 5 — SUBSCRIPTIONS
+// =============================================================================
+
+class AdminManagerSubscriptionsScreen extends ConsumerStatefulWidget {
   const AdminManagerSubscriptionsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final subscriptions = ref.watch(managerSubscriptionsProvider);
+  ConsumerState<AdminManagerSubscriptionsScreen> createState() =>
+      _AdminManagerSubscriptionsScreenState();
+}
+
+class _AdminManagerSubscriptionsScreenState
+    extends ConsumerState<AdminManagerSubscriptionsScreen> {
+  String _searchQuery = '';
+  String _selectedPlan = 'All';
+
+  @override
+  Widget build(BuildContext context) {
+    final subscriptionsAsync = ref.watch(managerSubscriptionsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ManagerPage(
-      title: 'Subscriptions',
-      description: 'Control plan, seat, and account status for each shop.',
-      child: subscriptions.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      title: 'កញ្ចប់សេវា (Subscriptions)',
+      description: 'តាមដានកញ្ចប់សេវា កំណត់ចំនួន Seat និងស្ថានភាពគណនីហាង',
+      child: subscriptionsAsync.when(
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(60),
+            child: CircularProgressIndicator(),
+          ),
+        ),
         error: (error, _) => managerError(
           error,
           () => ref.invalidate(managerSubscriptionsProvider),
         ),
-        data: (items) => ManagerSectionCard(
-          title: '${items.length} subscriptions',
-          child: items.isEmpty
-              ? const Text(
-                  'Subscription records will appear after shop provisioning.',
-                )
-              : _subscriptionsTable(context, ref, items),
+        data: (items) {
+          final activeCount = items.where((s) => s.status == 'active').length;
+          final totalSeats = items.fold<int>(0, (acc, s) => acc + s.seats);
+
+          final filtered = items.where((s) {
+            final matchesSearch = s.shopId.toLowerCase().contains(_searchQuery);
+            final matchesPlan = _selectedPlan == 'All' ||
+                s.plan.toLowerCase() == _selectedPlan.toLowerCase();
+            return matchesSearch && matchesPlan;
+          }).toList();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Summary KPI Row
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 600;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: ManagerMetricCard(
+                          compact: isCompact,
+                          label: 'Total Subscriptions',
+                          value: '${items.length}',
+                          icon: Icons.card_membership_rounded,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ManagerMetricCard(
+                          compact: isCompact,
+                          label: 'Active Plans',
+                          value: '$activeCount',
+                          icon: Icons.verified_rounded,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ManagerMetricCard(
+                          compact: isCompact,
+                          label: 'Total Seats',
+                          value: '$totalSeats',
+                          icon: Icons.people_outline_rounded,
+                          color: const Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+
+              ManagerSearchFilterBar(
+                hintText: 'ស្វែងរកតាម Shop ID...',
+                onSearch: (q) => setState(() => _searchQuery = q.toLowerCase()),
+                filters: const ['All', 'Trial', 'Basic', 'Pro', 'Enterprise'],
+                activeFilter: _selectedPlan,
+                onFilterChanged: (p) => setState(() => _selectedPlan = p),
+              ),
+              const SizedBox(height: 16),
+
+              ManagerSectionCard(
+                title: '${filtered.length} Subscriptions Listed',
+                subtitle: 'SaaS plan assignment and seat licenses',
+                child: items.isEmpty
+                    ? const ManagerEmptyState(
+                        icon: Icons.card_membership_rounded,
+                        title: 'No subscriptions recorded',
+                        description:
+                            'Subscription records are automatically initialized upon shop provisioning.',
+                      )
+                    : filtered.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text('No subscriptions match your filter.'),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth < 750) {
+                                return _buildMobileSubscriptionList(filtered, isDark);
+                              }
+                              return _buildDesktopSubscriptionTable(filtered, isDark);
+                            },
+                          ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDesktopSubscriptionTable(
+      List<SubscriptionSummary> items, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D3442) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(
+              isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            ),
+            columnSpacing: 24,
+            columns: const [
+              DataColumn(label: Text('Shop ID')),
+              DataColumn(label: Text('Plan Tier')),
+              DataColumn(label: Text('Seats')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('Expires At')),
+              DataColumn(label: Text('Action')),
+            ],
+            rows: items.map((sub) {
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Text(sub.shopId, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: .1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        sub.plan.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Row(
+                      children: [
+                        const Icon(Icons.person_outline, size: 16, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text('${sub.seats} Seats'),
+                      ],
+                    ),
+                  ),
+                  DataCell(
+                    ManagerStatusChip(
+                      label: sub.status,
+                      positive: sub.status.toLowerCase() == 'active',
+                    ),
+                  ),
+                  DataCell(Text(managerDate(sub.expiresAt))),
+                  DataCell(
+                    OutlinedButton(
+                      onPressed: () => _showSubscriptionForm(context, ref, sub),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Change'),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
   }
 
-  Widget _subscriptionsTable(
-    BuildContext context,
-    WidgetRef ref,
-    List<SubscriptionSummary> items,
-  ) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: DataTable(
-      columns: const [
-        DataColumn(label: Text('Shop')),
-        DataColumn(label: Text('Plan')),
-        DataColumn(label: Text('Seats')),
-        DataColumn(label: Text('Status')),
-        DataColumn(label: Text('Expires')),
-        DataColumn(label: Text('Actions')),
-      ],
-      rows: items
-          .map(
-            (item) => DataRow(
-              cells: [
-                DataCell(Text(item.shopId)),
-                DataCell(Text(item.plan.toUpperCase())),
-                DataCell(Text('${item.seats}')),
-                DataCell(
-                  ManagerStatusChip(
-                    label: item.status,
-                    positive: item.status == 'active',
-                  ),
-                ),
-                DataCell(Text(managerDate(item.expiresAt))),
-                DataCell(
-                  TextButton(
-                    onPressed: () => _showSubscriptionForm(context, ref, item),
-                    child: const Text('Change'),
-                  ),
-                ),
-              ],
+  Widget _buildMobileSubscriptionList(
+      List<SubscriptionSummary> items, bool isDark) {
+    return Column(
+      children: items.map((sub) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
             ),
-          )
-          .toList(),
-    ),
-  );
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Shop: ${sub.shopId}',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  ManagerStatusChip(
+                    label: sub.status,
+                    positive: sub.status.toLowerCase() == 'active',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: .1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          sub.plan.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${sub.seats} Seats',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                  OutlinedButton(
+                    onPressed: () => _showSubscriptionForm(context, ref, sub),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Edit Plan'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
 }
 
-class AdminManagerCatalogScreen extends ConsumerWidget {
-  const AdminManagerCatalogScreen({super.key});
+// =============================================================================
+// SCREEN 6 — STOCK OVERVIEW (Dedicated Stock Monitoring)
+// =============================================================================
+
+class AdminManagerStockScreen extends ConsumerStatefulWidget {
+  const AdminManagerStockScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shops =
-        ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
-    final products = ref.watch(managerProductsProvider(null));
+  ConsumerState<AdminManagerStockScreen> createState() =>
+      _AdminManagerStockScreenState();
+}
+
+class _AdminManagerStockScreenState extends ConsumerState<AdminManagerStockScreen> {
+  String _searchQuery = '';
+  String _selectedFilter = 'All';
+
+  @override
+  Widget build(BuildContext context) {
+    final shops = ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
+    final productsAsync = ref.watch(managerProductsProvider(null));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final shopNameMap = {for (final s in shops) s.id: s.name};
+
     return ManagerPage(
-      title: 'Cross shop catalog',
-      description: 'Search product and stock health across all shops using rule-scoped reads.',
-      child: products.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      title: 'ស្តុកសរុបប្រព័ន្ធ (Stock Overview)',
+      description: 'តាមដានចំនួនស្តុកទំនិញ ទំនិញជិតអស់ និងទំនិញដាច់ស្តុកតាមហាង',
+      actions: [
+        OutlinedButton.icon(
+          onPressed: () => ref.invalidate(managerProductsProvider(null)),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Refresh'),
+        ),
+      ],
+      child: productsAsync.when(
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(60),
+            child: CircularProgressIndicator(),
+          ),
+        ),
         error: (error, _) => managerError(
           error,
           () => ref.invalidate(managerProductsProvider(null)),
         ),
-        data: (items) => ManagerSectionCard(
-          title: '${items.length} products',
-          child: items.isEmpty
-              ? const Text('No shop products are available.')
-              : _catalogTable(items, shops),
+        data: (products) {
+          final lowStockCount = products
+              .where((p) => p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold && p.stockQty > 0)
+              .length;
+          final outOfStockCount = products.where((p) => p.stockQty <= 0).length;
+          final healthyCount = products.length - lowStockCount - outOfStockCount;
+
+          final filtered = products.where((p) {
+            final matchesSearch = p.name.toLowerCase().contains(_searchQuery) ||
+                p.sku.toLowerCase().contains(_searchQuery) ||
+                p.barcode.toLowerCase().contains(_searchQuery);
+            final isLow = p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold && p.stockQty > 0;
+            final isOut = p.stockQty <= 0;
+
+            if (_selectedFilter == 'Low Stock') return matchesSearch && isLow;
+            if (_selectedFilter == 'Out of Stock') return matchesSearch && isOut;
+            if (_selectedFilter == 'Healthy') return matchesSearch && !isLow && !isOut;
+            return matchesSearch;
+          }).toList();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Stock KPI Cards
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 600;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: ManagerMetricCard(
+                          compact: isCompact,
+                          label: 'Healthy Stock',
+                          value: '$healthyCount',
+                          icon: Icons.check_circle_outline_rounded,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ManagerMetricCard(
+                          compact: isCompact,
+                          label: 'Low Stock Alert',
+                          value: '$lowStockCount',
+                          icon: Icons.warning_amber_rounded,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ManagerMetricCard(
+                          compact: isCompact,
+                          label: 'Out of Stock',
+                          value: '$outOfStockCount',
+                          icon: Icons.error_outline_rounded,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+
+              ManagerSearchFilterBar(
+                hintText: 'ស្វែងរកតាមឈ្មោះ, SKU ឬ Barcode...',
+                onSearch: (q) => setState(() => _searchQuery = q.toLowerCase()),
+                filters: const ['All', 'Low Stock', 'Out of Stock', 'Healthy'],
+                activeFilter: _selectedFilter,
+                onFilterChanged: (f) => setState(() => _selectedFilter = f),
+              ),
+              const SizedBox(height: 16),
+
+              ManagerSectionCard(
+                title: '${filtered.length} Stock Records',
+                subtitle: 'Real-time multi-shop inventory inventory ledger',
+                child: products.isEmpty
+                    ? const ManagerEmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'No inventory data',
+                        description: 'Products will appear here once added by shop admins.',
+                      )
+                    : filtered.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text('No stock items match your filter.'),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth < 750) {
+                                return _buildMobileStockList(filtered, shopNameMap, isDark);
+                              }
+                              return _buildDesktopStockTable(filtered, shopNameMap, isDark);
+                            },
+                          ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDesktopStockTable(
+    List<PlatformProduct> items,
+    Map<String, String> shopNameMap,
+    bool isDark,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D3442) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(
+              isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            ),
+            columnSpacing: 24,
+            columns: const [
+              DataColumn(label: Text('Product')),
+              DataColumn(label: Text('Shop')),
+              DataColumn(label: Text('SKU / Barcode')),
+              DataColumn(label: Text('Quantity')),
+              DataColumn(label: Text('Price')),
+              DataColumn(label: Text('Health')),
+            ],
+            rows: items.map((p) {
+              final isOut = p.stockQty <= 0;
+              final isLow = p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold && !isOut;
+              final healthColor = isOut ? AppColors.danger : (isLow ? AppColors.warning : AppColors.success);
+              final healthLabel = isOut ? 'Out of stock' : (isLow ? 'Low stock' : 'In stock');
+
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  DataCell(
+                    Text(p.shopName.isNotEmpty ? p.shopName : (shopNameMap[p.shopId] ?? p.shopId)),
+                  ),
+                  DataCell(
+                    Text([p.sku, p.barcode].where((v) => v.isNotEmpty).join(' / ')),
+                  ),
+                  DataCell(
+                    Text(
+                      '${p.stockQty}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: healthColor,
+                      ),
+                    ),
+                  ),
+                  DataCell(Text(managerMoney(p.salePrice))),
+                  DataCell(
+                    ManagerStatusChip(
+                      label: healthLabel,
+                      customColor: healthColor,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
   }
 
-  Widget _catalogTable(List<PlatformProduct> items, List<ShopSummary> shops) {
-    final names = {for (final shop in shops) shop.id: shop.name};
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Product')),
-          DataColumn(label: Text('Shop')),
-          DataColumn(label: Text('SKU / Barcode')),
-          DataColumn(label: Text('Stock')),
-          DataColumn(label: Text('Price')),
-        ],
-        rows: items.map((item) {
-          final low =
-              item.lowStockThreshold > 0 &&
-              item.stockQty <= item.lowStockThreshold;
-          return DataRow(
-            cells: [
-              DataCell(Text(item.name)),
-              DataCell(
-                Text(
-                  item.shopName.isEmpty
-                      ? names[item.shopId] ?? item.shopId
-                      : item.shopName,
+  Widget _buildMobileStockList(
+    List<PlatformProduct> items,
+    Map<String, String> shopNameMap,
+    bool isDark,
+  ) {
+    return Column(
+      children: items.map((p) {
+        final isOut = p.stockQty <= 0;
+        final isLow = p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold && !isOut;
+        final healthColor = isOut ? AppColors.danger : (isLow ? AppColors.warning : AppColors.success);
+        final healthLabel = isOut ? 'Out of stock' : (isLow ? 'Low stock' : 'In stock');
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Shop: ${p.shopName.isNotEmpty ? p.shopName : (shopNameMap[p.shopId] ?? p.shopId)}',
+                      style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                    ),
+                    if (p.barcode.isNotEmpty || p.sku.isNotEmpty)
+                      Text(
+                        [p.sku, p.barcode].where((v) => v.isNotEmpty).join(' • '),
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                  ],
                 ),
               ),
-              DataCell(
-                Text(
-                  [
-                    item.sku,
-                    item.barcode,
-                  ].where((value) => value.isNotEmpty).join(' / '),
-                ),
-              ),
-              DataCell(
-                Text(
-                  '${item.stockQty}',
-                  style: TextStyle(
-                    color: low ? AppColors.danger : null,
-                    fontWeight: low ? FontWeight.bold : null,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${p.stockQty} Qty',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      color: healthColor,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  ManagerStatusChip(label: healthLabel, customColor: healthColor),
+                ],
               ),
-              DataCell(Text(managerMoney(item.salePrice))),
             ],
-          );
-        }).toList(),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// =============================================================================
+// SCREEN 7 — GLOBAL PRODUCTS (Rich Cross-Shop Catalog)
+// =============================================================================
+
+class AdminManagerCatalogScreen extends ConsumerStatefulWidget {
+  const AdminManagerCatalogScreen({super.key});
+
+  @override
+  ConsumerState<AdminManagerCatalogScreen> createState() =>
+      _AdminManagerCatalogScreenState();
+}
+
+class _AdminManagerCatalogScreenState
+    extends ConsumerState<AdminManagerCatalogScreen> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final shops = ref.watch(managerShopsProvider).value ?? const <ShopSummary>[];
+    final productsAsync = ref.watch(managerProductsProvider(null));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final shopNameMap = {for (final s in shops) s.id: s.name};
+
+    return ManagerPage(
+      title: 'កាតាឡុកទំនិញរួម (Global Products)',
+      description: 'ពិនិត្យមើលមុខទំនិញ រូបភាព តម្លៃ និងស្តុកទំនិញគ្រប់ហាងទាំងអស់',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ManagerSearchFilterBar(
+            hintText: 'ស្វែងរកទំនិញតាមឈ្មោះ ឬ Barcode...',
+            onSearch: (q) => setState(() => _searchQuery = q.toLowerCase()),
+            onFilterChanged: (_) {},
+          ),
+          const SizedBox(height: 16),
+          productsAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(60),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            error: (error, _) => managerError(
+              error,
+              () => ref.invalidate(managerProductsProvider(null)),
+            ),
+            data: (products) {
+              final filtered = products.where((p) {
+                return p.name.toLowerCase().contains(_searchQuery) ||
+                    p.barcode.toLowerCase().contains(_searchQuery) ||
+                    p.sku.toLowerCase().contains(_searchQuery);
+              }).toList();
+
+              return ManagerSectionCard(
+                title: '${filtered.length} Products Available',
+                subtitle: 'Platform-wide product inventory catalog',
+                child: products.isEmpty
+                    ? const ManagerEmptyState(
+                        icon: Icons.category_outlined,
+                        title: 'No products cataloged',
+                        description: 'Products added by shops will be displayed here.',
+                      )
+                    : filtered.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text('No products match your search.'),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final width = constraints.maxWidth;
+                              final columns = width >= 1100
+                                  ? 4
+                                  : (width >= 750 ? 3 : (width >= 450 ? 2 : 1));
+
+                              return GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  mainAxisExtent: 180,
+                                ),
+                                itemCount: filtered.length,
+                                itemBuilder: (context, index) {
+                                  final p = filtered[index];
+                                  final shopName = p.shopName.isNotEmpty
+                                      ? p.shopName
+                                      : (shopNameMap[p.shopId] ?? p.shopId);
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withValues(alpha: .1),
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: const Icon(
+                                                Icons.inventory_2_rounded,
+                                                color: AppColors.primary,
+                                                size: 22,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    p.name,
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w700,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    shopName,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              managerMoney(p.salePrice),
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.success,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(
+                                                  'Stock: ${p.stockQty}',
+                                                  style: TextStyle(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: p.stockQty <= 0
+                                                        ? AppColors.danger
+                                                        : (p.stockQty <= p.lowStockThreshold
+                                                            ? AppColors.warning
+                                                            : (isDark ? Colors.grey[400] : Colors.grey[700])),
+                                                  ),
+                                                ),
+                                                if (p.barcode.isNotEmpty)
+                                                  Text(
+                                                    p.barcode,
+                                                    style: const TextStyle(fontSize: 10.5, color: Colors.grey),
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
 }
+
+// =============================================================================
+// PROVISIONING & CONFIGURATION DIALOGS
+// =============================================================================
 
 Future<void> _showProvisionShop(BuildContext context, WidgetRef ref) async {
   final form = await showDialog<_ShopFormValue>(
@@ -409,9 +1607,7 @@ Future<void> _showProvisionShop(BuildContext context, WidgetRef ref) async {
   );
   if (form == null || !context.mounted) return;
   try {
-    await ref
-        .read(adminManagerServiceProvider)
-        .provisionShop(
+    await ref.read(adminManagerServiceProvider).provisionShop(
           name: form.name,
           ownerName: form.ownerName,
           ownerEmail: form.ownerEmail,
@@ -435,9 +1631,7 @@ Future<void> _showProvisionAdmin(
   );
   if (value == null || !context.mounted) return;
   try {
-    await ref
-        .read(adminManagerServiceProvider)
-        .provisionShopAdmin(
+    await ref.read(adminManagerServiceProvider).provisionShopAdmin(
           shopId: value.shopId,
           displayName: value.name,
           email: value.email,
@@ -460,9 +1654,7 @@ Future<void> _showLocationForm(
   );
   if (value == null || !context.mounted) return;
   try {
-    await ref
-        .read(adminManagerServiceProvider)
-        .createLocation(
+    await ref.read(adminManagerServiceProvider).createLocation(
           shopId: value.shopId,
           name: value.name,
           address: value.address,
@@ -485,9 +1677,7 @@ Future<void> _showSubscriptionForm(
   );
   if (value == null || !context.mounted) return;
   try {
-    await ref
-        .read(adminManagerServiceProvider)
-        .setShopSubscription(
+    await ref.read(adminManagerServiceProvider).setShopSubscription(
           shopId: item.shopId,
           plan: value.plan,
           status: value.status,
@@ -539,6 +1729,7 @@ class _ShopFormDialogState extends State<_ShopFormDialog> {
       ownerEmail = TextEditingController(),
       phone = TextEditingController(),
       address = TextEditingController();
+
   @override
   void dispose() {
     name.dispose();
@@ -551,48 +1742,51 @@ class _ShopFormDialogState extends State<_ShopFormDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Provision shop'),
-    content: Form(
-      key: formKey,
-      child: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _field(name, 'Shop name'),
-              _field(ownerName, 'Owner name'),
-              _field(ownerEmail, 'Owner email', email: true),
-              _field(phone, 'Phone'),
-              _field(address, 'Address'),
-            ],
+        title: const Text('Provision Shop'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Form(
+          key: formKey,
+          child: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _field(name, 'Shop Name'),
+                  _field(ownerName, 'Owner Name'),
+                  _field(ownerEmail, 'Owner Email', email: true),
+                  _field(phone, 'Phone Number', required: false),
+                  _field(address, 'Address', required: false),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          if (formKey.currentState!.validate()) {
-            Navigator.pop(
-              context,
-              _ShopFormValue(
-                name.text,
-                ownerName.text,
-                ownerEmail.text,
-                phone.text,
-                address.text,
-              ),
-            );
-          }
-        },
-        child: const Text('Provision'),
-      ),
-    ],
-  );
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(
+                  context,
+                  _ShopFormValue(
+                    name.text.trim(),
+                    ownerName.text.trim(),
+                    ownerEmail.text.trim(),
+                    phone.text.trim(),
+                    address.text.trim(),
+                  ),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Provision'),
+          ),
+        ],
+      );
 }
 
 class _AdminFormDialog extends StatefulWidget {
@@ -608,6 +1802,7 @@ class _AdminFormDialogState extends State<_AdminFormDialog> {
       email = TextEditingController(),
       password = TextEditingController();
   String? shopId;
+
   @override
   void dispose() {
     name.dispose();
@@ -618,59 +1813,68 @@ class _AdminFormDialogState extends State<_AdminFormDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Create administrator'),
-    content: Form(
-      key: formKey,
-      child: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: shopId,
-                decoration: const InputDecoration(labelText: 'Shop'),
-                items: widget.shops
-                    .map(
-                      (shop) => DropdownMenuItem(
-                        value: shop.id,
-                        child: Text(shop.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => shopId = value),
-                validator: (value) => value == null ? 'Select a shop' : null,
+        title: const Text('Create Administrator'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Form(
+          key: formKey,
+          child: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: shopId,
+                    decoration: const InputDecoration(labelText: 'Assigned Shop'),
+                    items: widget.shops
+                        .map(
+                          (shop) => DropdownMenuItem(
+                            value: shop.id,
+                            child: Text(shop.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => shopId = value),
+                    validator: (value) => value == null ? 'Select a shop' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _field(name, 'Full Name'),
+                  _field(email, 'Email Address', email: true),
+                  _field(
+                    password,
+                    'Temporary Password',
+                    required: false,
+                    obscure: true,
+                  ),
+                ],
               ),
-              _field(name, 'Full name'),
-              _field(email, 'Email', email: true),
-              _field(
-                password,
-                'Temporary password',
-                required: false,
-                obscure: true,
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          if (formKey.currentState!.validate()) {
-            Navigator.pop(
-              context,
-              _AdminFormValue(shopId!, name.text, email.text, password.text),
-            );
-          }
-        },
-        child: const Text('Create'),
-      ),
-    ],
-  );
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(
+                  context,
+                  _AdminFormValue(
+                    shopId!,
+                    name.text.trim(),
+                    email.text.trim(),
+                    password.text.trim(),
+                  ),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Create'),
+          ),
+        ],
+      );
 }
 
 class _LocationFormDialog extends StatefulWidget {
@@ -686,6 +1890,7 @@ class _LocationFormDialogState extends State<_LocationFormDialog> {
       address = TextEditingController(),
       phone = TextEditingController();
   String? shopId;
+
   @override
   void dispose() {
     name.dispose();
@@ -696,54 +1901,63 @@ class _LocationFormDialogState extends State<_LocationFormDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('New location'),
-    content: Form(
-      key: formKey,
-      child: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: shopId,
-                decoration: const InputDecoration(labelText: 'Shop'),
-                items: widget.shops
-                    .map(
-                      (shop) => DropdownMenuItem(
-                        value: shop.id,
-                        child: Text(shop.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => shopId = value),
-                validator: (value) => value == null ? 'Select a shop' : null,
+        title: const Text('New Location'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Form(
+          key: formKey,
+          child: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: shopId,
+                    decoration: const InputDecoration(labelText: 'Shop'),
+                    items: widget.shops
+                        .map(
+                          (shop) => DropdownMenuItem(
+                            value: shop.id,
+                            child: Text(shop.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => shopId = value),
+                    validator: (value) => value == null ? 'Select a shop' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _field(name, 'Location Name'),
+                  _field(address, 'Address', required: false),
+                  _field(phone, 'Phone', required: false),
+                ],
               ),
-              _field(name, 'Location name'),
-              _field(address, 'Address', required: false),
-              _field(phone, 'Phone', required: false),
-            ],
+            ),
           ),
         ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          if (formKey.currentState!.validate()) {
-            Navigator.pop(
-              context,
-              _LocationFormValue(shopId!, name.text, address.text, phone.text),
-            );
-          }
-        },
-        child: const Text('Create'),
-      ),
-    ],
-  );
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(
+                  context,
+                  _LocationFormValue(
+                    shopId!,
+                    name.text.trim(),
+                    address.text.trim(),
+                    phone.text.trim(),
+                  ),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Create'),
+          ),
+        ],
+      );
 }
 
 class _SubscriptionFormDialog extends StatefulWidget {
@@ -759,6 +1973,7 @@ class _SubscriptionFormDialogState extends State<_SubscriptionFormDialog> {
   late final seats = TextEditingController(
     text: '${widget.item.seats == 0 ? 1 : widget.item.seats}',
   );
+
   @override
   void dispose() {
     seats.dispose();
@@ -767,50 +1982,58 @@ class _SubscriptionFormDialogState extends State<_SubscriptionFormDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text('Subscription · ${widget.item.shopId}'),
-    content: SizedBox(
-      width: 360,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<String>(
-            initialValue: plan,
-            decoration: const InputDecoration(labelText: 'Plan'),
-            items: const ['trial', 'basic', 'pro', 'enterprise']
-                .map(
-                  (value) => DropdownMenuItem(value: value, child: Text(value)),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => plan = value ?? plan),
+        title: Text('Edit Subscription · ${widget.item.shopId}'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: plan,
+                decoration: const InputDecoration(labelText: 'Plan Tier'),
+                items: const ['trial', 'basic', 'pro', 'enterprise']
+                    .map(
+                      (v) => DropdownMenuItem(value: v, child: Text(v.toUpperCase())),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => plan = v ?? plan),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: status,
+                decoration: const InputDecoration(labelText: 'Account Status'),
+                items: const ['active', 'paused', 'cancelled']
+                    .map(
+                      (v) => DropdownMenuItem(value: v, child: Text(v.toUpperCase())),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => status = v ?? status),
+              ),
+              const SizedBox(height: 12),
+              _field(seats, 'Allocated Seats', keyboard: TextInputType.number),
+            ],
           ),
-          DropdownButtonFormField<String>(
-            initialValue: status,
-            decoration: const InputDecoration(labelText: 'Status'),
-            items: const ['active', 'paused', 'cancelled']
-                .map(
-                  (value) => DropdownMenuItem(value: value, child: Text(value)),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => status = value ?? status),
-          ),
-          _field(seats, 'Seats', keyboard: TextInputType.number),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(
-          context,
-          _SubscriptionFormValue(plan, status, int.tryParse(seats.text) ?? 1),
         ),
-        child: const Text('Save'),
-      ),
-    ],
-  );
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              _SubscriptionFormValue(
+                plan,
+                status,
+                int.tryParse(seats.text.trim()) ?? 1,
+              ),
+            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Save Changes'),
+          ),
+        ],
+      );
 }
 
 Widget _field(
@@ -827,11 +2050,14 @@ Widget _field(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboard ?? (email ? TextInputType.emailAddress : null),
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
       validator: required
           ? (value) {
-              if (value == null || value.trim().isEmpty) return 'Required';
-              if (email && !value.contains('@')) return 'Enter a valid email';
+              if (value == null || value.trim().isEmpty) return 'Field is required';
+              if (email && !value.contains('@')) return 'Enter a valid email address';
               return null;
             }
           : null,

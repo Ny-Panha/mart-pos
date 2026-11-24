@@ -171,7 +171,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/manager/stock',
-            builder: (context, state) => const AdminManagerCatalogScreen(),
+            builder: (context, state) => const AdminManagerStockScreen(),
           ),
           GoRoute(
             path: '/manager/reports',

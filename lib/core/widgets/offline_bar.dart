@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class OfflineBar extends StatefulWidget {
@@ -79,13 +80,14 @@ class _OfflineBarState extends State<OfflineBar> {
                 style: Theme.of(context).textTheme.labelSmall,
               ),
             ),
-            InkWell(
-              onTap: () => _setOnline(!available),
-              child: Text(
-                available ? 'Test offline' : 'Resume online',
-                style: Theme.of(context).textTheme.labelSmall,
+            if (kDebugMode)
+              InkWell(
+                onTap: () => _setOnline(!available),
+                child: Text(
+                  available ? 'Test offline' : 'Resume online',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
-            ),
           ],
         ),
       ),
