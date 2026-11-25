@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -31,7 +32,7 @@ class StockActionDialog extends ConsumerStatefulWidget {
   }) {
     final isDesktop = Responsive.isDesktop(context);
     if (isDesktop) {
-      return showDialog(
+      return showMotionDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => StockActionDialog(

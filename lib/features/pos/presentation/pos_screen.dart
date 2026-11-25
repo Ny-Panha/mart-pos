@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -243,7 +244,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
               : null,
         );
       } else {
-        await showDialog<void>(
+        await showMotionDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => PaymentDialog(
@@ -281,7 +282,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
     required int changeAmount,
     required String paymentMethod,
   }) {
-    showDialog(
+    showMotionDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         scrollable: true,
@@ -353,7 +354,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
   Future<void> _showCustomerSelectorDialog() async {
     String filter = '';
-    await showDialog<void>(
+    await showMotionDialog<void>(
       context: context,
       builder: (ctx) => Consumer(
         builder: (context, dialogRef, _) {
@@ -519,7 +520,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
 
-    await showDialog(
+    await showMotionDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         scrollable: true,
@@ -1205,63 +1206,65 @@ class _PosScreenState extends ConsumerState<PosScreen>
     final isOpen = shift != null;
     final timeStr = isOpen ? DateFormat('HH:mm').format(shift.openedAt) : '';
 
-    return InkWell(
-      onTap: () {
-        if (isOpen) {
-          CloseShiftDialog.show(context, shift);
-        } else {
-          OpenShiftDialog.show(context);
-        }
-      },
-      borderRadius: BorderRadius.circular(AppRadius.button),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 36),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: isOpen
-              ? AppColors.success.withValues(alpha: 0.12)
-              : (isDark ? AppColors.darkBorder : Colors.grey.shade200),
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          border: Border.all(
+    return SpringPressEffect(
+      child: InkWell(
+        onTap: () {
+          if (isOpen) {
+            CloseShiftDialog.show(context, shift);
+          } else {
+            OpenShiftDialog.show(context);
+          }
+        },
+        borderRadius: BorderRadius.circular(AppRadius.button),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 36),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
             color: isOpen
-                ? AppColors.success.withValues(alpha: 0.4)
-                : (isDark ? AppColors.darkBorder : Colors.grey.shade400),
+                ? AppColors.success.withValues(alpha: 0.12)
+                : (isDark ? AppColors.darkBorder : Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(AppRadius.button),
+            border: Border.all(
+              color: isOpen
+                  ? AppColors.success.withValues(alpha: 0.4)
+                  : (isDark ? AppColors.darkBorder : Colors.grey.shade400),
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isOpen
-                    ? AppColors.success
-                    : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
-                boxShadow: isOpen
-                    ? [
-                        BoxShadow(
-                          color: AppColors.success.withValues(alpha: 0.6),
-                          blurRadius: 6,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isOpen
+                      ? AppColors.success
+                      : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
+                  boxShadow: isOpen
+                      ? [
+                          BoxShadow(
+                            color: AppColors.success.withValues(alpha: 0.6),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              isOpen ? 'Open · $timeStr' : 'Shift closed',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isOpen
-                    ? AppColors.success
-                    : (isDark ? AppColors.darkMutedText : Colors.grey.shade700),
+              const SizedBox(width: 8),
+              Text(
+                isOpen ? 'Open · $timeStr' : 'Shift closed',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: isOpen
+                      ? AppColors.success
+                      : (isDark ? AppColors.darkMutedText : Colors.grey.shade700),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

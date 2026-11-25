@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,9 +35,36 @@ final routerProvider = Provider<GoRouter>((ref) {
   // can leave two router trees competing for the same GlobalKeys during a web
   // rebuild.
   final refreshNotifier = _RouterRefreshNotifier();
-  final authSubscription = ref.listen(authProvider, (_, _) {
+  final scrollBuckets = <String, PageStorageBucket>{};
+  final authSubscription = ref.listen(authProvider, (previous, next) {
+    if (previous?.value?.id != next.value?.id) scrollBuckets.clear();
     refreshNotifier.refresh();
   });
+
+  CustomTransitionPage<void> motionPage(
+    BuildContext context,
+    GoRouterState state,
+    Widget child,
+  ) {
+    final duration = AppMotionTokens.time(
+      context,
+      const Duration(milliseconds: 240),
+    );
+    return CustomTransitionPage(
+      key: state.pageKey,
+      child: PageStorage(
+        bucket: scrollBuckets.putIfAbsent(
+          state.fullPath ?? state.uri.path,
+          PageStorageBucket.new,
+        ),
+        child: child,
+      ),
+      transitionDuration: duration,
+      reverseTransitionDuration: duration,
+      transitionsBuilder: (_, animation, secondary, child) =>
+          DirectionalPageTransition(animation: animation, child: child),
+    );
+  }
 
   final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -63,123 +91,146 @@ final routerProvider = Provider<GoRouter>((ref) {
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => MainShell(child: child),
         routes: [
-          GoRoute(
-            path: '/',
-            redirect: (context, state) => '/admin',
-          ),
-          GoRoute(
-            path: '/dashboard',
-            redirect: (context, state) => '/admin',
-          ),
+          GoRoute(path: '/', redirect: (context, state) => '/admin'),
+          GoRoute(path: '/dashboard', redirect: (context, state) => '/admin'),
           GoRoute(
             path: '/admin',
-            builder: (context, state) => const DashboardScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const DashboardScreen()),
           ),
-          GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
+          GoRoute(
+            path: '/pos',
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const PosScreen()),
+          ),
           GoRoute(
             path: '/admin/products',
-            builder: (context, state) => const ProductsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const ProductsScreen()),
           ),
           GoRoute(
             path: '/admin/inventory',
-            builder: (context, state) => const InventoryScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const InventoryScreen()),
           ),
           GoRoute(
             path: '/admin/purchases',
-            builder: (context, state) => const PurchasesScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const PurchasesScreen()),
           ),
           GoRoute(
             path: '/admin/suppliers',
-            builder: (context, state) => const SuppliersScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const SuppliersScreen()),
           ),
           GoRoute(
             path: '/admin/customers',
-            builder: (context, state) => const CustomersScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const CustomersScreen()),
           ),
           GoRoute(
             path: '/admin/reports',
-            builder: (context, state) => const ReportsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const ReportsScreen()),
           ),
           GoRoute(
             path: '/admin/users',
-            builder: (context, state) => const UsersScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const UsersScreen()),
           ),
           GoRoute(
             path: '/admin/audit-log',
-            builder: (context, state) => const AuditLogsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AuditLogsScreen()),
           ),
           GoRoute(
             path: '/admin/settings',
-            builder: (context, state) => const AdminShopSettingsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminShopSettingsScreen()),
           ),
           GoRoute(
             path: '/admin/attendance',
-            builder: (context, state) => const AdminAttendanceScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminAttendanceScreen()),
           ),
           GoRoute(
             path: '/admin/notifications',
-            builder: (context, state) => const AdminNotificationsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminNotificationsScreen()),
           ),
           GoRoute(
             path: '/admin/reports/details',
-            builder: (context, state) => const AdminReportsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminReportsScreen()),
           ),
           GoRoute(
             path: '/cashier/history',
-            builder: (context, state) => const CashierSalesHistoryScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const CashierSalesHistoryScreen()),
           ),
           GoRoute(
             path: '/cashier/stock',
-            builder: (context, state) => const CashierStockScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const CashierStockScreen()),
           ),
           GoRoute(
             path: '/cashier/shift',
-            builder: (context, state) => const CashierDailyCloseScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const CashierDailyCloseScreen()),
           ),
           GoRoute(
             path: '/cashier/invoice/:id',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final sale = state.extra;
-              if (sale is SaleModel) return CashierInvoiceScreen(sale: sale);
-              return const CashierSalesHistoryScreen();
+              return motionPage(
+                context,
+                state,
+                sale is SaleModel
+                    ? CashierInvoiceScreen(sale: sale)
+                    : const CashierSalesHistoryScreen(),
+              );
             },
           ),
           GoRoute(
             path: '/manager',
-            builder: (context, state) => const AdminManagerDashboardScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminManagerDashboardScreen()),
           ),
           GoRoute(
             path: '/manager/shops',
-            builder: (context, state) => const AdminManagerShopsScreen(),
+            redirect: (context, state) => '/manager',
           ),
           GoRoute(
             path: '/manager/admins',
-            builder: (context, state) => const AdminManagerAdminsScreen(),
+            redirect: (context, state) => '/manager',
           ),
           GoRoute(
             path: '/manager/locations',
-            builder: (context, state) => const AdminManagerLocationsScreen(),
+            redirect: (context, state) => '/manager',
           ),
           GoRoute(
             path: '/manager/subscriptions',
-            builder: (context, state) =>
-                const AdminManagerSubscriptionsScreen(),
+            redirect: (context, state) => '/manager',
           ),
           GoRoute(
             path: '/manager/products',
-            builder: (context, state) => const AdminManagerCatalogScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminManagerCatalogScreen()),
           ),
           GoRoute(
             path: '/manager/stock',
-            builder: (context, state) => const AdminManagerStockScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminManagerStockScreen()),
           ),
           GoRoute(
             path: '/manager/reports',
-            builder: (context, state) => const AdminManagerReportsScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminManagerReportsScreen()),
           ),
           GoRoute(
             path: '/manager/system',
-            builder: (context, state) => const AdminManagerSystemScreen(),
+            pageBuilder: (context, state) =>
+                motionPage(context, state, const AdminManagerSystemScreen()),
           ),
         ],
       ),

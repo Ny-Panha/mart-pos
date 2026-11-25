@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
@@ -42,7 +43,7 @@ class QtyStepper extends StatelessWidget {
                 ? null
                 : () async {
                     final controller = TextEditingController(text: '$qty');
-                    final result = await showDialog<int>(
+                    final result = await showMotionDialog<int>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         shape: RoundedRectangleBorder(

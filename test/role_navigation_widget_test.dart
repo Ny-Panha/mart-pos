@@ -52,10 +52,6 @@ void main() {
       UserModel(id: 'm1', name: 'Manager', role: UserModel.adminManagerRole),
       [
         'Dashboard',
-        'Shops',
-        'Admin Owners',
-        'Locations',
-        'Subscriptions',
         'Stock Overview',
         'Global Products',
         'System Reports',

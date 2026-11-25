@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,7 +26,8 @@ class AdminNotificationsScreen extends ConsumerWidget {
             const PageHeader(
               eyebrow: 'Alerts & Messages',
               title: 'ការជូនដំណឹង (Notifications)',
-              description: 'តាមដានសារដំណឹងប្រតិបត្តិការ និងការជូនដំណឹងសំខាន់ៗក្នុងហាង',
+              description:
+                  'តាមដានសារដំណឹងប្រតិបត្តិការ និងការជូនដំណឹងសំខាន់ៗក្នុងហាង',
             ),
             notifications.when(
               loading: () => const Center(
@@ -55,38 +57,57 @@ class AdminNotificationsScreen extends ConsumerWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: items.length,
+                    findItemIndexCallback: (key) {
+                      final index = items.indexWhere(
+                        (item) => ValueKey(item.id) == key,
+                      );
+                      return index < 0 ? null : index;
+                    },
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, index) {
                       final item = items[index];
-                      return ListTile(
-                        isThreeLine: true,
-                        leading: Icon(
-                          item.read
-                              ? Icons.notifications_none
-                              : Icons.notifications_active_outlined,
-                          color: item.read ? Colors.grey : AppColors.primary,
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                      return AnimatedListItem(
+                        key: ValueKey(item.id),
+                        index: index,
+                        child: ListTile(
+                          isThreeLine: true,
+                          leading: AnimatedSwitcher(
+                            duration: AppMotionTokens.time(
+                              context,
+                              const Duration(milliseconds: 140),
+                            ),
+                            child: Icon(
+                              item.read
+                                  ? Icons.notifications_none
+                                  : Icons.notifications_active_outlined,
+                              key: ValueKey(item.read),
+                              color: item.read
+                                  ? Colors.grey
+                                  : AppColors.primary,
+                            ),
+                          ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Chip(
-                              label: Text(
-                                item.channel,
-                                style: const TextStyle(fontSize: 10),
+                              Chip(
+                                label: Text(
+                                  item.channel,
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                                visualDensity: VisualDensity.compact,
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
-                        ),
-                        subtitle: Text(
-                          '${item.body}\n${DateUtilsHelper.formatDateTime(item.createdAt)}',
+                            ],
+                          ),
+                          subtitle: Text(
+                            '${item.body}\n${DateUtilsHelper.formatDateTime(item.createdAt)}',
+                          ),
                         ),
                       );
                     },

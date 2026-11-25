@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,7 +21,7 @@ class CloseShiftDialog extends ConsumerStatefulWidget {
 
   static Future<void> show(BuildContext context, DailyCloseModel shift) {
     if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
-      return showDialog<void>(
+      return showMotionDialog<void>(
         context: context,
         builder: (_) => CloseShiftDialog(shift: shift),
       );

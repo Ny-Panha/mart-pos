@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -13,7 +14,7 @@ class PurchaseDetailDialog extends StatelessWidget {
 
   static Future<void> show(BuildContext context, {required PurchaseModel purchase}) {
     if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
-      return showDialog<void>(
+      return showMotionDialog<void>(
         context: context,
         builder: (_) => PurchaseDetailDialog(purchase: purchase),
       );

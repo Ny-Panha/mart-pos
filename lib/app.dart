@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,8 @@ class MartPosApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      themeAnimationCurve: AppMotionTokens.curve,
+      themeAnimationDuration: AppMotionTokens.time(context,kThemeAnimationDuration),
       routerConfig: router,
       localizationsDelegates: const [
         AppLocalizations.delegate,

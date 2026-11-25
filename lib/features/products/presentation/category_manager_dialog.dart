@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -12,7 +13,7 @@ class CategoryManagerDialog extends ConsumerStatefulWidget {
   const CategoryManagerDialog({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showDialog(
+    return showMotionDialog(
       context: context,
       builder: (ctx) => const CategoryManagerDialog(),
     );
@@ -80,7 +81,7 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
 
   Future<void> _handleEditCategory(CategoryModel category) async {
     final editController = TextEditingController(text: category.name);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showMotionDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
@@ -128,7 +129,7 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
     if (inUse) {
       final count = await repo.countProductsInCategory(category.id);
       if (mounted) {
-        showDialog(
+        showMotionDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
@@ -155,7 +156,7 @@ class _CategoryManagerDialogState extends ConsumerState<CategoryManagerDialog> {
     }
 
     if (!mounted) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showMotionDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),

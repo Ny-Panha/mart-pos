@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,7 +19,7 @@ class UserFormDialog extends ConsumerStatefulWidget {
 
   static Future<void> show(BuildContext context, {UserModel? user}) {
     if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
-      return showDialog<void>(
+      return showMotionDialog<void>(
         context: context,
         builder: (_) => UserFormDialog(user: user),
       );

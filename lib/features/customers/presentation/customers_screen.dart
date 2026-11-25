@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -34,7 +35,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
     if (inUse) {
       if (mounted) {
-        showDialog(
+        showMotionDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Row(
@@ -60,7 +61,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     }
 
     if (!mounted) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showMotionDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('លុបអតិថិជន? (Delete Customer)'),

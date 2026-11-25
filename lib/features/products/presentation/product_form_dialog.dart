@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -27,7 +28,7 @@ class ProductFormDialog extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context, {ProductModel? product}) {
     final isDesktop = Responsive.isDesktop(context);
     if (isDesktop) {
-      return showDialog(
+      return showMotionDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => ProductFormDialog(product: product, isBottomSheet: false),
@@ -267,7 +268,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     }
 
     if (isDesktop) {
-      showDialog(
+      showMotionDialog(
         context: context,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.black,

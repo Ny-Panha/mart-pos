@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -33,7 +34,7 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
 
     if (supplier.active) {
       // Confirm deactivation
-      final confirm = await showDialog<bool>(
+      final confirm = await showMotionDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('ផ្អាកដំណើរការអ្នកផ្គត់ផ្គង់'),
@@ -71,7 +72,7 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
         }
       } catch (e) {
         if (!mounted) return;
-        showDialog(
+        showMotionDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Row(

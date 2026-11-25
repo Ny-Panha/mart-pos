@@ -1,5 +1,7 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 
@@ -83,19 +85,22 @@ class AppButton extends StatelessWidget {
             ],
           );
 
-    final btn = ElevatedButton(
-      onPressed: isLoading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: bgColor,
-        foregroundColor: fgColor,
-        elevation: 0,
-        side: borderSide,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.button),
+    final btn = SpringPressEffect(
+      enabled: !isLoading && onPressed != null,
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: bgColor,
+          foregroundColor: fgColor,
+          elevation: 0,
+          side: borderSide,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.button),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: child,
       ),
-      child: child,
     );
 
     if (!fullWidth) {

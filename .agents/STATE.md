@@ -2,94 +2,62 @@
 
 ## Last Session
 
-- Antigravity IDE · 2026-11-24 17:58 ICT
+- Codex CLI ? 2026-11-24 22:27 ICT
 - Branch `ui/full-frontend-rebuild`
 
-## Summary: Firebase Callable Serialization & Error Safety Fix
+## Summary
 
-- **Root Cause & Permanent Fix**:
-  - `functions.call('getPlatformDashboard')` previously passed Firestore `Timestamp` objects (`Timestamp.fromDate(from)`).
-  - Firebase `HttpsCallable.call(parameters)` runs `assert(_debugIsValidParameterType(parameters))`, allowing only JSON primitive types (`String`, `num`, `bool`, `null`, `List`, `Map`).
-  - Replaced parameters with UTC ISO 8601 strings: `from.toUtc().toIso8601String()` and `to.toUtc().toIso8601String()`.
-- **Backend & Parity Verification (`functions/index.js`)**:
-  - Verified backend `timestampFromInput(value)` parses ISO 8601 strings (`new Date(value)`).
-  - Date range filtering `(!from || date >= from) && (!to || date <= to)` verified.
-  - Added matching `from`/`to` date range filtering to Firestore fallback.
-- **Error Handling Transparency**:
-  - `FirebaseFunctionsException` with `unauthenticated`, `permission-denied`, or `invalid-argument` are explicitly rethrown, preventing silent fallback or masking of authentication/authorization failures.
-  - Fallback errors rethrow clear error context rather than returning empty zero-state dashboards.
-- **Verification & Regression Suite**:
-  - Created `test/admin_manager_callable_serialization_test.dart` (3/3 passed).
-  - `flutter test test/admin_manager_redesign_test.dart` (10/10 passed).
-  - `flutter test test/widget_test.dart` (63/63 passed).
-  - `flutter analyze`: **0 issues found**.
+Implemented shared Flutter motion in `lib/core/motion/app_motion.dart`. The shell uses one moving indicator, coordinated sidebar width and directional content transitions across Manager, Admin and Cashier. Catalog filters and view modes move matched product entries. Details use Hero on a modal page route with a desktop panel or draggable mobile sheet. System Operations uses a spring tab controller. Dashboard metrics animate when values change. Reusable buttons, dialogs and notification items have localized feedback.
+
+- Fixed the out-of-range third Manager mobile destination and duplicate selected destinations in All Menu.
+- Browser verified scroll restoration in Global Products. The first row moved from y=410 to y=90 after scrolling and returned at y=90 after leaving the catalog and coming back.
+- Chromium profile build, no analyzer issues, 108 passing tests. The existing screenshot tests regenerated the manager screenshots. The new widget test covers interruption and reduced motion.
+- Real manager catalog data and Cashier History/Stock navigation were exercised. The KPI recording uses a controlled provider in a separate capture build. Production runs the original data providers.
+- Reviewed recordings in `docs/motion/` and compared movement to the accessible Motion reorder, Animate UI sidebar/tabs and Magic UI ticker previews. Motion+ shared-card/smooth-tabs and v0 were not individually interactive in this session.
+- Desktop recording 1440?940 and mobile browser viewport 390?844. Browser frame intervals in the warm desktop capture were median 16.7 ms, p95 16.9 ms, max 100 ms. An earlier cold desktop capture including data loads and concurrent activity reached 466.7 ms. Mobile median 16.7 ms, p95 16.9 ms, max 233.3 ms. These measurements include browser overhead. Separate warmed Chrome trace showed p95 Paint 0.27 ms and RasterTask 0.10 ms, for those event types only.
+
+## Active Environment
+
+- Flutter profile web app on http://127.0.0.1:44411/ from `.dart_tool/motion_review_web`.
+- Laravel on http://127.0.0.1:8080/api and MySQL on port 3306.
+- Desktop and mobile MP4s plus the KPI fixture MP4 are in `docs/motion/`.
+
+## Next Steps
+
+- Physical-device frame pacing is unmeasured. Desktop and mobile recordings are available for Nha's visual review.
+
+## Previous Session ? System Reports
+
+## Last Session
+
+- Antigravity IDE · 2026-11-24 21:55 ICT
+- Branch `ui/full-frontend-rebuild`
+
+## Summary: Visual Rebuild of System Reports (`/manager/reports`)
+
+- **Objective**:
+  - Rebuilt `/manager/reports` (System Reports) to match the new SaaS target visual design mockup (`media_1795530435293_ebb31ed3.jpg`).
+- **Changes Applied**:
+  1. `lib/features/admin_manager/presentation/admin_manager_reports_screen.dart`:
+     - Built SaaS header with breadcrumbs (`🏠 / System / System Reports`), Khmer/English title (`របាយការណ៍ប្រព័ន្ធ (System Reports)`), subtitle, and `Refresh` action button.
+     - Implemented 4 redesigned KPI cards: `30-Day Revenue` (0 ៛), `Total Orders` (4), `Products Cataloged` (8), and `Low Stock Items` (1) with decorative indicator artwork.
+     - Implemented `Revenue Analytics (វិភាគចំណូល)` panel with period selector (`Last 30 Days`), date range pill, and SaaS empty state (`No sales recorded yet` + `View Orders` button) when 0 revenue is recorded.
+     - Implemented segmented tab bar (`Revenue`, `Orders`, `Products`, `Inventory`) with smooth 200ms transitions.
+     - Added real `Stock Health Distribution` breakdown (Healthy: 7, Low Stock: 1, Out of Stock: 0) with Donut Chart and legend when `Inventory` tab is selected.
+     - Added `Quick Reports` section with 4 quick navigation cards (`Sales Summary`, `Orders Report`, `Product Report`, `Low Stock Report`).
+  2. `test/capture_reports_screenshots_test.dart`:
+     - Created automated visual screenshot test suite capturing Desktop Light, Desktop Dark, and Mobile viewports.
+  3. `test/admin_manager_redesign_test.dart`:
+     - Verified all 10 manager redesign test suites pass across viewports from 320px to 1440px.
 
 ## Active Environment
 
 - Flutter SDK: 3.x / Dart 3.x
 - Backend: Laravel API on `http://localhost:8080`, MySQL on port 3306
-- Platform Dashboard, Admin Operations, and POS Shell operational
-- Current test URL: `http://localhost:44409/#/manager/dashboard`
+- Active dev URL: `http://localhost:44409/#/manager/reports`
+- Verification: `flutter analyze` (0 issues), all unit, widget, and screenshot tests passing.
 
 ## Next Steps
 
-- Continue full frontend presentation rebuild across Cashier, Shop Admin, and Shared navigation layers.
-
-
-## Previous Session
-
-- **Environment**: Antigravity IDE
-- **Timestamp**: 2026-11-24 00:05 (ICT)
-- **Branch**: `fix/final-safety-repair`
-- **Base Branch**: `fix/targeted-release-blockers`
-- **Author**: Ny Panha & Antigravity
-
-## Summary: Cancelled Operation Status Fix & Safety Hardening
-
-### 1. Authoritative Backend Communication (`backend/app/Http/Controllers/Api/OrderController.php`)
-- `GET /api/orders/by-operation/{opId}` explicitly communicates operation status:
-  - For completed orders: `"operation_status": "completed"`
-  - For cancelled tombstones: `"operation_status": "cancelled"`, message `"Operation was cancelled and not committed as a sale."`
-- `resolveIdempotentOrder()` strictly prevents committing retried checkout attempts when `status === 'cancelled'`, returning HTTP 409 Conflict.
-- Verified in `backend/tests/Feature/OrderAndInventoryTest.php` (`test_abort_operation_tombstones_operation_and_prevents_commit`).
-
-### 2. Flutter Operation Resolution Distinction (`lib/data/repositories/sale_repository.dart`)
-- `OperationResolution` enum explicitly distinguishes `completed`, `cancelled`, `notFound`, and `unknown` (with `confirmed = completed` alias).
-- `resolveOperationStatus()` checks both `operation_status` and `order.status` to return `OperationResolution.cancelled`.
-- `checkOperationStatus()` convenience wrapper returns `null` for cancelled operations, preventing callers from interpreting tombstones as valid orders.
-
-### 3. Tombstone Firestore Rejection & No Receipt / Spending Updates (`sale_repository.dart`, `pos_cart_provider.dart`)
-- `reconcileConfirmedOrder()` strictly guards against cancelled operations, aborting before Firestore writes (no sales document, no stock movement, no customer spending increment).
-- `restorePendingCheckout()`: when encountering a cancelled operation upon app restart:
-  - Clears persisted pending checkout from SharedPreferences.
-  - Resets cart state to idle with `lastCompletedInvoice == null` (zero spurious receipts).
-  - Skips Firestore cache reconciliation completely.
-- `reconcileActiveCheckout()` safely clears pending checkout and resets cart to idle on cancelled status.
-
-### 4. Cancelled Checkout Retry Lockout (`pos_cart_provider.dart`)
-- `checkout()` inspects `resolveOperationStatus()` prior to retrying.
-- If the operation is cancelled, it clears pending checkout, resets checking-out flag, and throws an exception, blocking retries from creating or confirming sales.
-
-### 5. Comprehensive Regression Suite (`test/widget_test.dart`)
-- Added end-to-end regression test:
-  1. Abort operation successfully via `saleRepo.abortOperation()`.
-  2. GET operation returns `OperationResolution.cancelled`.
-  3. Seed persisted pending state and restart Flutter (`restorePendingCheckout()`).
-  4. Verify `lastCompletedInvoice == null`, status is idle, and pending state is cleared from SharedPreferences.
-  5. Verify `reconcileConfirmedOrder()` refuses to write cancelled orders.
-  6. Verify checkout retry with cancelled operation throws exception and is blocked.
-
-## Active Environment
-- **Flutter App**: `e:\Project\flutter\project\mart_pos`
-- **Laravel Backend**: `e:\Project\flutter\project\mart_pos\backend`
-- **Backend API Server**: `http://localhost:8080`
-- **MySQL Application Database**: `mart_pos_db` on `127.0.0.1:3306`
-- **MySQL Dedicated Test Database**: `mart_pos_test` on `127.0.0.1:3306`
-
-## Verification & Test Results
-- `cd backend; php artisan test`: **All 27 tests passed (143 assertions)!**
-- `flutter analyze`: **No issues found!** (ran in 5.1s)
-- `flutter test`: **All 67 tests passed!** (100% passed across all unit and widget tests)
-
-## Remaining Limitations
-- Mart POS operates strictly with an authoritative MySQL backend for sales and inventory mutation. When offline, catalog browsing is available via cache, but sales transactions require an authoritative server connection.
+- STOP after completing System Reports as requested.
+- Ready for Nha's review and next screen rebuild instruction.

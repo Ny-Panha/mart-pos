@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,7 +16,7 @@ class SupplierFormDialog extends ConsumerStatefulWidget {
 
   static Future<void> show(BuildContext context, {SupplierModel? supplier}) {
     if (Responsive.isDesktop(context) || Responsive.isTablet(context)) {
-      return showDialog<void>(
+      return showMotionDialog<void>(
         context: context,
         builder: (_) => SupplierFormDialog(supplier: supplier),
       );

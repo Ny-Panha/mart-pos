@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -21,7 +22,7 @@ class CustomerFormDialog extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context, {CustomerModel? customer}) {
     final isDesktop = Responsive.isDesktop(context);
     if (isDesktop) {
-      return showDialog(
+      return showMotionDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => CustomerFormDialog(customer: customer, isBottomSheet: false),

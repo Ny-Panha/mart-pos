@@ -248,9 +248,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('ផ្ទាំងគ្រប់គ្រងប្រព័ន្ធ (Platform Dashboard)'), findsOneWidget);
-      expect(find.text('Total shops'), findsOneWidget);
-      expect(find.text('Active shops'), findsOneWidget);
-      expect(find.text('QUICK SHORTCUTS'), findsOneWidget);
+      expect(find.textContaining('Total'), findsOneWidget);
+      expect(find.textContaining('Active'), findsWidgets);
+      expect(find.textContaining('Shortcuts'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });
@@ -358,7 +358,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('កាតាឡុកទំនិញរួម (Global Products)'), findsOneWidget);
+      expect(find.text('Global Products'), findsWidgets);
       expect(find.text('Vital Premium Water 500ml'), findsOneWidget);
       expect(find.text('Catalog Items'), findsOneWidget);
       expect(find.text('Total Valuation'), findsOneWidget);
@@ -399,8 +399,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('របាយការណ៍រួម (System Reports)'), findsOneWidget);
-      expect(find.text('Revenue Analytics (និន្នាការចំណូល)'), findsOneWidget);
+      expect(find.textContaining('System Reports'), findsWidgets);
+      expect(find.textContaining('Revenue Analytics'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });

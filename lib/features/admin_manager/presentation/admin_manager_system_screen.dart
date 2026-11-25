@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,8 +15,9 @@ class AdminManagerSystemScreen extends StatefulWidget {
 }
 
 class _AdminManagerSystemScreenState extends State<AdminManagerSystemScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+    with TickerProviderStateMixin {
+  TabController? _controller;
+  TabController get _tabController => _controller!;
 
   final _tabs = const [
     (title: 'Audit Logs', icon: Icons.history_rounded),
@@ -25,9 +27,21 @@ class _AdminManagerSystemScreenState extends State<AdminManagerSystemScreen>
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final duration = AppMotionTokens.time(
+      context,
+      const Duration(milliseconds: 240),
+    );
+    if (_controller?.animationDuration == duration) return;
+    final index = _controller?.index ?? 0;
+    _controller?.dispose();
+    _controller = SpringTabController(
+      length: _tabs.length,
+      initialIndex: index,
+      vsync: this,
+      animationDuration: duration,
+    );
   }
 
   @override
@@ -40,7 +54,9 @@ class _AdminManagerSystemScreenState extends State<AdminManagerSystemScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1A1F2B) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF2D3442) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF2D3442)
+        : const Color(0xFFE2E8F0);
 
     return ManagerPage(
       title: 'ប្រតិបត្តិការប្រព័ន្ធ (System Operations)',
@@ -60,14 +76,20 @@ class _AdminManagerSystemScreenState extends State<AdminManagerSystemScreen>
               controller: _tabController,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
+              indicatorAnimation: TabIndicatorAnimation.linear,
               indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(10),
               ),
               labelColor: Colors.white,
-              unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              unselectedLabelColor: isDark
+                  ? const Color(0xFF94A3B8)
+                  : const Color(0xFF64748B),
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
               tabs: _tabs.map((tab) {
                 return Tab(
                   height: 40,
@@ -90,14 +112,32 @@ class _AdminManagerSystemScreenState extends State<AdminManagerSystemScreen>
           AnimatedBuilder(
             animation: _tabController,
             builder: (context, _) {
-              return IndexedStack(
-                index: _tabController.index,
-                children: const [
-                  _LogsPanel(),
-                  _AlertsPanel(),
-                  _HealthPanel(),
-                  _SettingsPanel(),
-                ],
+              return TweenAnimationBuilder<double>(
+                tween: Tween(
+                  begin: _tabController.index.toDouble(),
+                  end: _tabController.index.toDouble(),
+                ),
+                duration: AppMotionTokens.time(
+                  context,
+                  const Duration(milliseconds: 240),
+                ),
+                curve: AppMotionTokens.curve,
+                builder: (_, t, child) => Transform.translate(
+                  offset: Offset(
+                    (_tabController.index - t).clamp(-1, 1) * 16,
+                    0,
+                  ),
+                  child: child,
+                ),
+                child: IndexedStack(
+                  index: _tabController.index,
+                  children: const [
+                    _LogsPanel(),
+                    _AlertsPanel(),
+                    _HealthPanel(),
+                    _SettingsPanel(),
+                  ],
+                ),
               );
             },
           ),
@@ -138,11 +178,13 @@ class _LogsPanelState extends ConsumerState<_LogsPanel> {
           managerError(error, () => ref.invalidate(managerLogsProvider)),
       data: (items) {
         final filtered = items.where((log) {
-          final matchesSearch = log.action.toLowerCase().contains(_search) ||
+          final matchesSearch =
+              log.action.toLowerCase().contains(_search) ||
               log.actor.toLowerCase().contains(_search) ||
               log.entity.toLowerCase().contains(_search) ||
               log.message.toLowerCase().contains(_search);
-          final matchesSeverity = _severity == 'All' ||
+          final matchesSeverity =
+              _severity == 'All' ||
               log.severity.toLowerCase() == _severity.toLowerCase();
           return matchesSearch && matchesSeverity;
         }).toList();
@@ -167,83 +209,104 @@ class _LogsPanelState extends ConsumerState<_LogsPanel> {
                       description: 'Platform actions and security events will log here automatically.',
                     )
                   : filtered.isEmpty
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32),
-                            child: Text('No logs match your filter criteria.'),
-                          ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (_, index) {
-                            final log = filtered[index];
-                            final color = _severityColor(log.severity);
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text('No logs match your filter criteria.'),
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        final log = filtered[index];
+                        final color = _severityColor(log.severity);
 
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF131722)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF262C3A)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: .12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _severityIcon(log.severity),
+                                  size: 16,
+                                  color: color,
                                 ),
                               ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(7),
-                                    decoration: BoxDecoration(
-                                      color: color.withValues(alpha: .12),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(_severityIcon(log.severity), size: 16, color: color),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                log.action,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                              ),
+                                        Expanded(
+                                          child: Text(
+                                            log.action,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
                                             ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              managerDate(log.createdAt),
-                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                            ),
-                                          ],
+                                          ),
                                         ),
-                                        const SizedBox(height: 3),
+                                        const SizedBox(width: 8),
                                         Text(
-                                          [
-                                            if (log.entity.isNotEmpty) 'Entity: ${log.entity}',
-                                            if (log.actor.isNotEmpty) 'Actor: ${log.actor}',
-                                            log.message,
-                                          ].where((v) => v.isNotEmpty).join(' • '),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: isDark ? Colors.grey[400] : Colors.grey[700],
+                                          managerDate(log.createdAt),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey,
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      [
+                                        if (log.entity.isNotEmpty)
+                                          'Entity: ${log.entity}',
+                                        if (log.actor.isNotEmpty)
+                                          'Actor: ${log.actor}',
+                                        log.message,
+                                      ].where((v) => v.isNotEmpty).join(' • '),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            );
-                          },
-                        ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         );
@@ -281,7 +344,8 @@ class _AlertsPanel extends ConsumerWidget {
               ? const ManagerEmptyState(
                   icon: Icons.check_circle_outline_rounded,
                   title: 'All Systems Operational',
-                  description: 'No active alarms or critical alerts require attention.',
+                  description:
+                      'No active alarms or critical alerts require attention.',
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -290,16 +354,23 @@ class _AlertsPanel extends ConsumerWidget {
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, index) {
                     final alert = items[index];
-                    final isCritical = alert.severity.toLowerCase() == 'critical';
-                    final color = isCritical ? AppColors.danger : AppColors.warning;
+                    final isCritical =
+                        alert.severity.toLowerCase() == 'critical';
+                    final color = isCritical
+                        ? AppColors.danger
+                        : AppColors.warning;
 
                     return Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
+                        color: isDark
+                            ? const Color(0xFF131722)
+                            : const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                          color: isDark
+                              ? const Color(0xFF262C3A)
+                              : const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Column(
@@ -314,7 +385,9 @@ class _AlertsPanel extends ConsumerWidget {
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  isCritical ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
+                                  isCritical
+                                      ? Icons.error_outline_rounded
+                                      : Icons.warning_amber_rounded,
                                   color: color,
                                   size: 16,
                                 ),
@@ -323,7 +396,10 @@ class _AlertsPanel extends ConsumerWidget {
                               Expanded(
                                 child: Text(
                                   alert.title,
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                  ),
                                 ),
                               ),
                               ManagerStatusChip(
@@ -337,7 +413,9 @@ class _AlertsPanel extends ConsumerWidget {
                             alert.message,
                             style: TextStyle(
                               fontSize: 12.5,
-                              color: isDark ? Colors.grey[400] : Colors.grey[700],
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[700],
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -345,7 +423,10 @@ class _AlertsPanel extends ConsumerWidget {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               if (alert.resolved)
-                                const ManagerStatusChip(label: 'Resolved', positive: true)
+                                const ManagerStatusChip(
+                                  label: 'Resolved',
+                                  positive: true,
+                                )
                               else
                                 OutlinedButton.icon(
                                   onPressed: () async {
@@ -355,17 +436,25 @@ class _AlertsPanel extends ConsumerWidget {
                                           .resolveAlert(alert.id);
                                       ref.invalidate(managerAlertsProvider);
                                     } catch (error) {
-                                      if (context.mounted) showManagerError(context, error);
+                                      if (context.mounted) {
+                                        showManagerError(context, error);
+                                      }
                                     }
                                   },
                                   style: OutlinedButton.styleFrom(
                                     visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                  icon: const Icon(Icons.check_rounded, size: 14),
+                                  icon: const Icon(
+                                    Icons.check_rounded,
+                                    size: 14,
+                                  ),
                                   label: const Text('Resolve Alert'),
                                 ),
                             ],
@@ -425,7 +514,8 @@ class _HealthPanel extends StatelessWidget {
 
     return ManagerSectionCard(
       title: 'Infrastructure & Service Health',
-      subtitle: 'Live connectivity and configuration status for critical subsystems',
+      subtitle:
+          'Live connectivity and configuration status for critical subsystems',
       child: Column(
         children: services.map((s) {
           return Container(
@@ -435,7 +525,9 @@ class _HealthPanel extends StatelessWidget {
               color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                color: isDark
+                    ? const Color(0xFF262C3A)
+                    : const Color(0xFFE2E8F0),
               ),
             ),
             child: Row(
@@ -456,7 +548,10 @@ class _HealthPanel extends StatelessWidget {
                     children: [
                       Text(
                         s.name,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -469,10 +564,7 @@ class _HealthPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                ManagerStatusChip(
-                  label: s.status,
-                  positive: s.isOk,
-                ),
+                ManagerStatusChip(label: s.status, positive: s.isOk),
               ],
             ),
           );
@@ -519,7 +611,9 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
               color: isDark ? const Color(0xFF131722) : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDark ? const Color(0xFF262C3A) : const Color(0xFFE2E8F0),
+                color: isDark
+                    ? const Color(0xFF262C3A)
+                    : const Color(0xFFE2E8F0),
               ),
             ),
             child: Row(
@@ -530,7 +624,10 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
                     children: [
                       Text(
                         'Allow Shop POS Terminal Access',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
                       ),
                       SizedBox(height: 2),
                       Text(
@@ -554,9 +651,15 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
             controller: maintenance,
             decoration: InputDecoration(
               labelText: 'Platform Maintenance Notice (Optional)',
-              hintText: 'Enter announcement broadcast to shop administrators...',
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              hintText:
+                  'Enter announcement broadcast to shop administrators...',
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -571,13 +674,15 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
                         await ref
                             .read(adminManagerServiceProvider)
                             .updatePlatformSettings({
-                          'maintenanceMessage': maintenance.text.trim(),
-                          'posEnabled': posEnabled,
-                        });
+                              'maintenanceMessage': maintenance.text.trim(),
+                              'posEnabled': posEnabled,
+                            });
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Platform settings saved successfully.'),
+                              content: Text(
+                                'Platform settings saved successfully.',
+                              ),
                               backgroundColor: AppColors.success,
                             ),
                           );
@@ -590,14 +695,22 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
                     },
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               icon: saving
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Icon(Icons.save_rounded, size: 18),
               label: Text(saving ? 'Saving...' : 'Save Configuration'),
@@ -610,13 +723,13 @@ class _SettingsPanelState extends ConsumerState<_SettingsPanel> {
 }
 
 IconData _severityIcon(String severity) => switch (severity.toLowerCase()) {
-      'critical' || 'error' => Icons.error_outline_rounded,
-      'warning' => Icons.warning_amber_rounded,
-      _ => Icons.info_outline_rounded,
-    };
+  'critical' || 'error' => Icons.error_outline_rounded,
+  'warning' => Icons.warning_amber_rounded,
+  _ => Icons.info_outline_rounded,
+};
 
 Color _severityColor(String severity) => switch (severity.toLowerCase()) {
-      'critical' || 'error' => AppColors.danger,
-      'warning' => AppColors.warning,
-      _ => AppColors.info,
-    };
+  'critical' || 'error' => AppColors.danger,
+  'warning' => AppColors.warning,
+  _ => AppColors.info,
+};

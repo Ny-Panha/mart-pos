@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -57,7 +58,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
       );
 
       if (!canDeactivate) {
-        showDialog(
+        showMotionDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Row(
@@ -82,7 +83,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
       }
 
       // Confirm deactivation
-      final confirm = await showDialog<bool>(
+      final confirm = await showMotionDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('ផ្អាកដំណើរការគណនី (Deactivate User)'),

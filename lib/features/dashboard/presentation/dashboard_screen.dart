@@ -1,3 +1,4 @@
+import 'package:mart_pos/core/motion/app_motion.dart';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -300,7 +301,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 icon: Icons.receipt_long_rounded,
                 iconBg: const Color(0xFF6366F1).withValues(alpha: 0.18),
                 iconColor: const Color(0xFF818CF8),
-                value: MoneyUtils.formatRiel(todayRevenue),
+                value: todayRevenue,
+                format: MoneyUtils.formatRiel,
                 badgeText: MoneyUtils.formatUSD(MoneyUtils.rielToUsd(todayRevenue)),
                 badgePositive: true,
                 subtitle: 'Revenue today',
@@ -313,7 +315,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 icon: Icons.people_alt_rounded,
                 iconBg: const Color(0xFF10B981).withValues(alpha: 0.18),
                 iconColor: const Color(0xFF34D399),
-                value: '$todayOrders',
+                value: todayOrders,
                 badgeText: '$todayOrders orders',
                 badgePositive: null,
                 subtitle: 'Completed sales',
@@ -326,7 +328,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 icon: Icons.auto_graph_rounded,
                 iconBg: const Color(0xFFF59E0B).withValues(alpha: 0.18),
                 iconColor: const Color(0xFFFBBF24),
-                value: MoneyUtils.formatRiel(avgTicket),
+                value: avgTicket,
+                format: MoneyUtils.formatRiel,
                 badgeText: MoneyUtils.formatUSD(MoneyUtils.rielToUsd(avgTicket)),
                 badgePositive: null,
                 subtitle: 'Average check per order',
@@ -343,7 +346,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 iconColor: lowStockCount > 0
                     ? const Color(0xFFF87171)
                     : const Color(0xFF34D399),
-                value: '$totalProducts',
+                value: totalProducts,
                 badgeText: lowStockCount > 0 ? '$lowStockCount Low' : 'Optimal',
                 badgePositive: lowStockCount == 0,
                 subtitle: 'Active products',
@@ -382,7 +385,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required IconData icon,
     required Color iconBg,
     required Color iconColor,
-    required String value,
+    required int value,
+    String Function(int)? format,
     required String? badgeText,
     required bool? badgePositive,
     required String subtitle,
@@ -432,8 +436,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      value,
+                    AnimatedMetricValue(
+                      value, format:format,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,

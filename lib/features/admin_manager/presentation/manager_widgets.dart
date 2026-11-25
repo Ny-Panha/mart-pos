@@ -34,6 +34,7 @@ class ManagerPage extends StatelessWidget {
             final horizontalPadding = isCompact ? 16.0 : 28.0;
 
             return SingleChildScrollView(
+                key: const PageStorageKey('manager-page-scroll'),
               padding: EdgeInsets.symmetric(
                 horizontal: horizontalPadding,
                 vertical: isCompact ? 16.0 : 24.0,
