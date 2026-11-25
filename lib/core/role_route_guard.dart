@@ -4,26 +4,36 @@ import '../data/firestore/models/user_model.dart';
 class RoleRouteGuard {
   const RoleRouteGuard._();
 
+  static String _mapManagerPathToAdmin(String path) {
+    if (path == '/manager/products') return '/admin/products';
+    if (path == '/manager/stock') return '/admin/inventory';
+    if (path == '/manager/reports') return '/admin/reports';
+    if (path == '/manager/settings' || path == '/manager/system') {
+      return '/admin/settings';
+    }
+    return '/admin';
+  }
+
   static String? redirect(UserModel user, String path) {
     if (!user.active) {
       return path == '/login' ? null : '/login?error=deactivated';
     }
 
     if (path == '/login' || path == '/' || path == '/dashboard') {
-      if (user.isManager) return '/manager';
-      if (user.isAdmin) return '/admin';
+      if (user.canManageShop) return '/admin';
       if (user.isCashier) return '/pos';
       return null;
     }
 
-    final isManagerRoute = path.startsWith('/manager');
-    final isAdminRoute = path.startsWith('/admin');
-    final isCashierRoute = path.startsWith('/cashier');
+    final isManagerRoute = path == '/manager' || path.startsWith('/manager/');
+    final isAdminRoute = path == '/admin' || path.startsWith('/admin/');
+    final isCashierRoute = path == '/cashier' || path.startsWith('/cashier/');
     final isPosRoute = path == '/pos';
 
-    if (user.isManager) return isManagerRoute ? null : '/manager';
-    if (user.isAdmin) {
-      return isManagerRoute || isCashierRoute ? '/admin' : null;
+    if (user.canManageShop) {
+      if (isManagerRoute) return _mapManagerPathToAdmin(path);
+      if (isCashierRoute) return '/admin';
+      return null;
     }
     if (user.isCashier) {
       if (isManagerRoute || isAdminRoute) return '/pos';

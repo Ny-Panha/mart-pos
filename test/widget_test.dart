@@ -67,9 +67,14 @@ void main() {
       final manager = UserModel(id: 'm1', name: 'Manager', role: 'ADMIN_MANAGER');
       final admin = UserModel(id: 'a1', name: 'Admin', role: 'ADMIN', shopId: 'shop-a');
       final cashier = UserModel(id: 'c1', name: 'Cashier', role: 'CASHIER', shopId: 'shop-a');
-      expect(RoleRouteGuard.redirect(manager, '/login'), '/manager');
-      expect(RoleRouteGuard.redirect(manager, '/admin'), '/manager');
-      expect(RoleRouteGuard.redirect(admin, '/manager/reports'), '/admin');
+      expect(RoleRouteGuard.redirect(manager, '/login'), '/admin');
+      expect(RoleRouteGuard.redirect(manager, '/admin'), isNull);
+      expect(RoleRouteGuard.redirect(manager, '/manager/reports'), '/admin/reports');
+      expect(RoleRouteGuard.redirect(admin, '/manager'), '/admin');
+      expect(RoleRouteGuard.redirect(admin, '/manager/products'), '/admin/products');
+      expect(RoleRouteGuard.redirect(admin, '/manager/stock'), '/admin/inventory');
+      expect(RoleRouteGuard.redirect(admin, '/manager/reports'), '/admin/reports');
+      expect(RoleRouteGuard.redirect(admin, '/manager/settings'), '/admin/settings');
       expect(RoleRouteGuard.redirect(admin, '/cashier/history'), '/admin');
       expect(RoleRouteGuard.redirect(cashier, '/manager'), '/pos');
       expect(RoleRouteGuard.redirect(cashier, '/admin'), '/pos');

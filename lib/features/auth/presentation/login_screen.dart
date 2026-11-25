@@ -65,33 +65,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _handleManagerBootstrap() async {
-    setState(() => _errorMessage = null);
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(
-        () => _errorMessage =
-            'Enter the allowlisted manager email and password first.',
-      );
-      return;
-    }
-    try {
-      await ref
-          .read(authProvider.notifier)
-          .bootstrapFirstManager(
-            email: email,
-            password: password,
-            name: email.split('@').first,
-          );
-      if (mounted) context.go('/manager');
-    } catch (error) {
-      if (mounted) {
-        setState(() => _errorMessage = 'Manager setup failed: $error');
-      }
-    }
-  }
-
   void _fillDemoUser(String email, String role) {
     _emailController.text = email;
     _passwordController.text = '12345678';
@@ -295,17 +268,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             text: 'ចូលប្រព័ន្ធ (SIGN IN)',
             isLoading: isLoading,
             onPressed: _handleSignIn,
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: TextButton.icon(
-              onPressed: isLoading ? null : _handleManagerBootstrap,
-              icon: const Icon(Icons.admin_panel_settings_outlined, size: 16),
-              label: const Text(
-                'Initialize platform manager (First run only)',
-                style: TextStyle(fontSize: 11),
-              ),
-            ),
           ),
           const SizedBox(height: 16),
 

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/audit/presentation/audit_logs_screen.dart';
-import '../features/admin_manager/admin_manager.dart';
 import '../features/cashier/cashier.dart';
 import '../features/shop_admin/shop_admin.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -193,44 +192,43 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/manager',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const AdminManagerDashboardScreen()),
+            redirect: (context, state) => '/admin',
           ),
           GoRoute(
             path: '/manager/shops',
-            redirect: (context, state) => '/manager',
+            redirect: (context, state) => '/admin',
           ),
           GoRoute(
             path: '/manager/admins',
-            redirect: (context, state) => '/manager',
+            redirect: (context, state) => '/admin',
           ),
           GoRoute(
             path: '/manager/locations',
-            redirect: (context, state) => '/manager',
+            redirect: (context, state) => '/admin',
           ),
           GoRoute(
             path: '/manager/subscriptions',
-            redirect: (context, state) => '/manager',
+            redirect: (context, state) => '/admin',
           ),
           GoRoute(
             path: '/manager/products',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const AdminManagerCatalogScreen()),
+            redirect: (context, state) => '/admin/products',
           ),
           GoRoute(
             path: '/manager/stock',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const AdminManagerStockScreen()),
+            redirect: (context, state) => '/admin/inventory',
           ),
           GoRoute(
             path: '/manager/reports',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const AdminManagerReportsScreen()),
+            redirect: (context, state) => '/admin/reports',
+          ),
+          GoRoute(
+            path: '/manager/settings',
+            redirect: (context, state) => '/admin/settings',
           ),
           GoRoute(
             path: '/manager/system',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const AdminManagerSystemScreen()),
+            redirect: (context, state) => '/admin/settings',
           ),
         ],
       ),

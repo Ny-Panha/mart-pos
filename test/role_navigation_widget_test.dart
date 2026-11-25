@@ -46,16 +46,25 @@ void main() {
     router.dispose();
   }
 
-  testWidgets('manager receives platform navigation', (tester) async {
+  testWidgets('legacy manager role receives unified admin navigation', (
+    tester,
+  ) async {
     await expectNavigationFor(
       tester,
       UserModel(id: 'm1', name: 'Manager', role: UserModel.adminManagerRole),
       [
         'Dashboard',
-        'Stock Overview',
-        'Global Products',
-        'System Reports',
-        'Settings',
+        'POS Checkout',
+        'Products & Category',
+        'Stock Movements',
+        'Purchases',
+        'Suppliers',
+        'Customers',
+        'Staff & Shifts',
+        'Attendance',
+        'Reports & Analytics',
+        'Audit Logs',
+        'Shop Settings',
       ],
     );
   });
@@ -70,18 +79,17 @@ void main() {
         shopId: 'shop-a',
       ),
       [
-        'POS Checkout',
         'Dashboard',
+        'POS Checkout',
         'Products & Category',
         'Stock Movements',
         'Purchases',
         'Suppliers',
-        'Reports & Analytics',
         'Customers',
         'Staff & Shifts',
         'Attendance',
-        'Notifications',
-        'Audit Log',
+        'Reports & Analytics',
+        'Audit Logs',
         'Shop Settings',
       ],
     );

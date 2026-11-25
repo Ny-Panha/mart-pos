@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@martpos.com'],
             [
                 'name' => 'Admin Manager',
-                'role' => 'ADMIN_MANAGER',
+                'role' => 'ADMIN',
                 'phone' => '012345678',
                 'status' => 'active',
                 'password' => Hash::make('password123'),
@@ -40,7 +40,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@bbu.edu.kh'],
             [
                 'name' => 'Admin (ផ្កាយ)',
-                'role' => 'ADMIN_MANAGER',
+                'role' => 'ADMIN',
                 'phone' => '012345678',
                 'status' => 'active',
                 'password' => Hash::make('12345678'),

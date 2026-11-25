@@ -19,137 +19,91 @@ class MainShell extends ConsumerWidget {
   const MainShell({super.key, required this.child});
 
   List<_NavItem> _items(bool manager, bool admin) {
-    if (manager) {
-      return const [
-        _NavItem(
-          path: '/manager',
-          label: 'Dashboard',
-          khmerLabel: 'ទិដ្ឋភាពទូទៅ',
-          icon: Icons.dashboard_rounded,
-          category: 'ទិដ្ឋភាពទូទៅ (OVERVIEW)',
-        ),
-        _NavItem(
-          path: '/manager/stock',
-          label: 'Stock Overview',
-          khmerLabel: 'ស្តុកសរុបប្រព័ន្ធ',
-          icon: Icons.inventory_2_rounded,
-          category: 'ប្រតិបត្តិការ (OPERATIONS)',
-        ),
-        _NavItem(
-          path: '/manager/products',
-          label: 'Global Products',
-          khmerLabel: 'កាតាឡុកទំនិញ',
-          icon: Icons.category_rounded,
-          category: 'ប្រតិបត្តិការ (OPERATIONS)',
-        ),
-        _NavItem(
-          path: '/manager/reports',
-          label: 'System Reports',
-          khmerLabel: 'របាយការណ៍រួម',
-          icon: Icons.analytics_rounded,
-          category: 'ប្រព័ន្ធ (SYSTEM)',
-        ),
-        _NavItem(
-          path: '/manager/system',
-          label: 'Settings',
-          khmerLabel: 'ការកំណត់ប្រព័ន្ធ',
-          icon: Icons.settings_rounded,
-          category: 'ប្រព័ន្ធ (SYSTEM)',
-        ),
-      ];
-    }
-    if (admin) {
+    if (manager || admin) {
       return const [
         _NavItem(
           path: '/admin',
           label: 'Dashboard',
           khmerLabel: 'ផ្ទាំងគ្រប់គ្រង',
           icon: Icons.dashboard_rounded,
-          category: 'ចម្បង (CORE)',
+          category: 'Overview',
         ),
         _NavItem(
           path: '/pos',
           label: 'POS Checkout',
           khmerLabel: 'បញ្ជរគិតលុយ',
           icon: Icons.point_of_sale_rounded,
-          category: 'ចម្បង (CORE)',
+          category: 'Sell',
         ),
         _NavItem(
           path: '/admin/products',
           label: 'Products & Category',
           khmerLabel: 'ទំនិញ & ប្រភេទ',
           icon: Icons.inventory_2_rounded,
-          category: 'ទំនិញ & ស្តុក (INVENTORY)',
+          category: 'Catalogue',
         ),
         _NavItem(
           path: '/admin/inventory',
           label: 'Stock Movements',
           khmerLabel: 'ចលនាស្តុក',
           icon: Icons.swap_vert_circle_rounded,
-          category: 'ទំនិញ & ស្តុក (INVENTORY)',
+          category: 'Stock',
         ),
         _NavItem(
           path: '/admin/purchases',
           label: 'Purchases',
           khmerLabel: 'បញ្ជាទិញចូល',
           icon: Icons.shopping_bag_rounded,
-          category: 'ទំនិញ & ស្តុក (INVENTORY)',
+          category: 'Stock',
         ),
         _NavItem(
           path: '/admin/suppliers',
           label: 'Suppliers',
           khmerLabel: 'អ្នកផ្គត់ផ្គង់',
           icon: Icons.local_shipping_rounded,
-          category: 'ទំនិញ & ស្តុក (INVENTORY)',
-        ),
-        _NavItem(
-          path: '/admin/reports',
-          label: 'Reports & Analytics',
-          khmerLabel: 'របាយការណ៍លក់',
-          icon: Icons.analytics_rounded,
-          category: 'ការលក់ & អតិថិជន (SALES)',
+          category: 'Stock',
         ),
         _NavItem(
           path: '/admin/customers',
           label: 'Customers',
           khmerLabel: 'អតិថិជន',
           icon: Icons.people_alt_rounded,
-          category: 'ការលក់ & អតិថិជន (SALES)',
+          category: 'People',
         ),
         _NavItem(
           path: '/admin/users',
           label: 'Staff & Shifts',
           khmerLabel: 'បុគ្គលិក & វេនលក់',
           icon: Icons.badge_rounded,
-          category: 'ការគ្រប់គ្រង (MANAGEMENT)',
+          category: 'People',
         ),
         _NavItem(
           path: '/admin/attendance',
           label: 'Attendance',
           khmerLabel: 'វត្តមានបុគ្គលិក',
           icon: Icons.schedule_rounded,
-          category: 'ការគ្រប់គ្រង (MANAGEMENT)',
+          category: 'People',
         ),
         _NavItem(
-          path: '/admin/notifications',
-          label: 'Notifications',
-          khmerLabel: 'ការជូនដំណឹង',
-          icon: Icons.notifications_active_rounded,
-          category: 'ការគ្រប់គ្រង (MANAGEMENT)',
+          path: '/admin/reports',
+          label: 'Reports & Analytics',
+          khmerLabel: 'របាយការណ៍លក់',
+          icon: Icons.analytics_rounded,
+          category: 'Insights',
         ),
         _NavItem(
           path: '/admin/audit-log',
-          label: 'Audit Log',
+          label: 'Audit Logs',
           khmerLabel: 'កំណត់ហេតុតាមដាន',
           icon: Icons.shield_rounded,
-          category: 'ការគ្រប់គ្រង (MANAGEMENT)',
+          category: 'Insights',
         ),
         _NavItem(
           path: '/admin/settings',
           label: 'Shop Settings',
           khmerLabel: 'ការកំណត់ហាង',
           icon: Icons.settings_rounded,
-          category: 'ការគ្រប់គ្រង (MANAGEMENT)',
+          category: 'Settings',
         ),
       ];
     }
@@ -800,7 +754,6 @@ class _DesktopSidebar extends ConsumerWidget {
   bool _isItemActive(_NavItem item, String currentPath) {
     if (currentPath == item.path) return true;
     if (item.path == '/admin' ||
-        item.path == '/manager' ||
         item.path == '/' ||
         item.path == '/pos') {
       return false;

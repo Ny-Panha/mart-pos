@@ -22,6 +22,7 @@ service cloud.firestore {
 
     function isManager() {
       return signedIn() && (
+        actorRole() == 'ADMIN' || actorRole() == 'admin' ||
         actorRole() == 'ADMIN_MANAGER' || actorRole() == 'admin_manager' ||
         actorRole() == 'MANAGER' || actorRole() == 'manager' ||
         actorRole() == 'SUPER' || actorRole() == 'super'
