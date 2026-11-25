@@ -319,12 +319,12 @@ void main() {
   });
 
   testWidgets(
-    'LoginScreen shows Log in with Fingerprint / Face button ONLY when session, enabled, and supported are all true',
+    'LoginScreen shows Log in with Fingerprint / Face button when session != null && biometricAvailable (even if not yet enabled)',
     (tester) async {
       configureViewport(tester);
       final fake = _FakeBiometricAuthService(
         supported: true,
-        enabledByUid: {adminUser.id: true},
+        enabledByUid: <String, bool>{},
         nextAuthResult: const BiometricAuthResult(
           outcome: BiometricAuthOutcome.failed,
           message: 'Biometric failed on login screen',
@@ -336,8 +336,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Switch to LoginScreen via "Use password instead" (keeps live session)
-      await tester.tap(find.text('Use password instead'));
+      // Switch to LoginScreen via bypassedToLogin (keeps live session, not yet enabled)
+      final container = ProviderScope.containerOf(
+        tester.element(find.text('Admin Shell')),
+      );
+      container.read(biometricLockProvider.notifier).usePasswordInstead();
       await tester.pumpAndSettle();
 
       expect(find.byType(LoginScreen), findsOneWidget);
@@ -348,6 +351,40 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(LoginScreen), findsOneWidget);
       expect(find.text('Biometric failed on login screen'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'LoginScreen enable-via-button path authenticates, enables biometric_enabled for uid, and enters via RoleRouteGuard',
+    (tester) async {
+      configureViewport(tester);
+      final fake = _FakeBiometricAuthService(
+        supported: true,
+        enabledByUid: <String, bool>{},
+        nextAuthResult: const BiometricAuthResult(
+          outcome: BiometricAuthOutcome.success,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildTestApp(user: adminUser, fakeBiometric: fake),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.text('Admin Shell')),
+      );
+      container.read(biometricLockProvider.notifier).usePasswordInstead();
+      await tester.pumpAndSettle();
+
+      expect(await fake.isEnabledForUser(adminUser.id), isFalse);
+      expect(find.text('Log in with Fingerprint / Face'), findsOneWidget);
+
+      await tester.tap(find.text('Log in with Fingerprint / Face'));
+      await tester.pumpAndSettle();
+
+      expect(await fake.isEnabledForUser(adminUser.id), isTrue);
+      expect(find.text('Admin Shell'), findsOneWidget);
     },
   );
 

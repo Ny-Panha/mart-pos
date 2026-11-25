@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../features/auth/providers/auth_provider.dart';
+import '../../features/auth/providers/biometric_provider.dart';
 import '../../features/inventory/providers/inventory_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme_mode_provider.dart';
@@ -174,7 +175,8 @@ class MainShell extends ConsumerWidget {
 
     // Desktop/Tablet Sidebar Layout
     if (isDesktop) {
-      return Scaffold(
+      return _BiometricOfferHost(
+        child: Scaffold(
         body: Row(
           children: [
             _DesktopSidebar(
@@ -189,6 +191,7 @@ class MainShell extends ConsumerWidget {
             Expanded(child: content),
           ],
         ),
+      ),
       );
     }
 
@@ -197,8 +200,18 @@ class MainShell extends ConsumerWidget {
 
     final activeTabIndex = activeIndex < primaryTabs.length ? activeIndex : -1;
 
-    return Scaffold(
-      body: content,
+    return _BiometricOfferHost(
+      child: Scaffold(
+      body: MeshBackground(
+        child: SafeArea(
+          bottom: false,
+          minimum: const EdgeInsets.only(top: 12),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: NavigationMotion(index: activeIndex, child: child),
+          ),
+        ),
+      ),
       bottomNavigationBar: LayoutBuilder(
         builder: (context, constraints) {
           final count = primaryTabs.length + 1;
@@ -283,6 +296,7 @@ class MainShell extends ConsumerWidget {
           );
         },
       ),
+    ),
     );
   }
 
@@ -733,6 +747,67 @@ final collapsedNavGroupsProvider =
     NotifierProvider<CollapsedNavGroupsNotifier, Set<String>>(
       CollapsedNavGroupsNotifier.new,
     );
+
+class _BiometricOfferHost extends ConsumerStatefulWidget {
+  final Widget child;
+  const _BiometricOfferHost({required this.child});
+
+  @override
+  ConsumerState<_BiometricOfferHost> createState() =>
+      _BiometricOfferHostState();
+}
+
+class _BiometricOfferHostState extends ConsumerState<_BiometricOfferHost> {
+  bool _dialogOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final pendingUid = ref.watch(
+      biometricLockProvider.select((state) => state.pendingEnableOfferUid),
+    );
+
+    if (pendingUid != null && !_dialogOpen) {
+      _dialogOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) {
+          _dialogOpen = false;
+          return;
+        }
+        final enable = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Enable biometric unlock?'),
+            content: const Text(
+              'Use your fingerprint or face to unlock Mini-Mart POS faster on this device. Your password is never stored.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Not now'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Enable'),
+              ),
+            ],
+          ),
+        );
+        if (mounted) {
+          final notifier = ref.read(biometricLockProvider.notifier);
+          if (enable == true) {
+            await notifier.acceptEnableOffer(pendingUid);
+          } else {
+            await notifier.dismissEnableOffer(pendingUid);
+          }
+        }
+        _dialogOpen = false;
+      });
+    }
+
+    return widget.child;
+  }
+}
 
 class _DesktopSidebar extends ConsumerWidget {
   final List<_NavItem> items;

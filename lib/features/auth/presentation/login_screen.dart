@@ -49,58 +49,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     try {
+      ref.read(biometricLockProvider.notifier).beginPasswordSignIn();
       await ref
           .read(authProvider.notifier)
           .signIn(email: email, password: password);
-      if (mounted) {
-        final user = ref.read(authProvider).value;
-        if (user != null) {
-          final biometricNotifier = ref.read(biometricLockProvider.notifier);
-          biometricNotifier.markUnlockedAfterPasswordSignIn(user.id);
-          final shouldOffer =
-              await biometricNotifier.shouldOfferEnableAfterLogin(user.id);
-          if (shouldOffer && mounted) {
-            await _showEnableBiometricDialog(user.id);
-          }
-          if (!mounted) return;
-          final target = RoleRouteGuard.redirect(user, '/login') ?? '/admin';
-          context.go(target);
-        } else {
-          context.go('/admin');
-        }
+      if (!mounted) return;
+      final user = ref.read(authProvider).value;
+      if (user != null) {
+        final target = RoleRouteGuard.redirect(user, '/login') ?? '/admin';
+        context.go(target);
+      } else {
+        context.go('/admin');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _errorMessage = 'Sign in failed: ${e.toString()}');
-    }
-  }
-
-  Future<void> _showEnableBiometricDialog(String uid) async {
-    final enable = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Enable biometric unlock?'),
-        content: const Text(
-          'Use your fingerprint or face to unlock Mini-Mart POS faster on this device. Your password is never stored.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Not now'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Enable'),
-          ),
-        ],
-      ),
-    );
-
-    final notifier = ref.read(biometricLockProvider.notifier);
-    if (enable == true) {
-      await notifier.acceptEnableOffer(uid);
-    } else {
-      await notifier.dismissEnableOffer(uid);
     }
   }
 
@@ -124,11 +87,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final lockState = ref.watch(biometricLockProvider);
     final biometricAvailable =
         ref.watch(biometricAvailableProvider).value ?? false;
-    final biometricEnabled = sessionUser != null
-        ? (ref.watch(biometricEnabledProvider(sessionUser.id)).value ?? false)
-        : false;
-    final showBiometricLogin =
-        sessionUser != null && biometricAvailable && biometricEnabled;
+    final showBiometricLogin = sessionUser != null && biometricAvailable;
 
     final routerState = GoRouterState.of(context);
     final isDeactivated =
@@ -326,7 +285,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   : () async {
                       final ok = await ref
                           .read(biometricLockProvider.notifier)
-                          .unlockWithBiometrics();
+                          .unlockOrEnableWithBiometrics(sessionUser.id);
                       if (ok && context.mounted) {
                         final target =
                             RoleRouteGuard.redirect(sessionUser, '/login') ??
