@@ -92,38 +92,72 @@
 
 ## 🚀 របៀប Run ដំណើរការគម្រោង (How to Run)
 
-### ជំហានទី ១៖ បើក MySQL Database
+### ជំហានទី ១៖ ដំឡើង Tools និង Clone Project (Windows)
+
+ដំឡើង Git, Android Studio (Android SDK និង JDK 25; ឧទាហរណ៍ Android Studio JBR 25.0.3) និង Flutter/Dart ជាមុន។ អាចដំឡើង Flutter តាម [Flutter on Windows](https://docs.flutter.dev/get-started/install/windows) ហើយបន្ថែម `flutter\bin` ទៅក្នុង `PATH`។
+
+Project នេះ pin **Flutter 3.47.7** និង **Dart 3.13.5** តាម FVM។ មិនចាំបាច់ប្ដូរ Global Flutter SDK ទេ។ បើក Windows PowerShell ហើយដំឡើង FVM ម្តង៖
+
+```powershell
+dart pub global activate fvm 4.3.2
+$env:Path += ";$env:LOCALAPPDATA\Pub\Cache\bin"
+fvm --version
+```
+
+បើចង់ឱ្យ `fvm` ដំណើរការនៅ Terminal ថ្មីផង សូមបន្ថែម `%LOCALAPPDATA%\Pub\Cache\bin` ទៅ User PATH របស់ Windows។
+
+បើក PowerShell ក្នុង folder ដែលចង់រក្សាទុក Project (កុំ Clone ក្នុង `C:\Windows\System32`) រួច Run៖
+
+```powershell
+git clone -b ui/full-frontend-rebuild https://github.com/Ny-Panha/mart-pos.git
+cd mart-pos
+fvm install
+fvm use 3.47.7 --skip-pub-get
+fvm flutter --version
+fvm flutter pub get --enforce-lockfile
+```
+
+លទ្ធផល SDK ដែលត្រូវទទួលបាន៖ **Flutter 3.47.7 stable / Dart 3.13.5**។ FVM នឹងប្រើ SDK ដែលបានកំណត់ក្នុង `.fvmrc` ហើយ `pubspec.lock` រក្សា package versions ដូចគ្នាសម្រាប់ក្រុម។ កុំប្រើ `flutter upgrade` ឬ `flutter pub upgrade` ដោយមិនមានការឯកភាពពីក្រុម។
+
+### ជំហានទី ២៖ បើក MySQL Database
+
 1. បើកកម្មវិធី **Laragon** (ឬ XAMPP)
 2. ចុច **Start All** ដើម្បីដំណើរការ MySQL Server (Port `3306`)
 
-### ជំហានទី ២៖ ដំណើរការ Laravel Backend API
-បើក Terminal ចូលទៅកាន់ folder `backend`៖
+### ជំហានទី ៣៖ ដំណើរការ Laravel Backend API
+
+បើក Terminal ចេញពី root folder `mart-pos` ចូលទៅកាន់ folder `backend`៖
+
 ```bash
 cd backend
 composer install
 php artisan migrate --seed
 php artisan serve --host=0.0.0.0 --port=8080
 ```
+
 *(Backend REST API នឹងដំណើរការនៅ `http://localhost:8080` ឬតាម Wi-Fi IP ក្នុងបណ្តាញ Local)*
 
-### ជំហានទី ៣៖ ដំណើរការ Flutter Frontend App
-ដំឡើង Git, Android Studio (រួមទាំង Android SDK និង JDK 25; ឧទាហរណ៍ Android Studio JBR 25.0.3) និង Flutter/Dart ជាមុន។ អាចដំឡើង Flutter តាម [Flutter on Windows](https://docs.flutter.dev/get-started/install/windows) ហើយបន្ថែម `flutter\bin` ទៅក្នុង `PATH`។ Project នេះ pin **Flutter 3.47.7** និង **Dart 3.13.5** តាម FVM ដូច្នេះ SDK global គ្រាន់តែត្រូវការសម្រាប់ដំឡើង FVM ប៉ុណ្ណោះ។ ក្នុង Windows Terminal (PowerShell) ដំឡើង FVM ម្តង៖
-```powershell
-dart pub global activate fvm
-```
-បើពាក្យបញ្ជា `fvm` មិនត្រូវបានរកឃើញ សូមបន្ថែម `%LOCALAPPDATA%\Pub\Cache\bin` ទៅក្នុង `PATH` ហើយបើក Terminal ថ្មី។
+### ជំហានទី ៤៖ ដំណើរការ Flutter Frontend App
 
-Clone គម្រោង រួចចូលទៅ root folder៖
+ទុក Backend Terminal ឱ្យដំណើរការ ហើយបើក PowerShell មួយទៀតនៅ root folder `mart-pos`។ បើក Android emulator ឬភ្ជាប់ Android device រួច Run៖
+
 ```powershell
-git clone https://github.com/Ny-Panha/mart-pos.git
-cd mart-pos
-fvm install
-fvm flutter pub get --enforce-lockfile
-fvm flutter analyze
-fvm flutter test
+fvm flutter devices
 fvm flutter run
 ```
-FVM នឹងដំឡើង Flutter version ដែលបានកំណត់ក្នុង `.fvmrc`។ `pubspec.lock` ត្រូវបានរក្សាទុកក្នុង Git ដើម្បីឱ្យ package versions ដូចគ្នា ហើយ `.fvm/flutter_sdk`, `.dart_tool/` និង build outputs មិនត្រូវបាន commit ទេ។ ក្នុង VS Code បើក folder root នៃគម្រោង ដើម្បីប្រើ SDK នៅ `.fvm/flutter_sdk`។ ជ្រើស Android device/emulator មុនពេល `fvm flutter run`។ Backend Laravel/MySQL ត្រូវដំណើរការដាច់ដោយឡែក តាមជំហានខាងលើ។
+
+ក្នុង VS Code បើក root folder នៃគម្រោង ដើម្បីប្រើ SDK នៅ `.fvm/flutter_sdk`។ ប្រើ `fvm flutter` ជំនួស `flutter` ក្នុង Terminal ដើម្បីធានាថាប្រើ SDK ដែល Project បាន pin។
+
+### ជំហានទី ៥៖ ពិនិត្យ Project (Optional)
+
+```powershell
+fvm flutter analyze
+fvm flutter test
+fvm flutter build apk --debug
+git diff --exit-code -- pubspec.lock
+```
+
+APK ដែល build បានស្ថិតនៅ `build/app/outputs/flutter-apk/app-debug.apk`។ SDK cache `.fvm/`, `.dart_tool/` និង build outputs មិនត្រូវបាន commit ទេ។ Backend Laravel/MySQL ត្រូវដំណើរការដាច់ដោយឡែកតាមជំហានខាងលើ។
 
 ---
 
