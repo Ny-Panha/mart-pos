@@ -1,0 +1,39 @@
+name: Flutter validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.5"
+
+      - name: Install FVM
+        run: dart pub global activate fvm
+
+      - name: Install pinned Flutter SDK
+        run: fvm install
+
+      - name: Resolve locked dependencies
+        run: fvm flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        run: fvm flutter analyze
+
+      - name: Test
+        run: fvm flutter test
+
+      - name: Verify Android toolchain
+        run: fvm flutter build apk --debug

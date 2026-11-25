@@ -107,12 +107,23 @@ php artisan serve --host=0.0.0.0 --port=8080
 *(Backend REST API នឹងដំណើរការនៅ `http://localhost:8080` ឬតាម Wi-Fi IP ក្នុងបណ្តាញ Local)*
 
 ### ជំហានទី ៣៖ ដំណើរការ Flutter Frontend App
-បើក Terminal ថ្មីមួយទៀតក្នុង Root Folder នៃគម្រោង៖
-```bash
-flutter pub get
-flutter run
+ដំឡើង Git, Android Studio (រួមទាំង Android SDK និង JDK 25; ឧទាហរណ៍ Android Studio JBR 25.0.3) និង Flutter/Dart ជាមុន។ អាចដំឡើង Flutter តាម [Flutter on Windows](https://docs.flutter.dev/get-started/install/windows) ហើយបន្ថែម `flutter\bin` ទៅក្នុង `PATH`។ Project នេះ pin **Flutter 3.47.7** និង **Dart 3.13.5** តាម FVM ដូច្នេះ SDK global គ្រាន់តែត្រូវការសម្រាប់ដំឡើង FVM ប៉ុណ្ណោះ។ ក្នុង Windows Terminal (PowerShell) ដំឡើង FVM ម្តង៖
+```powershell
+dart pub global activate fvm
 ```
-*(អាច Run លើទូរស័ព្ទ Android ពិត, Chrome Web, ឬ Desktop)*
+បើពាក្យបញ្ជា `fvm` មិនត្រូវបានរកឃើញ សូមបន្ថែម `%LOCALAPPDATA%\Pub\Cache\bin` ទៅក្នុង `PATH` ហើយបើក Terminal ថ្មី។
+
+Clone គម្រោង រួចចូលទៅ root folder៖
+```powershell
+git clone https://github.com/Ny-Panha/mart-pos.git
+cd mart-pos
+fvm install
+fvm flutter pub get --enforce-lockfile
+fvm flutter analyze
+fvm flutter test
+fvm flutter run
+```
+FVM នឹងដំឡើង Flutter version ដែលបានកំណត់ក្នុង `.fvmrc`។ `pubspec.lock` ត្រូវបានរក្សាទុកក្នុង Git ដើម្បីឱ្យ package versions ដូចគ្នា ហើយ `.fvm/flutter_sdk`, `.dart_tool/` និង build outputs មិនត្រូវបាន commit ទេ។ ក្នុង VS Code បើក folder root នៃគម្រោង ដើម្បីប្រើ SDK នៅ `.fvm/flutter_sdk`។ ជ្រើស Android device/emulator មុនពេល `fvm flutter run`។ Backend Laravel/MySQL ត្រូវដំណើរការដាច់ដោយឡែក តាមជំហានខាងលើ។
 
 ---
 
