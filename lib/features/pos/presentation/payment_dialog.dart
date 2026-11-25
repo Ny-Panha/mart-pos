@@ -251,16 +251,37 @@ class _PaymentDialogState extends State<PaymentDialog>
                         if (tab < 2)
                           _cashForm(tab == 1)
                         else
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              Icons.qr_code_rounded,
-                              color: colors.primary,
-                            ),
-                            title: const Text('Bakong KHQR'),
-                            subtitle: const Text(
-                              'ផ្ទៀងផ្ទាត់ប្រាក់ចូលក្នុងគណនីមុនបញ្ជាក់។',
-                            ),
+                          Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.asset(
+                                    'assets/qr.png',
+                                    width: 200,
+                                    height: 200,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  Icons.qr_code_rounded,
+                                  color: colors.primary,
+                                ),
+                                title: const Text('Bakong KHQR'),
+                                subtitle: const Text(
+                                  'ផ្ទៀងផ្ទាត់ប្រាក់ចូលក្នុងគណនីមុនបញ្ជាក់។',
+                                ),
+                              ),
+                            ],
                           ),
                       ],
                     ),

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../firestore/shop_scope.dart';
+
 class ApiException implements Exception {
   final int statusCode;
   final String message;
@@ -20,6 +22,9 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  // Only identical catalog reads may share transport. Each caller decodes its
+  // own result, and reads following a write start a new request.
+  static final _catalogReads = <(Uri, String?, String?, String?, bool, bool), Future<http.Response>>{};
   static const String _tokenKey = 'mart_pos_auth_token';
   static const String _baseUrlKey = 'mart_pos_api_base_url';
 
@@ -40,26 +45,60 @@ class ApiService {
   static String? _token;
   static http.Client? _client;
 
-  static set client(http.Client? c) => _client = c;
+  static set client(http.Client? client) {
+    _catalogReads.clear();
+    _client = client;
+  }
+
+  static Future<http.Response> _sendWithAndroidFallback(
+    Uri uri,
+    Future<http.Response> Function(Uri target) send,
+  ) async {
+    try {
+      return await send(uri);
+    } on Exception catch (e) {
+      final isSocketError = e is SocketException ||
+          (e is http.ClientException && e.message.contains('SocketException'));
+      if (_client == null &&
+          !kIsWeb &&
+          Platform.isAndroid &&
+          uri.host == '10.0.2.2' &&
+          isSocketError) {
+        final loopbackUri = uri.replace(host: '127.0.0.1');
+        final response = await send(loopbackUri);
+        if (_baseUrl.contains('://10.0.2.2')) {
+          _baseUrl = _baseUrl.replaceFirst('://10.0.2.2', '://127.0.0.1');
+        }
+        return response;
+      }
+      rethrow;
+    }
+  }
 
   static Future<http.Response> _httpGet(Uri uri, {Map<String, String>? headers}) {
     if (_client != null) return _client!.get(uri, headers: headers);
-    return http.get(uri, headers: headers);
+    return _sendWithAndroidFallback(uri, (u) => http.get(u, headers: headers));
   }
 
   static Future<http.Response> _httpPost(Uri uri, {Map<String, String>? headers, Object? body}) {
     if (_client != null) return _client!.post(uri, headers: headers, body: body);
-    return http.post(uri, headers: headers, body: body);
+    return _sendWithAndroidFallback(
+      uri,
+      (u) => http.post(u, headers: headers, body: body),
+    );
   }
 
   static Future<http.Response> _httpPut(Uri uri, {Map<String, String>? headers, Object? body}) {
     if (_client != null) return _client!.put(uri, headers: headers, body: body);
-    return http.put(uri, headers: headers, body: body);
+    return _sendWithAndroidFallback(
+      uri,
+      (u) => http.put(u, headers: headers, body: body),
+    );
   }
 
   static Future<http.Response> _httpDelete(Uri uri, {Map<String, String>? headers}) {
     if (_client != null) return _client!.delete(uri, headers: headers);
-    return http.delete(uri, headers: headers);
+    return _sendWithAndroidFallback(uri, (u) => http.delete(u, headers: headers));
   }
 
   static Future<void> init() async {
@@ -74,18 +113,21 @@ class ApiService {
   static String get baseUrl => _baseUrl;
 
   static Future<void> setBaseUrl(String url) async {
+    _catalogReads.clear();
     _baseUrl = url.trim();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_baseUrlKey, _baseUrl);
   }
 
   static Future<void> saveToken(String token) async {
+    _catalogReads.clear();
     _token = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
   }
 
   static Future<void> clearToken() async {
+    _catalogReads.clear();
     _token = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
@@ -107,30 +149,44 @@ class ApiService {
   static Future<dynamic> get(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API GET: $uri');
-    final response = await _httpGet(uri, headers: _headers()).timeout(const Duration(seconds: 10));
-    return _processResponse(response);
+    Future<http.Response> fetch() =>
+        _httpGet(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+    if (endpoint != '/products' && endpoint != '/categories') {
+      return _processResponse(await fetch());
+    }
+    final key = (uri, _token, ShopScope.userId, ShopScope.shopId,
+        ShopScope.isManager, ShopScope.isCashier);
+    final pending = _catalogReads.putIfAbsent(key, fetch);
+    try {
+      return _processResponse(await pending);
+    } finally {
+      if (identical(_catalogReads[key], pending)) _catalogReads.remove(key);
+    }
   }
 
   static Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API POST: $uri');
+    _catalogReads.clear();
     final response = await _httpPost(uri, headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 10)).whenComplete(_catalogReads.clear);
     return _processResponse(response);
   }
 
   static Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API PUT: $uri');
+    _catalogReads.clear();
     final response = await _httpPut(uri, headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 10)).whenComplete(_catalogReads.clear);
     return _processResponse(response);
   }
 
   static Future<dynamic> delete(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API DELETE: $uri');
-    final response = await _httpDelete(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+    _catalogReads.clear();
+    final response = await _httpDelete(uri, headers: _headers()).timeout(const Duration(seconds: 10)).whenComplete(_catalogReads.clear);
     return _processResponse(response);
   }
 

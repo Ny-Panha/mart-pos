@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'app.dart';
 import 'firebase_options.dart';
 
@@ -13,8 +14,11 @@ import 'data/services/api_service.dart';
 /// Architecture: Feature-first with Flutter Riverpod, GoRouter, Laravel REST API & MySQL
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiService.init();
+  await Future.wait([ApiService.init(), _initializeFirebase()]);
+  runApp(const ProviderScope(child: MartPosApp()));
+}
 
+Future<void> _initializeFirebase() async {
   // TODO: For Android production APK build, ensure google-services.json is at:
   // android/app/google-services.json
   // TODO: For iOS release build, ensure GoogleService-Info.plist is at:
@@ -33,10 +37,4 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase initialization notice: $e');
   }
-
-  runApp(
-    const ProviderScope(
-      child: MartPosApp(),
-    ),
-  );
 }

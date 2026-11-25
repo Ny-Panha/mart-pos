@@ -370,6 +370,7 @@ class _AdminManagerStockScreenState
                       onChanged: (q) => setState(() => _searchQuery = q),
                       decoration: InputDecoration(
                         isDense: true,
+                        filled: false,
                         hintText: isMobile
                             ? 'Search products or SKU...'
                             : 'Search shops, products, or SKU... (ស្វែងរកហាង, ទំនិញ ឬ SKU...)',
@@ -378,6 +379,8 @@ class _AdminManagerStockScreenState
                           color: textSecondary.withValues(alpha: 0.75),
                         ),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
@@ -1606,12 +1609,15 @@ class _AdminManagerStockScreenState
               onChanged: (q) => setState(() => _searchQuery = q),
               decoration: InputDecoration(
                 isDense: true,
+                filled: false,
                 hintText: 'Search product, SKU, or barcode...',
                 hintStyle: TextStyle(
                   fontSize: 11.5,
                   color: textSecondary.withValues(alpha: 0.7),
                 ),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
               ),
             ),

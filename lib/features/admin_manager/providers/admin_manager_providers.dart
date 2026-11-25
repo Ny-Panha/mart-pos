@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/providers/auth_provider.dart';
 import '../data/admin_manager_service.dart';
 import '../models/admin_manager_models.dart';
 
@@ -11,6 +12,7 @@ final adminManagerFunctionClientProvider = Provider<AdminManagerFunctionClient>(
 );
 
 final adminManagerServiceProvider = Provider<AdminManagerService>((ref) {
+  ref.watch(authProvider);
   return AdminManagerService(
     firestore: FirebaseFirestore.instance,
     functions: ref.watch(adminManagerFunctionClientProvider),
@@ -56,7 +58,7 @@ final managerProductsProvider =
           .watchProducts(shopId: shopId);
     });
 
-final managerDashboardProvider = FutureProvider<PlatformDashboard>((ref) {
+final managerDashboardProvider = FutureProvider<PlatformDashboard>(retry: (_, _) => null, (ref) {
   return ref
       .watch(adminManagerServiceProvider)
       .getPlatformDashboard(

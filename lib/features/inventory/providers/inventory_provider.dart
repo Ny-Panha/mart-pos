@@ -3,6 +3,7 @@ import '../../../data/firestore/models/product_model.dart';
 import '../../../data/firestore/models/stock_movement_model.dart';
 import '../../../data/repositories/inventory_repository.dart';
 import '../../products/providers/product_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
   return InventoryRepository();
@@ -21,6 +22,7 @@ final inventoryProductFilterProvider =
 );
 
 final stockMovementsProvider = StreamProvider<List<StockMovementModel>>((ref) {
+  ref.watch(authProvider);
   final repo = ref.watch(inventoryRepositoryProvider);
   final filter = ref.watch(inventoryProductFilterProvider);
   return repo.watchStockMovements(productId: filter == 'all' ? null : filter);

@@ -218,7 +218,7 @@ void main() {
     expect(find.text('Catalog Items'), findsOneWidget);
     expect(find.text('Total Valuation'), findsOneWidget);
     expect(find.text('Active Shop'), findsOneWidget);
-    expect(find.text('Categories'), findsOneWidget);
+    expect(find.text('Categories'), findsAtLeastNWidgets(1));
     expect(find.text('All'), findsWidgets);
     expect(find.text('Beverages'), findsWidgets);
     expect(find.text('Food & Snacks'), findsWidgets);

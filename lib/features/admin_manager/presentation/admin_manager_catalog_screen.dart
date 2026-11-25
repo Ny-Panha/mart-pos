@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/product_thumbnail.dart';
+import '../../products/presentation/category_manager_dialog.dart';
+import '../../products/presentation/product_form_dialog.dart';
 import '../models/admin_manager_models.dart';
 import '../providers/admin_manager_providers.dart';
 import 'manager_widgets.dart';
@@ -27,6 +29,8 @@ class AdminManagerCatalogScreen extends ConsumerStatefulWidget {
       _AdminManagerCatalogScreenState();
 }
 
+typedef _CatalogControls = ({String query, String shop, String category, String sort, bool grid});
+
 class _AdminManagerCatalogScreenState
     extends ConsumerState<AdminManagerCatalogScreen> {
   String _searchQuery = '';
@@ -35,6 +39,42 @@ class _AdminManagerCatalogScreenState
   String _selectedSort = 'Name (A-Z)';
   bool _isGridView =
       false; // Default to full-width table layout matching mockup
+
+  final _searchController = TextEditingController();
+  PageStorageBucket? _bucket;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bucket = PageStorage.maybeOf(context);
+    if (identical(_bucket, bucket)) return;
+    _bucket = bucket;
+    final saved = bucket?.readState(context, identifier: 'catalog-controls');
+    final controls = saved is _CatalogControls ? saved : null;
+    _searchQuery = controls?.query ?? '';
+    _selectedShopId = controls?.shop ?? 'All';
+    _selectedCategory = controls?.category ?? 'All';
+    _selectedSort = controls?.sort ?? 'Name (A-Z)';
+    _isGridView = controls?.grid ?? false;
+    _searchController.text = _searchQuery;
+  }
+
+  void _updateControls(VoidCallback change) {
+    setState(change);
+    _bucket?.writeState(context, (
+      query: _searchQuery,
+      shop: _selectedShopId,
+      category: _selectedCategory,
+      sort: _selectedSort,
+      grid: _isGridView,
+    ), identifier: 'catalog-controls');
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _openDetails(
     PlatformProduct product,
@@ -245,9 +285,16 @@ class _AdminManagerCatalogScreenState
                               }
                             }
 
+                            if (!categories.contains(_selectedCategory)) {
+                              _selectedCategory = 'All';
+                            }
+                            if (shops.isNotEmpty && !shops.any((s) => s.id == _selectedShopId)) {
+                              _selectedShopId = 'All';
+                            }
+
                             // Filter products
-                            var filtered = products.where((p) {
-                              final q = _searchQuery.trim().toLowerCase();
+                            final q = _searchQuery.trim().toLowerCase();
+                            final filtered = products.where((p) {
                               final matchesSearch =
                                   q.isEmpty ||
                                   p.name.toLowerCase().contains(q) ||
@@ -488,12 +535,17 @@ class _AdminManagerCatalogScreenState
         ),
         const SizedBox(height: 8),
 
-        // Title and Refresh Action
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
+        // Title and Actions
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isMobile ? double.infinity : 460,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -514,46 +566,118 @@ class _AdminManagerCatalogScreenState
                 ],
               ),
             ),
-            InkWell(
-              onTap: onRefresh,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF191B21) : Colors.white,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                InkWell(
+                  onTap: () async {
+                    await CategoryManagerDialog.show(context);
+                    if (mounted) onRefresh();
+                  },
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isDark
-                        ? const Color(0xFF2B2E37)
-                        : const Color(0xFFE2E8F0),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
                     ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.refresh_rounded, size: 14, color: textPrimary),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Refresh',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: textPrimary,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF191B21) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF2B2E37)
+                            : const Color(0xFFE2E8F0),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.category_outlined,
+                          size: 14,
+                          color: textPrimary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Categories',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                InkWell(
+                  onTap: () async {
+                    await ProductFormDialog.show(context);
+                    if (mounted) onRefresh();
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: primaryGreen,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded, size: 15, color: Colors.white),
+                        SizedBox(width: 5),
+                        Text(
+                          'Add Product',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: onRefresh,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF191B21) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF2B2E37)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.refresh_rounded, size: 14, color: textPrimary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Refresh',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -759,16 +883,6 @@ class _AdminManagerCatalogScreenState
                   Row(
                     children: [
                       Expanded(
-                        child: _buildShopDropdown(
-                          shops: shops,
-                          isDark: isDark,
-                          borderColor: borderColor,
-                          textPrimary: textPrimary,
-                          textSecondary: textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
                         child: _buildSortDropdown(
                           isDark: isDark,
                           borderColor: borderColor,
@@ -789,19 +903,6 @@ class _AdminManagerCatalogScreenState
                     flex: 4,
                     child: _buildSearchInputField(
                       isDark: isDark,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // Shop Dropdown
-                  Expanded(
-                    flex: 2,
-                    child: _buildShopDropdown(
-                      shops: shops,
-                      isDark: isDark,
-                      borderColor: borderColor,
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,
                     ),
@@ -850,7 +951,7 @@ class _AdminManagerCatalogScreenState
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: InkWell(
-                    onTap: () => setState(() => _selectedCategory = cat),
+                    onTap: () => _updateControls(() => _selectedCategory = cat),
                     borderRadius: BorderRadius.circular(20),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -943,103 +1044,33 @@ class _AdminManagerCatalogScreenState
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
+              controller: _searchController,
               style: TextStyle(fontSize: 12, color: textPrimary),
-              onChanged: (q) => setState(() => _searchQuery = q),
+              onChanged: (q) => _updateControls(() => _searchQuery = q),
               decoration: InputDecoration(
                 isDense: true,
+                filled: false,
                 hintText: 'Search by product name, SKU or barcode...',
                 hintStyle: TextStyle(
                   fontSize: 12,
                   color: textSecondary.withValues(alpha: 0.75),
                 ),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
           if (_searchQuery.isNotEmpty)
             GestureDetector(
-              onTap: () => setState(() => _searchQuery = ''),
+              onTap: () => _updateControls(() {
+                _searchController.clear();
+                _searchQuery = '';
+              }),
               child: Icon(Icons.close_rounded, size: 14, color: textSecondary),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildShopDropdown({
-    required List<ShopSummary> shops,
-    required bool isDark,
-    required Color borderColor,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF191B21) : Colors.white,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: borderColor),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedShopId,
-          isExpanded: true,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 17,
-            color: textSecondary,
-          ),
-          dropdownColor: isDark ? const Color(0xFF191B21) : Colors.white,
-          items: [
-            DropdownMenuItem(
-              value: 'All',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.storefront_outlined,
-                    size: 14,
-                    color: textSecondary,
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'All shops',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ...shops.map(
-              (s) => DropdownMenuItem(
-                value: s.id,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.storefront_outlined,
-                      size: 14,
-                      color: textSecondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        s.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          onChanged: (val) {
-            if (val != null) setState(() => _selectedShopId = val);
-          },
-        ),
       ),
     );
   }
@@ -1061,7 +1092,7 @@ class _AdminManagerCatalogScreenState
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: _selectedCategory,
+          value: categories.contains(_selectedCategory) ? _selectedCategory : 'All',
           isExpanded: true,
           icon: Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -1089,7 +1120,7 @@ class _AdminManagerCatalogScreenState
             );
           }).toList(),
           onChanged: (val) {
-            if (val != null) setState(() => _selectedCategory = val);
+            if (val != null) _updateControls(() => _selectedCategory = val);
           },
         ),
       ),
@@ -1203,7 +1234,7 @@ class _AdminManagerCatalogScreenState
             ),
           ],
           onChanged: (val) {
-            if (val != null) setState(() => _selectedSort = val);
+            if (val != null) _updateControls(() => _selectedSort = val);
           },
         ),
       ),
@@ -1229,7 +1260,7 @@ class _AdminManagerCatalogScreenState
           Tooltip(
             message: 'Grid view',
             child: InkWell(
-              onTap: () => setState(() => _isGridView = true),
+              onTap: () => _updateControls(() => _isGridView = true),
               borderRadius: BorderRadius.circular(6),
               child: AnimatedContainer(
                 duration: AppMotionTokens.time(
@@ -1255,7 +1286,7 @@ class _AdminManagerCatalogScreenState
           Tooltip(
             message: 'List view',
             child: InkWell(
-              onTap: () => setState(() => _isGridView = false),
+              onTap: () => _updateControls(() => _isGridView = false),
               borderRadius: BorderRadius.circular(6),
               child: AnimatedContainer(
                 duration: AppMotionTokens.time(
@@ -1852,7 +1883,7 @@ class _AdminManagerCatalogScreenState
 
         final double itemWidth =
             (constraints.maxWidth - (crossAxisCount - 1) * 14) / crossAxisCount;
-        final double targetHeight = crossAxisCount == 1 ? 180.0 : 188.0;
+        final double targetHeight = crossAxisCount == 1 ? 200.0 : 204.0;
         final double childAspectRatio = itemWidth / targetHeight;
 
         return GridView.builder(

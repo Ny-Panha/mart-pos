@@ -18,7 +18,7 @@ import 'manager_widgets.dart';
 /// - Platform Overview Donut chart with category breakdown
 /// - Recent Shops card with "No shops created yet" empty state and "+ Create Shop" button
 /// - Platform Alerts card with "All systems normal" empty state
-/// - Quick Shortcuts toolbar with 4 operation tiles
+/// - Quick Shortcuts toolbar with 3 operation tiles
 class AdminManagerDashboardScreen extends ConsumerWidget {
   const AdminManagerDashboardScreen({super.key});
 
@@ -1553,14 +1553,6 @@ class _DashboardContent extends ConsumerWidget {
     Color textSecondary,
   ) {
     final shortcuts = [
-      (
-        title: 'Shops',
-        subtitle: 'គ្រប់គ្រងហាង',
-        path: '/manager/shops',
-        icon: Icons.storefront_rounded,
-        color: const Color(0xFF7C3AED),
-        bgColor: isDark ? const Color(0xFF2D1B4E) : const Color(0xFFF5F3FF),
-      ),
       (
         title: 'Stock',
         subtitle: 'ស្តុកទំនិញ',

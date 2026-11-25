@@ -65,10 +65,6 @@ class CategoryRepository {
             final list = snapshot.docs.map((d) => d.data()).toList();
             list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
             return list;
-          })
-          .handleError((error) {
-            debugPrint('Firestore watchCategories error: $error');
-            return _defaultCategories;
           });
     }
   }

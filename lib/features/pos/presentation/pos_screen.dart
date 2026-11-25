@@ -2,6 +2,7 @@ import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:printing/printing.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -332,20 +333,99 @@ class _PosScreenState extends ConsumerState<PosScreen>
             ),
           ],
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         actions: [
-          OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Receipt #$invoiceNum sent to printer')),
-              );
-              Navigator.pop(ctx);
-            },
-            icon: const Icon(Icons.print_outlined, size: 16),
-            label: const Text('បោះពុម្ព (Print)'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('បិទ (Close)'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      final printedAt = DateFormat(
+                        'yyyy-MM-dd HH:mm',
+                      ).format(DateTime.now());
+                      final html =
+                          '''
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  body { font-family: sans-serif; padding: 24px; color: #111827; max-width: 340px; margin: 0 auto; }
+  h2 { margin: 0 0 4px; text-align: center; font-size: 18px; }
+  .sub { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 16px; }
+  hr { border: none; border-top: 1px dashed #CBD5E1; margin: 12px 0; }
+  .row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 13px; }
+  .bold { font-weight: 700; }
+  .footer { text-align: center; color: #6B7280; font-size: 11px; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <h2>MINI-MART POS</h2>
+  <div class="sub">Build Bright University · Battambang</div>
+  <hr />
+  <div class="row"><span>Invoice</span><span class="bold">$invoiceNum</span></div>
+  <div class="row"><span>Date</span><span>$printedAt</span></div>
+  <div class="row"><span>Payment</span><span>${paymentMethod.toUpperCase()}</span></div>
+  <hr />
+  <div class="row bold"><span>Total</span><span>${MoneyUtils.formatDual(totalAmount)}</span></div>
+  <div class="row"><span>Paid</span><span>${MoneyUtils.formatDual(paidAmount)}</span></div>
+  <div class="row bold"><span>Change</span><span>${MoneyUtils.formatDual(changeAmount)}</span></div>
+  <hr />
+  <div class="footer">Thank you for your purchase!</div>
+</body>
+</html>
+''';
+                      await Printing.layoutPdf(
+                        name: 'Receipt-$invoiceNum',
+                        // ignore: deprecated_member_use
+                        onLayout: (format) => Printing.convertHtml(
+                          format: format,
+                          html: html,
+                        ),
+                      );
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          backgroundColor: const Color(0xFF1F2430),
+                          content: Text(
+                            'Print unavailable: $e',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  icon: const Icon(Icons.print_outlined, size: 16),
+                  label: const Text(
+                    'បោះពុម្ព (Print)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: const Text(
+                    'បិទ (Close)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -630,7 +710,13 @@ class _PosScreenState extends ConsumerState<PosScreen>
         child: Column(
           children: [
             OfflineBar(
-              onConnectivityChanged: (value) => setState(() => _online = value),
+              onConnectivityChanged: (online) {
+                setState(() => _online = online);
+                if (online) {
+                  ref.invalidate(productsStreamProvider);
+                  ref.invalidate(categoriesStreamProvider);
+                }
+              },
             ),
             if (cart.isPendingUnresolved && !cart.isCheckingOut)
               _buildUnresolvedCheckoutBanner(context, cart),

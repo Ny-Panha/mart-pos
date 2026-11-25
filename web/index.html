@@ -30,10 +30,6 @@
   <title>Mart POS - ប្រព័ន្ធគ្រប់គ្រងការលក់នៅម៉ាត</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- Google Fonts: Khmer & English typography -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-  <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&amp;family=Noto+Sans+Khmer:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <style id="splash-screen-style">
     html {
       height: 100%
@@ -115,45 +111,19 @@
     @keyframes martSpin { to { transform: rotate(360deg); } }
   </style>
   <script>
-    // Remove splash once flutter-view mounts
+    // Remove splash after Flutter paints its first frame
     (function monitorSplash() {
       const splash = document.getElementById('flutter_splash');
       if (!splash) return;
-      const interval = setInterval(() => {
-        if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane')) {
-          splash.style.transition = 'opacity 0.25s ease';
-          splash.style.opacity = '0';
-          setTimeout(() => splash.remove(), 250);
-          clearInterval(interval);
-        }
-      }, 100);
-      setTimeout(() => { if (splash) splash.remove(); }, 15000);
+      function hideSplash() {
+        splash.style.transition = 'opacity 0.25s ease';
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 250);
+      }
+      window.addEventListener('flutter-first-frame', hideSplash, { once: true });
+      setTimeout(() => splash.remove(), 15000);
     })();
 
-    // Auto-run fallback for Flutter Web in debug mode (DDC)
-    // When the browser is refreshed (F5/Ctrl+R), DWDS may not automatically invoke $dartRunMain.
-    (function autoRunFlutter() {
-      let launched = false;
-      function checkAndRun() {
-        if (launched) return;
-        if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane')) {
-          launched = true;
-          return;
-        }
-        if (typeof window.$dartRunMain === 'function') {
-          console.log('[AutoRun] Launching Flutter app via $dartRunMain...');
-          launched = true;
-          try {
-            window.$dartRunMain();
-          } catch (e) {
-            console.error('[AutoRun] Error executing $dartRunMain:', e);
-          }
-        }
-      }
-      const interval = setInterval(checkAndRun, 200);
-      window.addEventListener('load', checkAndRun);
-      setTimeout(() => clearInterval(interval), 30000);
-    })();
   </script>
   <script src="flutter_bootstrap.js" async=""></script>
 

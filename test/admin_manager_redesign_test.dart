@@ -234,6 +234,28 @@ void main() {
     );
   }
 
+  testWidgets('catalog restores search only inside its route storage bucket', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.reset);
+    final bucket = PageStorageBucket();
+    Future<void> open(PageStorageBucket storage) async {
+      await tester.pumpWidget(buildTestApp(child: PageStorage(
+        bucket: storage,
+        child: const AdminManagerCatalogScreen(),
+      )));
+      await tester.pumpAndSettle();
+    }
+    await open(bucket);
+    await tester.enterText(find.byType(TextField).first, 'Vital');
+    await tester.pumpWidget(const SizedBox());
+    await open(bucket);
+    expect(tester.widget<TextField>(find.byType(TextField).first).controller!.text, 'Vital');
+    await tester.pumpWidget(const SizedBox());
+    await open(PageStorageBucket());
+    expect(tester.widget<TextField>(find.byType(TextField).first).controller!.text, isEmpty);
+  });
+
   testWidgets('Platform Dashboard renders without overflow across viewports',
       (tester) async {
     for (final width in [320.0, 360.0, 390.0, 430.0, 768.0, 1024.0, 1440.0]) {

@@ -67,10 +67,6 @@ class InventoryRepository {
               return list.sublist(0, 100);
             }
             return list;
-          })
-          .handleError((error) {
-            debugPrint('watchStockMovements error: $error');
-            return <StockMovementModel>[];
           });
     }
   }

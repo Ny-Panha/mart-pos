@@ -5,11 +5,11 @@ import '../../../data/repositories/product_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 
 final productRepositoryProvider = Provider<ProductRepository>((ref) {
+  ref.watch(authProvider);
   return ProductRepository();
 });
 
 final productsStreamProvider = StreamProvider<List<ProductModel>>((ref) {
-  ref.watch(authProvider);
   final repo = ref.watch(productRepositoryProvider);
   return repo.watchProducts();
 });
@@ -41,6 +41,7 @@ final filteredProductsProvider = Provider<List<ProductModel>>((ref) {
 
   return productsAsync.when(
     data: (products) {
+      if (query.isEmpty && category == 'all') return products;
       return products.where((p) {
         final matchesQuery = query.isEmpty ||
             p.name.toLowerCase().contains(query) ||

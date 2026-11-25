@@ -18,18 +18,33 @@ class CashierSalesHistoryScreen extends ConsumerWidget {
     final sales = ref.watch(cashierSalesProvider);
     final filtered = ref.watch(filteredCashierSalesProvider);
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const PageHeader(
-              eyebrow: 'Cashier Operations',
-              title: 'ប្រវត្តិវិក្កយបត្រលក់ (Sales History)',
-              description: 'ពិនិត្យមើល និងបោះពុម្ពឡើងវិញនូវរាល់វិក្កយបត្រដែលបានគិតលុយរួច',
-            ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(cashierSalesProvider);
+          try {
+            await ref.read(cashierSalesProvider.future);
+          } catch (_) {}
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PageHeader(
+                eyebrow: 'Cashier Operations',
+                title: 'ប្រវត្តិវិក្កយបត្រលក់ (Sales History)',
+                description: 'ពិនិត្យមើល និងបោះពុម្ពឡើងវិញនូវរាល់វិក្កយបត្រដែលបានគិតលុយរួច',
+                actions: [
+                  OutlinedButton.icon(
+                    onPressed: () => ref.invalidate(cashierSalesProvider),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Refresh'),
+                  ),
+                ],
+              ),
             TextField(
               onChanged: (value) =>
                   ref.read(cashierSearchProvider.notifier).setQuery(value),
@@ -115,6 +130,7 @@ class CashierSalesHistoryScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -32,6 +32,17 @@ class ProductThumbnail extends StatelessWidget {
     this.backgroundColor,
   });
 
+  static const _thumbnails = {
+    'assets/products/angkor_water.jpg': 'assets/products/angkor_water.thumb.webp',
+    'assets/products/coca_cola.jpg': 'assets/products/coca_cola.thumb.webp',
+    'assets/products/colgate_toothpaste.jpg': 'assets/products/colgate_toothpaste.thumb.webp',
+    'assets/products/lifebuoy_soap.jpg': 'assets/products/lifebuoy_soap.thumb.webp',
+    'assets/products/mama_noodles.jpg': 'assets/products/mama_noodles.thumb.webp',
+    'assets/products/oreo_cookies.jpg': 'assets/products/oreo_cookies.thumb.webp',
+    'assets/products/red_bull.jpg': 'assets/products/red_bull.thumb.webp',
+    'assets/products/sting_energy.jpg': 'assets/products/sting_energy.thumb.webp',
+  };
+
   /// Automatically map known mini-mart products to their local high-res photo assets
   static String? getAssetForProduct({
     String? id,
@@ -141,6 +152,11 @@ class ProductThumbnail extends StatelessWidget {
       barcode: barcode,
     );
 
+    // Large previews retain the original asset at high device pixel ratios.
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final useThumbnail = width * pixelRatio <= 192 && height * pixelRatio <= 192;
+    final bundledAsset = useThumbnail ? _thumbnails[localAsset] ?? localAsset : localAsset;
+
     // Prioritize:
     // 1) Custom base64 photo uploaded by user (data:image)
     // 2) High-res bundled local asset (assets/products/*.jpg) to prevent web CORS issues
@@ -148,8 +164,8 @@ class ProductThumbnail extends StatelessWidget {
     final String? effectiveSource;
     if (rawUrl != null && rawUrl.startsWith('data:image')) {
       effectiveSource = rawUrl;
-    } else if (localAsset != null) {
-      effectiveSource = localAsset;
+    } else if (bundledAsset != null) {
+      effectiveSource = bundledAsset;
     } else {
       effectiveSource = rawUrl;
     }

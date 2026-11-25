@@ -172,231 +172,245 @@ class ProductsScreen extends ConsumerWidget {
     final categories = ref.watch(categoriesStreamProvider).value ?? [];
     final selectedCategory = ref.watch(selectedCategoryProvider);
 
-    return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Page Header
-            PageHeader(
-              eyebrow: 'Inventory Management',
-              title: 'គ្រប់គ្រងទំនិញ (Products & Categories)',
-              description: 'Create, update, organize categories, and track retail pricing in Riel',
-              actions: [
-                FilledButton.icon(
-                  onPressed: () => ProductFormDialog.show(context),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+ NEW PRODUCT'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
+    final padding = isDesktop ? 24.0 : 16.0;
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Page Header
+        PageHeader(
+          eyebrow: 'Inventory Management',
+          title: 'គ្រប់គ្រងទំនិញ (Products & Categories)',
+          description: 'Create, update, organize categories, and track retail pricing in Riel',
+          actions: [
+            FilledButton.icon(
+              onPressed: () => ProductFormDialog.show(context),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('+ NEW PRODUCT'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => CategoryManagerDialog.show(context),
+              icon: const Icon(Icons.category_outlined, size: 16),
+              label: const Text('ប្រភេទ (Categories)'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Category Capsule Tabs (Tavola style)
+        Builder(
+          builder: (context) {
+            final allProductsList = ref.watch(productsStreamProvider).value ?? [];
+            final counts = <String, int>{};
+            for (final product in allProductsList) {
+              counts.update(product.categoryId, (count) => count + 1, ifAbsent: () => 1);
+            }
+            return CapsuleTabBar(
+              items: [
+                CapsuleTabItem(
+                  label: 'ទាំងអស់ (All)',
+                  count: '${allProductsList.isNotEmpty ? allProductsList.length : products.length}',
+                  icon: Icons.grid_view_rounded,
                 ),
-                OutlinedButton.icon(
-                  onPressed: () => CategoryManagerDialog.show(context),
-                  icon: const Icon(Icons.category_outlined, size: 16),
-                  label: const Text('ប្រភេទ (Categories)'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                for (final cat in categories)
+                  CapsuleTabItem(
+                    label: cat.name,
+                    count: '${counts[cat.id] ?? 0}',
+                    icon: Icons.category_outlined,
                   ),
-                ),
               ],
-            ),
-            const SizedBox(height: 16),
-
-            // Category Capsule Tabs (Tavola style)
-            Builder(
-              builder: (context) {
-                final allProductsList = ref.watch(productsStreamProvider).value ?? [];
-                return CapsuleTabBar(
-                  items: [
-                    CapsuleTabItem(
-                      label: 'ទាំងអស់ (All)',
-                      count: '${allProductsList.isNotEmpty ? allProductsList.length : products.length}',
-                      icon: Icons.grid_view_rounded,
-                    ),
-                    for (final cat in categories)
-                      CapsuleTabItem(
-                        label: cat.name,
-                        count: '${allProductsList.where((p) => p.categoryId == cat.id).length}',
-                        icon: Icons.category_outlined,
-                      ),
-                  ],
-                  selectedIndex: (selectedCategory == 'all' || !categories.any((c) => c.id == selectedCategory))
-                      ? 0
-                      : (categories.indexWhere((c) => c.id == selectedCategory) + 1),
-                  isDense: true,
-                  onTabSelected: (idx) {
-                    if (idx == 0) {
-                      ref.read(selectedCategoryProvider.notifier).setCategory('all');
-                    } else {
-                      final cat = categories[idx - 1];
-                      ref.read(selectedCategoryProvider.notifier).setCategory(cat.id);
-                    }
-                  },
-                );
+              selectedIndex: (selectedCategory == 'all' || !categories.any((c) => c.id == selectedCategory))
+                  ? 0
+                  : (categories.indexWhere((c) => c.id == selectedCategory) + 1),
+              isDense: true,
+              onTabSelected: (idx) {
+                if (idx == 0) {
+                  ref.read(selectedCategoryProvider.notifier).setCategory('all');
+                } else {
+                  final cat = categories[idx - 1];
+                  ref.read(selectedCategoryProvider.notifier).setCategory(cat.id);
+                }
               },
-            ),
-            const SizedBox(height: 16),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
 
-            // Toolbar (Search + Category Filter + Total Count)
-            AppCard(
-              isFrosted: true,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isNarrow = constraints.maxWidth < 560;
-                      if (isNarrow) {
-                        return Column(
-                          children: [
-                            TextField(
-                              onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
-                                prefixIcon: const Icon(Icons.search, size: 20),
-                                suffixIcon: IconButton(
-                                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
-                                  tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
-                                  onPressed: () => _openScanSearch(context, ref),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.md),
-                                  borderSide: BorderSide(
-                                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                  ),
-                                ),
-                              ),
+        // Toolbar (Search + Category Filter + Total Count)
+        AppCard(
+          isFrosted: true,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 560;
+                  if (isNarrow) {
+                    return Column(
+                      children: [
+                        TextFormField(
+                          initialValue: ref.read(productSearchQueryProvider),
+                          onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                              tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                              onPressed: () => _openScanSearch(context, ref),
                             ),
-                            const SizedBox(height: 10),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: isDark ? AppColors.darkSurface : AppColors.lightBg,
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                                border: Border.all(
-                                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                ),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
-                                      ? selectedCategory
-                                      : 'all',
-                                  isExpanded: true,
-                                  items: [
-                                    const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
-                                    ...categories.map((cat) {
-                                      return DropdownMenuItem(
-                                        value: cat.id,
-                                        child: Text(cat.name),
-                                      );
-                                    }),
-                                  ],
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      ref.read(selectedCategoryProvider.notifier).setCategory(val);
-                                    }
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
-                                prefixIcon: const Icon(Icons.search, size: 20),
-                                suffixIcon: IconButton(
-                                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
-                                  tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
-                                  onPressed: () => _openScanSearch(context, ref),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.md),
-                                  borderSide: BorderSide(
-                                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(AppRadius.md),
-                              border: Border.all(
+                              borderSide: BorderSide(
                                 color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                               ),
                             ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
-                                    ? selectedCategory
-                                    : 'all',
-                                items: [
-                                  const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
-                                  ...categories.map((cat) {
-                                    return DropdownMenuItem(
-                                      value: cat.id,
-                                      child: Text(cat.name),
-                                    );
-                                  }),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    ref.read(selectedCategoryProvider.notifier).setCategory(val);
-                                  }
-                                },
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(
+                              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
+                                  ? selectedCategory
+                                  : 'all',
+                              isExpanded: true,
+                              items: [
+                                const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
+                                ...categories.map((cat) {
+                                  return DropdownMenuItem(
+                                    value: cat.id,
+                                    child: Text(cat.name),
+                                  );
+                                }),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  ref.read(selectedCategoryProvider.notifier).setCategory(val);
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: ref.read(productSearchQueryProvider),
+                          onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                              tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                              onPressed: () => _openScanSearch(context, ref),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(
+                                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                               ),
                             ),
                           ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'សរុប: ${products.length} មុខទំនិញ (Total: ${products.length} Items)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                    ),
-                  ),
-                ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkSurface : AppColors.lightBg,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          border: Border.all(
+                            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: (selectedCategory == 'all' || categories.any((c) => c.id == selectedCategory))
+                                ? selectedCategory
+                                : 'all',
+                            items: [
+                              const DropdownMenuItem(value: 'all', child: Text('ប្រភេទទំនិញទាំងអស់ (All)')),
+                              ...categories.map((cat) {
+                                return DropdownMenuItem(
+                                  value: cat.id,
+                                  child: Text(cat.name),
+                                );
+                              }),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                ref.read(selectedCategoryProvider.notifier).setCategory(val);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 10),
+              Text(
+                'សរុប: ${products.length} មុខទំនិញ (Total: ${products.length} Items)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
 
-            // Responsive Presentation: Desktop Data Table vs Mobile Card List
-            if (products.isEmpty)
-              const EmptyState(
+    return Scaffold(
+      body: CustomScrollView(
+        key: const PageStorageKey('admin-products-scroll'),
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
+            sliver: SliverToBoxAdapter(child: header),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(padding, 0, padding, padding),
+            sliver: products.isEmpty
+              ? const SliverToBoxAdapter(child: EmptyState(
                 icon: Icons.inventory_2_outlined,
                 title: 'គ្មានទំនិញទេ (No Products Found)',
                 subtitle: 'សាកល្បងស្វែងរកឈ្មោះផ្សេង ឬចុច "+ NEW PRODUCT" ដើម្បីបញ្ចូលទំនិញថ្មី',
-              )
-            else if (isDesktop)
-              _buildDesktopTable(context, ref, products, isDark)
-            else
-              _buildMobileCards(context, ref, products, isDark),
-          ],
-        ),
+              ))
+              : isDesktop
+                  ? SliverToBoxAdapter(child: _buildDesktopTable(context, ref, products, isDark))
+                  : _buildMobileCards(context, ref, products, isDark),
+          ),
+        ],
       ),
     );
   }
@@ -537,9 +551,7 @@ class ProductsScreen extends ConsumerWidget {
     List<ProductModel> products,
     bool isDark,
   ) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+    return SliverList.separated(
       itemCount: products.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {

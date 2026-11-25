@@ -162,10 +162,12 @@ class AdminManagerService {
 
       // Fallback directly to Firestore collections if Cloud Functions are not deployed, unauthenticated on endpoint, or unreachable
       try {
-        final shopsSnap = await _shops.get();
-        final usersSnap = await _users.get();
-        final productsSnap = await _products.get();
-        final salesSnap = await firestore.collection('sales').get();
+        final (shopsSnap, usersSnap, productsSnap, salesSnap) = await (
+          _shops.get(),
+          _users.get(),
+          _products.get(),
+          firestore.collection('sales').get(),
+        ).wait.timeout(const Duration(seconds: 15));
 
         final shops = shopsSnap.docs.map((d) => d.data()).toList();
         final users = usersSnap.docs.map((d) => d.data()).toList();

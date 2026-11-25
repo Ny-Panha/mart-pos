@@ -812,7 +812,9 @@ class _DesktopSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isCollapsed = ref.watch(sidebarCollapsedProvider);
     final collapsedGroups = ref.watch(collapsedNavGroupsProvider);
-    final lowStockCount = ref.watch(lowStockProductsProvider).length;
+    final lowStockCount = admin && !manager
+        ? ref.watch(lowStockProductsProvider.select((products) => products.length))
+        : 0;
 
     // Group items by category
     final Map<String, List<_NavItem>> groups = {};

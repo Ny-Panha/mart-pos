@@ -20,21 +20,22 @@ class ReportController extends Controller
         $query = Order::whereBetween('created_at', [$startDate, $endDate])
             ->where('status', 'completed');
 
-        $totalSalesRiel = (int) $query->sum('total_riel');
-        $totalSalesUsd = (float) $query->sum('total_usd');
-        $totalOrdersCount = (int) $query->count();
+        $totals = (clone $query)->selectRaw(
+            'SUM(total_riel) AS riel, SUM(total_usd) AS usd, COUNT(*) AS orders_count'
+        )->first();
+        $totalSalesRiel = (int) $totals->riel;
+        $totalSalesUsd = (float) $totals->usd;
+        $totalOrdersCount = (int) $totals->orders_count;
 
-        // Calculate authoritative profit from MySQL order items: (sale_price - cost_price) * qty
-        $orderIds = (clone $query)->pluck('id');
-        $totalProfitRiel = (int) OrderItem::whereIn('order_id', $orderIds)
+        $totalProfitRiel = (int) OrderItem::whereIn('order_id', $query->select('id'))
             ->selectRaw('SUM((sale_price - cost_price) * qty) as profit')
             ->value('profit');
 
-        $lowStockCount = Product::where('status', 'active')
-            ->whereRaw('stock_qty <= low_stock_threshold')
-            ->count();
-
-        $totalProductsCount = Product::where('status', 'active')->count();
+        $inventory = Product::where('status', 'active')->selectRaw(
+            'COUNT(*) AS total, SUM(CASE WHEN stock_qty <= low_stock_threshold THEN 1 ELSE 0 END) AS low_stock'
+        )->first();
+        $totalProductsCount = (int) $inventory->total;
+        $lowStockCount = (int) $inventory->low_stock;
 
         return response()->json([
             'success' => true,

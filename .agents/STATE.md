@@ -2,29 +2,32 @@
 
 ## Last Session
 
-- Antigravity IDE · 2026-11-25 16:22 ICT
+- Antigravity IDE · 2026-11-26 01:03 ICT
 - Active Branch: `ui/full-frontend-rebuild`
-- Production Branch: `main` (synchronized at commit `9998bdf`)
+- Production Branch: `main`
 
-## Summary: Successfully Merged and Pushed to Main Branch
+## Summary: Mobile & Cashier Fixes Ready for Team Clone
 
-- **Status**:
-  - `ui/full-frontend-rebuild` merged cleanly into `main` (Fast-forward).
-  - Pushed to remote: `origin/main` (commit `9998bdf`).
-  - GitHub Main Repository: https://github.com/Ny-Panha/mart-pos
-- **Features Shipped to Main**:
-  1. `Platform Dashboard (/manager)`: Complete SaaS rebuild matching mockup with 8 KPI cards, revenue line chart, platform donut chart, empty states, and quick shortcuts.
-  2. `System Reports (/manager/reports)`: Rebuilt analytics dashboard with 4 KPI cards, revenue analytics empty state, real stock health distribution, segmented tabs, and quick reports.
-  3. `Global Products (/manager/products)` & `Stock Overview (/manager/stock)`: Redesigned workspaces, thumbnails, and tables.
-  4. `Motion & UI Kit`: Added motion system (`lib/core/motion/app_motion.dart`, `pos_motion.dart`, `pos_ui_kit.dart`).
-  5. `Tests & Screenshots`: Full screenshot capture test suites and 100% passing responsive redesign tests.
+- **Physical Phone & Network**:
+  - Added automatic `10.0.2.2` -> `127.0.0.1` fallback in `lib/data/services/api_service.dart` (works on both Android Emulator and USB `adb reverse tcp:8080 tcp:8080`).
+  - Enabled `android:usesCleartextTraffic="true"` in `android/app/src/main/AndroidManifest.xml`.
+- **Admin Manager UI**:
+  - Removed `Shops` tile from Quick Shortcuts (`admin_manager_dashboard_screen.dart`).
+  - Fixed `BOTTOM OVERFLOWED BY 7.0 PIXELS` on Global Products mobile cards, cleaned up search bar inner fill (`admin_manager_catalog_screen.dart`, `admin_manager_stock_screen.dart`), removed unused `All shops` dropdown, and added `Categories` + `Add Product` buttons on Global Products.
+- **POS & Cashier**:
+  - Added Bakong KHQR asset (`assets/qr.png`) to KHQR tab in `payment_dialog.dart`.
+  - Fixed success dialog button layout and added real `Printing.layoutPdf` receipt preview in `pos_screen.dart`.
+  - Fixed Cashier `Sales History` and `Stock Check` (`cashier_service.dart`, `cashier_sales_history_screen.dart`, `cashier_stock_screen.dart`) to load from Laravel API (`/orders`, `/products`), map Laravel `total_riel` / `sale_price` fields, and support `RefreshIndicator` + Refresh button.
+- **Verification**:
+  - `fvm flutter analyze`: No issues found (exit 0).
+  - `fvm flutter test`: 113/113 passed (exit 0).
 
 ## Active Environment
 
 - Remote: `origin` (https://github.com/Ny-Panha/mart-pos.git)
-- Branches: `main` & `ui/full-frontend-rebuild` (both up to date)
-- Working Tree: clean (0 uncommitted changes)
+- Branch: `ui/full-frontend-rebuild`
+- Pinned SDK: Flutter `3.47.7`, Dart `3.13.5`, FVM `4.3.2`
 
 ## Next Steps
 
-- Await Nha's instructions.
+- Team can clone `https://github.com/Ny-Panha/mart-pos.git` on branch `ui/full-frontend-rebuild` and run `fvm install`.

@@ -208,10 +208,6 @@ class ProductRepository {
               return model;
             }).toList();
             return list;
-          })
-          .handleError((error) {
-            debugPrint('Firestore watchProducts error: $error');
-            return _fallbackProducts;
           });
     }
   }

@@ -37,7 +37,12 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = _RouterRefreshNotifier();
   final scrollBuckets = <String, PageStorageBucket>{};
   final authSubscription = ref.listen(authProvider, (previous, next) {
-    if (previous?.value?.id != next.value?.id) scrollBuckets.clear();
+    final oldUser = previous?.value;
+    final user = next.value;
+    if (oldUser?.id != user?.id || oldUser?.shopId != user?.shopId ||
+        oldUser?.role != user?.role) {
+      scrollBuckets.clear();
+    }
     refreshNotifier.refresh();
   });
 
