@@ -6,6 +6,8 @@ import '../../../core/utils/money.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../auth/presentation/widgets/biometric_toggle_tile.dart';
+import '../../auth/providers/biometric_provider.dart';
 import '../../shifts/presentation/close_shift_dialog.dart';
 import '../../shifts/presentation/open_shift_dialog.dart';
 import '../../shifts/providers/shift_provider.dart';
@@ -105,6 +107,25 @@ class CashierDailyCloseScreen extends ConsumerWidget {
                 );
               },
             ),
+            if (ref.watch(biometricAvailableProvider).value ?? false) ...[
+              const SizedBox(height: 16),
+              const AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Security (សុវត្ថិភាព)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    BiometricToggleTile(),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

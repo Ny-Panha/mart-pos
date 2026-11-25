@@ -2,29 +2,31 @@
 
 ## Last Session
 
-- Antigravity IDE · 2026-11-25 16:22 ICT
-- Active Branch: `ui/full-frontend-rebuild`
-- Production Branch: `main` (synchronized at commit `9998bdf`)
+- Antigravity IDE · 2026-11-26 02:57 ICT
+- Active Branch: `feat/biometric-login` (branched from `fix/two-role-flow` @ `0a691ae`)
+- Production Branch: `main` (untouched at `9998bdf`)
 
-## Summary: Successfully Merged and Pushed to Main Branch
+## Summary: Biometric Unlock Feature Implemented
 
-- **Status**:
-  - `ui/full-frontend-rebuild` merged cleanly into `main` (Fast-forward).
-  - Pushed to remote: `origin/main` (commit `9998bdf`).
-  - GitHub Main Repository: https://github.com/Ny-Panha/mart-pos
-- **Features Shipped to Main**:
-  1. `Platform Dashboard (/manager)`: Complete SaaS rebuild matching mockup with 8 KPI cards, revenue line chart, platform donut chart, empty states, and quick shortcuts.
-  2. `System Reports (/manager/reports)`: Rebuilt analytics dashboard with 4 KPI cards, revenue analytics empty state, real stock health distribution, segmented tabs, and quick reports.
-  3. `Global Products (/manager/products)` & `Stock Overview (/manager/stock)`: Redesigned workspaces, thumbnails, and tables.
-  4. `Motion & UI Kit`: Added motion system (`lib/core/motion/app_motion.dart`, `pos_motion.dart`, `pos_ui_kit.dart`).
-  5. `Tests & Screenshots`: Full screenshot capture test suites and 100% passing responsive redesign tests.
+- **Added Packages**:
+  - `local_auth: ^3.0.2`
+  - `flutter_secure_storage: ^11.2.0`
+- **Implemented**:
+  - `lib/features/auth/services/biometric_auth_service.dart` (`BiometricAuthService`, `LocalBiometricAuthService`)
+  - `lib/features/auth/providers/biometric_provider.dart` (`biometricLockProvider`, `biometricAvailableProvider`, `biometricEnabledProvider`)
+  - `lib/features/auth/presentation/biometric_lock_screen.dart` (`BiometricLockScreen` with `PopScope(canPop: false)`)
+  - `lib/features/auth/presentation/widgets/biometric_toggle_tile.dart` (`BiometricToggleTile`)
+  - Wired into `lib/core/router.dart`, `lib/features/auth/presentation/login_screen.dart`, `lib/features/shop_admin/presentation/admin_shop_settings_screen.dart`, `lib/features/cashier/presentation/cashier_daily_close_screen.dart`
+  - Native configs: `MainActivity.kt` (`FlutterFragmentActivity`), `AndroidManifest.xml` (`USE_BIOMETRIC`, `USE_FINGERPRINT`), `ios/Runner/Info.plist` (`NSFaceIDUsageDescription`)
+- **Tests**:
+  - `test/biometric_lock_test.dart` (6 tests) + `test/role_navigation_widget_test.dart` (3 tests) passed.
+  - `flutter analyze`: 0 issues.
 
 ## Active Environment
 
-- Remote: `origin` (https://github.com/Ny-Panha/mart-pos.git)
-- Branches: `main` & `ui/full-frontend-rebuild` (both up to date)
-- Working Tree: clean (0 uncommitted changes)
+- Branch: `feat/biometric-login`
+- Note: Pre-existing uncommitted changes from `fix/two-role-flow` working tree were left unstaged and untouched.
 
 ## Next Steps
 
-- Await Nha's instructions.
+- Manual test on Pixel 7 (enable offer, cold-start fingerprint unlock, cancel fallback, toggle OFF).

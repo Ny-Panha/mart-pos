@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 import '../features/audit/presentation/audit_logs_screen.dart';
 import '../features/cashier/cashier.dart';
 import '../features/shop_admin/shop_admin.dart';
+import '../features/auth/presentation/biometric_lock_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
+import '../features/auth/providers/biometric_provider.dart';
 import '../features/customers/presentation/customers_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/inventory/presentation/inventory_screen.dart';
@@ -37,6 +39,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   final scrollBuckets = <String, PageStorageBucket>{};
   final authSubscription = ref.listen(authProvider, (previous, next) {
     if (previous?.value?.id != next.value?.id) scrollBuckets.clear();
+    refreshNotifier.refresh();
+  });
+  final biometricSubscription = ref.listen(biometricLockProvider, (_, _) {
     refreshNotifier.refresh();
   });
 
@@ -82,10 +87,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isLoggingIn ? null : '/login';
       }
 
+      // 2. Biometric lock gate (must hold against back button & deep links)
+      final lockState = ref.read(biometricLockProvider);
+      if (lockState.status == BiometricLockStatus.checking ||
+          lockState.status == BiometricLockStatus.locked) {
+        return path == '/biometric-lock' ? null : '/biometric-lock';
+      }
+      if (lockState.status == BiometricLockStatus.bypassedToLogin) {
+        return isLoggingIn ? null : '/login';
+      }
+      if (path == '/biometric-lock') {
+        return RoleRouteGuard.redirect(user, '/');
+      }
+
       return RoleRouteGuard.redirect(user, path);
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/biometric-lock',
+        builder: (context, state) => const BiometricLockScreen(),
+      ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => MainShell(child: child),
@@ -237,6 +259,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   ref.onDispose(() {
     authSubscription.close();
+    biometricSubscription.close();
     router.dispose();
     refreshNotifier.dispose();
   });

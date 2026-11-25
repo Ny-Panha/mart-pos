@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/csv_exporter.dart';
 import '../../../core/utils/responsive.dart';
+import '../../auth/presentation/widgets/biometric_toggle_tile.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/providers/biometric_provider.dart';
 import '../../customers/providers/customer_provider.dart';
 import '../../products/providers/product_provider.dart';
 import '../../reports/providers/report_provider.dart';
@@ -108,6 +113,8 @@ class _AdminShopSettingsScreenState
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _bakongId = TextEditingController();
+  String? _khqrImageBase64;
+  bool _isLoadingKhqr = false;
 
   // Receipt & Printer Controllers
   final _receiptFooter = TextEditingController();
@@ -481,25 +488,6 @@ class _AdminShopSettingsScreenState
     );
   }
 
-  void _exportCustomersCsv() {
-    final customers = ref.read(customersStreamProvider).value ?? [];
-    final buffer = StringBuffer();
-    buffer.writeln('Customer ID,Name,Phone,Total Spent (Riel)');
-    for (final c in customers) {
-      buffer.writeln(
-        '"${c.id}","${c.name.replaceAll('"', '""')}","${c.phone ?? ''}",${c.totalSpent}',
-      );
-    }
-
-    downloadCsvFile('guest_list_${DateTime.now().millisecondsSinceEpoch}.csv', buffer.toString());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${customers.length} customers exported to CSV'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-  }
-
   void _exportInventoryCsv() {
     final products = ref.read(productsStreamProvider).value ?? [];
     final buffer = StringBuffer();
@@ -541,20 +529,6 @@ class _AdminShopSettingsScreenState
         ),
       );
     }
-  }
-
-  void _resetDemoData() {
-    ref.invalidate(adminShopSettingsProvider);
-    ref.invalidate(productsStreamProvider);
-    ref.invalidate(customersStreamProvider);
-    ref.invalidate(allRecentSalesProvider);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Settings restored to defaults'),
-        backgroundColor: Color(0xFFF46A55),
-      ),
-    );
   }
 
   @override
@@ -964,16 +938,100 @@ class _AdminShopSettingsScreenState
         _buildDivider(),
         _buildHorizontalRow(
           icon: Icons.qr_code_scanner_rounded,
-          label: 'Bakong KHQR ID',
-          hint: 'Account for customer QR scan & pay',
+          label: 'Bakong KHQR Image',
+          hint: 'Upload QR code image for customer scan & pay',
           stackOnMobile: true,
-          control: _buildInputCapsule(
-            controller: _bakongId,
-            hint: 'e.g. nha_mart@aclb',
-          ),
+          control: _buildKhqrImageControl(),
         ),
       ],
     );
+  }
+
+  Widget _buildKhqrImageControl() {
+    if (_khqrImageBase64 == null && !_isLoadingKhqr) {
+      _loadKhqrImage();
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.25)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: _khqrImageBase64 != null
+                ? Image.memory(
+                    base64Decode(_khqrImageBase64!),
+                    fit: BoxFit.contain,
+                  )
+                : Image.asset('assets/qr.png', fit: BoxFit.contain),
+          ),
+        ),
+        const SizedBox(width: 10),
+        OutlinedButton.icon(
+          onPressed: _isLoadingKhqr ? null : _pickKhqrImage,
+          icon: const Icon(Icons.upload_rounded, size: 16),
+          label: const Text('Upload QR', style: TextStyle(fontSize: 12.5)),
+        ),
+        if (_khqrImageBase64 != null) ...[
+          const SizedBox(width: 6),
+          IconButton(
+            tooltip: 'Reset to default QR',
+            onPressed: _clearKhqrImage,
+            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _loadKhqrImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('mart_pos_khqr_image_base64');
+    if (mounted && saved != null && saved.isNotEmpty) {
+      setState(() => _khqrImageBase64 = saved);
+    }
+  }
+
+  Future<void> _pickKhqrImage() async {
+    setState(() => _isLoadingKhqr = true);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 90,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        final encoded = base64Encode(bytes);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('mart_pos_khqr_image_base64', encoded);
+        if (mounted) {
+          setState(() => _khqrImageBase64 = encoded);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('បាន Upload រូបភាព Bakong KHQR ជោគជ័យ!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingKhqr = false);
+    }
+  }
+
+  Future<void> _clearKhqrImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('mart_pos_khqr_image_base64');
+    if (mounted) setState(() => _khqrImageBase64 = null);
   }
 
   // ==========================================
@@ -1284,6 +1342,12 @@ class _AdminShopSettingsScreenState
             ),
           ],
         ),
+        if (ref.watch(biometricAvailableProvider).value ?? false) ...[
+          const SizedBox(height: 18),
+          _buildDivider(),
+          const SizedBox(height: 8),
+          const BiometricToggleTile(),
+        ],
       ],
     );
   }
@@ -1664,7 +1728,6 @@ class _AdminShopSettingsScreenState
   // ==========================================
   Widget _buildDataCard({required GlobalKey key}) {
     final salesCount = ref.watch(allRecentSalesProvider).value?.length ?? 0;
-    final customersCount = ref.watch(customersStreamProvider).value?.length ?? 0;
     final productsCount = ref.watch(productsStreamProvider).value?.length ?? 0;
 
     return _buildTavolaCardContainer(
@@ -1680,16 +1743,6 @@ class _AdminShopSettingsScreenState
           control: _buildCsvButton(
             label: 'CSV',
             onTap: _exportSalesCsv,
-          ),
-        ),
-        _buildDivider(),
-        _buildHorizontalRow(
-          icon: Icons.people_outline_rounded,
-          label: 'Export guest list',
-          hint: '$customersCount registered customers with spend data',
-          control: _buildCsvButton(
-            label: 'CSV',
-            onTap: _exportCustomersCsv,
           ),
         ),
         _buildDivider(),
@@ -1725,25 +1778,6 @@ class _AdminShopSettingsScreenState
                     'Sync',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _theme.textPrimary),
                   ),
-          ),
-        ),
-        _buildDivider(),
-        _buildHorizontalRow(
-          icon: Icons.refresh_rounded,
-          label: 'Reset demo data',
-          hint: 'Restore local cached state back to sample data',
-          control: OutlinedButton(
-            onPressed: _resetDemoData,
-            style: OutlinedButton.styleFrom(
-              backgroundColor: const Color(0xFFF9D8C0).withValues(alpha: 0.1),
-              side: const BorderSide(color: Color(0xFFF9D8C0)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text(
-              'Reset',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFF9D8C0)),
-            ),
           ),
         ),
       ],

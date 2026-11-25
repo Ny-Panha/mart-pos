@@ -11,6 +11,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/ios_theme_toggle.dart';
 import '../providers/auth_provider.dart';
+import '../providers/biometric_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -54,6 +55,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         final user = ref.read(authProvider).value;
         if (user != null) {
+          final biometricNotifier = ref.read(biometricLockProvider.notifier);
+          biometricNotifier.markUnlockedAfterPasswordSignIn(user.id);
+          final shouldOffer =
+              await biometricNotifier.shouldOfferEnableAfterLogin(user.id);
+          if (shouldOffer && mounted) {
+            await _showEnableBiometricDialog(user.id);
+          }
+          if (!mounted) return;
           final target = RoleRouteGuard.redirect(user, '/login') ?? '/admin';
           context.go(target);
         } else {
@@ -62,6 +71,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       setState(() => _errorMessage = 'Sign in failed: ${e.toString()}');
+    }
+  }
+
+  Future<void> _showEnableBiometricDialog(String uid) async {
+    final enable = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enable biometric unlock?'),
+        content: const Text(
+          'Use your fingerprint or face to unlock Mini-Mart POS faster on this device. Your password is never stored.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+
+    final notifier = ref.read(biometricLockProvider.notifier);
+    if (enable == true) {
+      await notifier.acceptEnableOffer(uid);
+    } else {
+      await notifier.dismissEnableOffer(uid);
     }
   }
 

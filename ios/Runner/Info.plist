@@ -68,5 +68,7 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Authenticate with Face ID or Touch ID to unlock Mini-Mart POS</string>
 	</dict>
 </plist>
