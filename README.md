@@ -159,6 +159,28 @@ git diff --exit-code -- pubspec.lock
 
 APK ដែល build បានស្ថិតនៅ `build/app/outputs/flutter-apk/app-debug.apk`។ SDK cache `.fvm/`, `.dart_tool/` និង build outputs មិនត្រូវបាន commit ទេ។ Backend Laravel/MySQL ត្រូវដំណើរការដាច់ដោយឡែកតាមជំហានខាងលើ។
 
+### 📝 ចំណាំសម្រាប់សមាជិកក្រុម (After Cloning)
+
+បន្ទាប់ពី Clone branch ដូចគ្នា និង Setup តាមជំហានខាងលើ សមាជិកក្រុមអាច Run MART POS ដោយប្រើ source code និង SDK versions ដូចគ្នា។ មិនចាំបាច់ Copy Flutter SDK ឬ Project folder ពីកុំព្យូទ័រអ្នកដទៃទេ។
+
+| ផ្នែក | លទ្ធផលដែលរំពឹងទុក |
+|---|---|
+| UI Design និង Features | ដូចគ្នាសម្រាប់ Git commit ដូចគ្នា; អាចមានភាពខុសគ្នាតាមទំហំអេក្រង់ និង platform |
+| Flutter SDK | 3.47.7 stable |
+| Dart SDK | 3.13.5 |
+| Package Versions | ដូចគ្នាតាម `pubspec.lock` |
+| MySQL Database | ត្រូវ Setup និង migrate/seed; ទិន្នន័យ local មិនត្រូវបាន Clone តាម Git ទេ |
+| Laravel API | ត្រូវកំណត់ environment និង API URL ឱ្យត្រូវនឹងម៉ាស៊ីន/ឧបករណ៍ដែលប្រើ |
+| Firebase | ត្រូវមាន configuration និងសិទ្ធិប្រើប្រាស់ត្រឹមត្រូវ |
+
+**រាល់ពេលចង់បើក App ក្រោយ Setup រួច៖** បើក MySQL និង Laravel Backend សម្រាប់មុខងារដែលប្រើ API រួចបើក Terminal នៅ root folder `mart-pos` និង Run៖
+
+```powershell
+fvm flutter run
+```
+
+បើទទួលបានការកែប្រែថ្មីពីក្រុម សូមទាញ Git updates ហើយរត់ `fvm install` និង `fvm flutter pub get --enforce-lockfile` មុន Run។ កុំ commit ឯកសារ `.env`, credentials ឬ machine-specific SDK paths។ ការដំណើរការជាក់ស្តែងអាស្រ័យលើការដំឡើង tools, device, backend និង configuration នៅលើកុំព្យូទ័ររបស់សមាជិកនីមួយៗ។
+
 ---
 
 ## 🔑 គណនីសម្រាប់សាកល្បង Demo (Default Credentials)
