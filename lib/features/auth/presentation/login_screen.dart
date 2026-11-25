@@ -120,12 +120,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             Theme.of(context).brightness == Brightness.dark);
     final authState = ref.watch(authProvider);
     final isLoading = authState.isLoading;
+    final sessionUser = authState.value;
+    final lockState = ref.watch(biometricLockProvider);
+    final biometricAvailable =
+        ref.watch(biometricAvailableProvider).value ?? false;
+    final biometricEnabled = sessionUser != null
+        ? (ref.watch(biometricEnabledProvider(sessionUser.id)).value ?? false)
+        : false;
+    final showBiometricLogin =
+        sessionUser != null && biometricAvailable && biometricEnabled;
 
     final routerState = GoRouterState.of(context);
     final isDeactivated =
         routerState.uri.queryParameters['error'] == 'deactivated';
     final effectiveError =
         _errorMessage ??
+        lockState.errorMessage ??
         (isDeactivated
             ? 'គណនីត្រូវបានផ្អាកដំណើរការ — សូមទាក់ទង Admin (Account deactivated — please contact admin)'
             : null);
@@ -308,6 +318,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isLoading: isLoading,
             onPressed: _handleSignIn,
           ),
+          if (showBiometricLogin) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: isLoading || lockState.isAuthenticating
+                  ? null
+                  : () async {
+                      final ok = await ref
+                          .read(biometricLockProvider.notifier)
+                          .unlockWithBiometrics();
+                      if (ok && context.mounted) {
+                        final target =
+                            RoleRouteGuard.redirect(sessionUser, '/login') ??
+                            '/admin';
+                        context.go(target);
+                      }
+                    },
+              icon: const Icon(Icons.fingerprint_rounded, size: 20),
+              label: const Text('Log in with Fingerprint / Face'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Quick Demo Users

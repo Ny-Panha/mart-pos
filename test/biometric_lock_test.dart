@@ -132,7 +132,7 @@ final _testRouterProvider = Provider<GoRouter>((ref) {
 });
 
 Widget _buildTestApp({
-  required UserModel user,
+  required UserModel? user,
   required _FakeBiometricAuthService fakeBiometric,
 }) {
   return ProviderScope(
@@ -317,4 +317,54 @@ void main() {
     await fake.setEnabledForUser(adminUser.id, false);
     expect(await fake.isEnabledForUser(adminUser.id), isFalse);
   });
+
+  testWidgets(
+    'LoginScreen shows Log in with Fingerprint / Face button ONLY when session, enabled, and supported are all true',
+    (tester) async {
+      configureViewport(tester);
+      final fake = _FakeBiometricAuthService(
+        supported: true,
+        enabledByUid: {adminUser.id: true},
+        nextAuthResult: const BiometricAuthResult(
+          outcome: BiometricAuthOutcome.failed,
+          message: 'Biometric failed on login screen',
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildTestApp(user: adminUser, fakeBiometric: fake),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to LoginScreen via "Use password instead" (keeps live session)
+      await tester.tap(find.text('Use password instead'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.text('Log in with Fingerprint / Face'), findsOneWidget);
+
+      // Tapping on fail stays on LoginScreen with inline error
+      await tester.tap(find.text('Log in with Fingerprint / Face'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.text('Biometric failed on login screen'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'LoginScreen hides Log in with Fingerprint / Face button when session is null',
+    (tester) async {
+      configureViewport(tester);
+      final fake = _FakeBiometricAuthService(
+        supported: true,
+        enabledByUid: {adminUser.id: true},
+      );
+
+      await tester.pumpWidget(_buildTestApp(user: null, fakeBiometric: fake));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.text('Log in with Fingerprint / Face'), findsNothing);
+    },
+  );
 }
