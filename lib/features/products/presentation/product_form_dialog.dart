@@ -84,7 +84,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
               : '0')
           : '0');
 
+  late final TextEditingController _categoryController =
+      TextEditingController();
+  final FocusNode _categoryFocusNode = FocusNode();
+
   String? _selectedCategoryId;
+  bool _didPrefillCategory = false;
   String _selectedUnit = 'កំប៉ុង';
   bool _isActive = true;
 
@@ -124,6 +129,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _lowStockThresholdController.dispose();
     _imageUrlController.dispose();
     _taxController.dispose();
+    _categoryController.dispose();
+    _categoryFocusNode.dispose();
     super.dispose();
   }
 
@@ -301,8 +308,24 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
 
     if (!_formKey.currentState!.validate()) return;
     final categories = ref.read(categoriesStreamProvider).value ?? [];
-    final categoryIdToUse = _selectedCategoryId ??
-        (categories.isNotEmpty ? categories.first.id : 'cat_drinks');
+    final inputCategoryName = _categoryController.text.trim();
+    String categoryIdToUse;
+    final matchedCategory = categories.where(
+      (c) => c.name.trim().toLowerCase() == inputCategoryName.toLowerCase(),
+    );
+    if (matchedCategory.isNotEmpty) {
+      categoryIdToUse = matchedCategory.first.id;
+    } else {
+      try {
+        final created = await ref
+            .read(categoryRepositoryProvider)
+            .createCategory(name: inputCategoryName);
+        categoryIdToUse = created.id;
+      } catch (_) {
+        categoryIdToUse = _selectedCategoryId ??
+            (categories.isNotEmpty ? categories.first.id : inputCategoryName);
+      }
+    }
 
     final code = _codeController.text.trim().toUpperCase();
     final repo = ref.read(productRepositoryProvider);
@@ -508,33 +531,112 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: categoriesAsync.when(
-                    data: (categories) {
-                      // Validate if selected category exists
-                      final exists = categories.any((c) => c.id == _selectedCategoryId);
-                      final currentValue = exists ? _selectedCategoryId : (categories.isNotEmpty ? categories.first.id : null);
-
-                      return DropdownButtonFormField<String>(
-                        initialValue: currentValue,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'ប្រភេទទំនិញ (Category) *',
-                          isDense: true,
-                        ),
-                        items: categories.map((cat) {
-                          return DropdownMenuItem(
-                            value: cat.id,
-                            child: Text(cat.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: Builder(
+                    builder: (context) {
+                      final categories = categoriesAsync.value ?? [];
+                      if (!_didPrefillCategory &&
+                          _isEditing &&
+                          _selectedCategoryId != null &&
+                          categories.isNotEmpty) {
+                        final matched = categories.where(
+                          (c) => c.id == _selectedCategoryId,
+                        );
+                        if (matched.isNotEmpty) {
+                          _categoryController.text = matched.first.name;
+                        }
+                        _didPrefillCategory = true;
+                      }
+                      final categoryNames =
+                          categories.map((c) => c.name).toList();
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return RawAutocomplete<String>(
+                            textEditingController: _categoryController,
+                            focusNode: _categoryFocusNode,
+                            optionsBuilder: (textEditingValue) {
+                              final query = textEditingValue.text.trim().toLowerCase();
+                              if (query.isEmpty) {
+                                return categoryNames;
+                              }
+                              return categoryNames.where(
+                                (name) => name.toLowerCase().contains(query),
+                              );
+                            },
+                            onSelected: (selection) {
+                              _categoryController.text = selection;
+                            },
+                            fieldViewBuilder: (
+                              context,
+                              controller,
+                              focusNode,
+                              onFieldSubmitted,
+                            ) {
+                              return TextFormField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'ប្រភេទទំនិញ (Category) *',
+                                  hintText: 'ជ្រើសរើស ឬវាយថ្មី...',
+                                  isDense: true,
+                                  suffixIcon: controller.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 16),
+                                          onPressed: () {
+                                            controller.clear();
+                                            focusNode.requestFocus();
+                                          },
+                                        )
+                                      : const Icon(Icons.arrow_drop_down, size: 20),
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                        ? 'Category is required'
+                                        : null,
+                              );
+                            },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              final opts = options.toList();
+                              if (opts.isEmpty) return const SizedBox.shrink();
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 6,
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: constraints.maxWidth,
+                                      maxHeight: 200,
+                                    ),
+                                    child: ListView.builder(
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      shrinkWrap: true,
+                                      itemCount: opts.length,
+                                      itemBuilder: (context, index) {
+                                        final option = opts[index];
+                                        return InkWell(
+                                          onTap: () => onSelected(option),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 10,
+                                            ),
+                                            child: Text(
+                                              option,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           );
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() => _selectedCategoryId = val);
                         },
-                        validator: (v) => (v == null && (currentValue == null || currentValue.isEmpty)) ? 'Category is required' : null,
                       );
                     },
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Error loading categories'),
                   ),
                 ),
               ],
