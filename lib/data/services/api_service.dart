@@ -104,10 +104,12 @@ class ApiService {
     return headers;
   }
 
+  static const Duration _requestTimeout = Duration(seconds: 30);
+
   static Future<dynamic> get(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API GET: $uri');
-    final response = await _httpGet(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+    final response = await _httpGet(uri, headers: _headers()).timeout(_requestTimeout);
     return _processResponse(response);
   }
 
@@ -115,7 +117,7 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API POST: $uri');
     final response = await _httpPost(uri, headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 10));
+        .timeout(_requestTimeout);
     return _processResponse(response);
   }
 
@@ -123,14 +125,14 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API PUT: $uri');
     final response = await _httpPut(uri, headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 10));
+        .timeout(_requestTimeout);
     return _processResponse(response);
   }
 
   static Future<dynamic> delete(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     debugPrint('API DELETE: $uri');
-    final response = await _httpDelete(uri, headers: _headers()).timeout(const Duration(seconds: 10));
+    final response = await _httpDelete(uri, headers: _headers()).timeout(_requestTimeout);
     return _processResponse(response);
   }
 
