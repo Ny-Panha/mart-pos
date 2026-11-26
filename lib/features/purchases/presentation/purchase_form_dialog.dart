@@ -202,6 +202,15 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
     final isDesktop = Responsive.isDesktop(context) || Responsive.isTablet(context);
     final activeSuppliers = ref.watch(activeSuppliersProvider);
     final allProducts = ref.watch(productsStreamProvider).value ?? [];
+    final selectedSupplier = _selectedSupplierId == null
+        ? null
+        : activeSuppliers.where((s) => s.id == _selectedSupplierId).firstOrNull;
+    final availableProducts =
+        (selectedSupplier != null && selectedSupplier.productIds.isNotEmpty)
+            ? allProducts
+                .where((p) => selectedSupplier.productIds.contains(p.id))
+                .toList()
+            : allProducts;
 
     final totalRiel = _items.fold<int>(0, (sum, i) => sum + i.subtotal);
     final totalUsd = MoneyUtils.rielToUsd(totalRiel);
@@ -303,6 +312,19 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
               setState(() {
                 _selectedSupplierId = val;
                 _errorMessage = null;
+                final nextSupplier = val == null
+                    ? null
+                    : activeSuppliers.where((s) => s.id == val).firstOrNull;
+                if (nextSupplier != null && nextSupplier.productIds.isNotEmpty) {
+                  for (final draft in _items) {
+                    if (draft.product != null &&
+                        !nextSupplier.productIds.contains(draft.product!.id)) {
+                      draft.product = null;
+                      draft.productSearchController.clear();
+                      draft.costController.text = '0';
+                    }
+                  }
+                }
               });
             },
             validator: (val) => val == null ? 'សូមជ្រើសរើសអ្នកផ្គត់ផ្គង់' : null,
@@ -359,8 +381,8 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
                                     '${p.name} (ស្តុក: ${p.stockQty})',
                                 optionsBuilder: (textEditingValue) {
                                   final q = textEditingValue.text.trim().toLowerCase();
-                                  if (q.isEmpty) return allProducts;
-                                  return allProducts.where(
+                                  if (q.isEmpty) return availableProducts;
+                                  return availableProducts.where(
                                     (p) =>
                                         p.name.toLowerCase().contains(q) ||
                                         p.code.toLowerCase().contains(q) ||
