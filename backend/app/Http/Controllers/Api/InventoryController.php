@@ -462,4 +462,68 @@ class InventoryController extends Controller
             throw $e;
         }
     }
+
+    public function purchases()
+    {
+        $movements = StockMovement::with(['product:id,name,cost_price', 'creator:id,name'])
+            ->where('type', 'in')
+            ->where('ref_id', 'like', 'op_po_%')
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get();
+
+        $opsByRef = InventoryOperation::whereIn('client_operation_id', $movements->pluck('ref_id')->unique()->values())
+            ->get()
+            ->keyBy('client_operation_id');
+
+        $grouped = [];
+        foreach ($movements as $m) {
+            $refId = $m->ref_id ?: ('po_' . $m->id);
+            if (!isset($grouped[$refId])) {
+                $op = $opsByRef->get($refId);
+                $meta = is_array($op?->metadata) ? $op->metadata : [];
+                $supplierName = $meta['supplier_name'] ?? '';
+                $noteText = null;
+                $rawNote = (string) ($m->note ?? '');
+                if (str_starts_with($rawNote, 'Purchase: ')) {
+                    $rest = substr($rawNote, strlen('Purchase: '));
+                    $parts = explode(' - ', $rest, 2);
+                    if (empty($supplierName)) {
+                        $supplierName = trim($parts[0]);
+                    }
+                    if (count($parts) > 1 && trim($parts[1]) !== '') {
+                        $noteText = trim($parts[1]);
+                    }
+                } elseif ($rawNote !== '') {
+                    $noteText = $rawNote;
+                }
+
+                $grouped[$refId] = [
+                    'id' => preg_replace('/^op_/', '', $refId),
+                    'supplier_id' => (string) ($meta['supplier_id'] ?? ''),
+                    'supplier_name' => $supplierName !== '' ? $supplierName : 'Supplier',
+                    'note' => $noteText,
+                    'created_by' => $m->creator?->name ?? (string) ($m->created_by ?? 'Admin'),
+                    'created_at' => optional($m->created_at)->toIso8601String(),
+                    'total_cost' => 0,
+                    'items' => [],
+                ];
+            }
+
+            $costPrice = (int) ($m->product?->cost_price ?? 0);
+            $qty = (int) $m->qty;
+            $grouped[$refId]['items'][] = [
+                'product_id' => (string) $m->product_id,
+                'name' => $m->product?->name ?? ('Product #' . $m->product_id),
+                'qty' => $qty,
+                'cost_price' => $costPrice,
+            ];
+            $grouped[$refId]['total_cost'] += $qty * $costPrice;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => array_values($grouped),
+        ]);
+    }
 }

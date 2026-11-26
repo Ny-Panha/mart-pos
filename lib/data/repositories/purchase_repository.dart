@@ -48,9 +48,43 @@ class PurchaseRepository {
     }
   }
 
-  /// Watch purchases stream (orderBy createdAt desc, limit 100)
-  Stream<List<PurchaseModel>> watchPurchases() {
-    return ShopScope.query(FirestoreCollections.purchases)
+  /// Watch purchases stream from authoritative Laravel API (with Firestore fallback).
+  Stream<List<PurchaseModel>> watchPurchases() async* {
+    try {
+      final res = await ApiService.get('/inventory/purchases');
+      if (res != null && res['success'] == true && res['data'] is List) {
+        final list = (res['data'] as List).map((raw) {
+          final m = Map<String, dynamic>.from(raw as Map);
+          final rawItems = (m['items'] is List) ? m['items'] as List : const [];
+          final items = rawItems.map((it) {
+            final im = Map<String, dynamic>.from(it as Map);
+            return PurchaseItem(
+              productId: im['product_id']?.toString() ?? '',
+              name: im['name']?.toString() ?? '',
+              qty: (im['qty'] is num) ? (im['qty'] as num).toInt() : 0,
+              costPrice: (im['cost_price'] is num) ? (im['cost_price'] as num).toInt() : 0,
+            );
+          }).toList();
+
+          return PurchaseModel(
+            id: m['id']?.toString() ?? '',
+            supplierId: m['supplier_id']?.toString() ?? '',
+            supplierName: m['supplier_name']?.toString() ?? 'Supplier',
+            items: items,
+            totalCost: (m['total_cost'] is num) ? (m['total_cost'] as num).toInt() : 0,
+            note: m['note']?.toString(),
+            createdBy: m['created_by']?.toString() ?? 'Admin',
+            createdAt: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+          );
+        }).toList();
+        yield list;
+        return;
+      }
+    } catch (e) {
+      debugPrint('Laravel watchPurchases notice (fallback to Firestore): $e');
+    }
+
+    yield* ShopScope.query(FirestoreCollections.purchases)
         .limit(100)
         .snapshots()
         .map((snapshot) {

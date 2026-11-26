@@ -176,6 +176,8 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
       );
 
       _activePurchaseId = null;
+      ref.invalidate(purchasesStreamProvider);
+      ref.invalidate(productsStreamProvider);
 
       if (mounted) {
         Navigator.of(context).pop();
