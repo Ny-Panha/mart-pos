@@ -87,6 +87,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   late final TextEditingController _categoryController =
       TextEditingController();
   final FocusNode _categoryFocusNode = FocusNode();
+  late final TextEditingController _unitController =
+      TextEditingController(text: widget.product?.unit ?? 'កំប៉ុង');
+  final FocusNode _unitFocusNode = FocusNode();
 
   String? _selectedCategoryId;
   bool _didPrefillCategory = false;
@@ -131,10 +134,103 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     _taxController.dispose();
     _categoryController.dispose();
     _categoryFocusNode.dispose();
+    _unitController.dispose();
+    _unitFocusNode.dispose();
     super.dispose();
   }
 
   bool get _isEditing => widget.product != null;
+
+  Widget _buildSearchableField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required List<String> optionsList,
+    required String labelText,
+    required String hintText,
+    String? Function(String?)? validator,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return RawAutocomplete<String>(
+          textEditingController: controller,
+          focusNode: focusNode,
+          optionsBuilder: (textEditingValue) {
+            final query = textEditingValue.text.trim().toLowerCase();
+            if (query.isEmpty) return optionsList;
+            return optionsList.where(
+              (option) => option.toLowerCase().contains(query),
+            );
+          },
+          onSelected: (selection) => controller.text = selection,
+          fieldViewBuilder: (
+            context,
+            fieldController,
+            fieldFocusNode,
+            onFieldSubmitted,
+          ) {
+            return TextFormField(
+              controller: fieldController,
+              focusNode: fieldFocusNode,
+              decoration: InputDecoration(
+                labelText: labelText,
+                hintText: hintText,
+                isDense: true,
+                suffixIcon: fieldController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        onPressed: () {
+                          fieldController.clear();
+                          fieldFocusNode.requestFocus();
+                        },
+                      )
+                    : const Icon(Icons.arrow_drop_down, size: 20),
+              ),
+              validator: validator,
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            final opts = options.toList();
+            if (opts.isEmpty) return const SizedBox.shrink();
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 6,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: 200,
+                  ),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    shrinkWrap: true,
+                    itemCount: opts.length,
+                    itemBuilder: (context, index) {
+                      final option = opts[index];
+                      return InkWell(
+                        onTap: () => onSelected(option),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Text(
+                            option,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Future<void> _handlePickAndUploadImage() async {
     try {
@@ -357,6 +453,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
 
       final parsedTax = double.tryParse(_taxController.text.trim()) ?? 0.0;
       final taxRate = parsedTax >= 1.0 ? parsedTax / 100.0 : (parsedTax > 0 ? parsedTax : 0.0);
+      final unitToUse = _unitController.text.trim().isNotEmpty
+          ? _unitController.text.trim()
+          : _selectedUnit;
 
       if (_isEditing) {
         // Update product
@@ -369,7 +468,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           costPrice: costPrice,
           salePrice: salePrice,
           stockQty: stockQty,
-          unit: _selectedUnit,
+          unit: unitToUse,
           lowStockThreshold: lowStock,
           tax: taxRate,
           status: _isActive ? 'active' : 'inactive',
@@ -411,7 +510,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           costPrice: costPrice,
           salePrice: salePrice,
           stockQty: stockQty,
-          unit: _selectedUnit,
+          unit: unitToUse,
           lowStockThreshold: lowStock,
           tax: taxRate,
           status: _isActive ? 'active' : 'inactive',
@@ -548,93 +647,15 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                       }
                       final categoryNames =
                           categories.map((c) => c.name).toList();
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          return RawAutocomplete<String>(
-                            textEditingController: _categoryController,
-                            focusNode: _categoryFocusNode,
-                            optionsBuilder: (textEditingValue) {
-                              final query = textEditingValue.text.trim().toLowerCase();
-                              if (query.isEmpty) {
-                                return categoryNames;
-                              }
-                              return categoryNames.where(
-                                (name) => name.toLowerCase().contains(query),
-                              );
-                            },
-                            onSelected: (selection) {
-                              _categoryController.text = selection;
-                            },
-                            fieldViewBuilder: (
-                              context,
-                              controller,
-                              focusNode,
-                              onFieldSubmitted,
-                            ) {
-                              return TextFormField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                decoration: InputDecoration(
-                                  labelText: 'ប្រភេទទំនិញ (Category) *',
-                                  hintText: 'ជ្រើសរើស ឬវាយថ្មី...',
-                                  isDense: true,
-                                  suffixIcon: controller.text.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(Icons.clear, size: 16),
-                                          onPressed: () {
-                                            controller.clear();
-                                            focusNode.requestFocus();
-                                          },
-                                        )
-                                      : const Icon(Icons.arrow_drop_down, size: 20),
-                                ),
-                                validator: (v) =>
-                                    (v == null || v.trim().isEmpty)
-                                        ? 'Category is required'
-                                        : null,
-                              );
-                            },
-                            optionsViewBuilder: (context, onSelected, options) {
-                              final opts = options.toList();
-                              if (opts.isEmpty) return const SizedBox.shrink();
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 6,
-                                  borderRadius: BorderRadius.circular(AppRadius.md),
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: constraints.maxWidth,
-                                      maxHeight: 200,
-                                    ),
-                                    child: ListView.builder(
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
-                                      shrinkWrap: true,
-                                      itemCount: opts.length,
-                                      itemBuilder: (context, index) {
-                                        final option = opts[index];
-                                        return InkWell(
-                                          onTap: () => onSelected(option),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 10,
-                                            ),
-                                            child: Text(
-                                              option,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                      return _buildSearchableField(
+                        controller: _categoryController,
+                        focusNode: _categoryFocusNode,
+                        optionsList: categoryNames,
+                        labelText: 'ប្រភេទទំនិញ (Category) *',
+                        hintText: 'ជ្រើសរើស ឬវាយថ្មី...',
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Category is required'
+                            : null,
                       );
                     },
                   ),
@@ -791,20 +812,17 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                   ),
                 ),
                 const SizedBox(width: 14),
-                // Unit Dropdown
+                // Unit Searchable Autocomplete
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _commonUnits.contains(_selectedUnit) ? _selectedUnit : _commonUnits.first,
-                    decoration: const InputDecoration(
-                      labelText: 'ខ្នាត (Unit)',
-                      isDense: true,
-                    ),
-                    items: _commonUnits.map((u) {
-                      return DropdownMenuItem(value: u, child: Text(u));
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedUnit = val);
-                    },
+                  child: _buildSearchableField(
+                    controller: _unitController,
+                    focusNode: _unitFocusNode,
+                    optionsList: _commonUnits,
+                    labelText: 'ខ្នាត (Unit)',
+                    hintText: 'ជ្រើសរើស ឬវាយថ្មី...',
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Unit is required'
+                        : null,
                   ),
                 ),
               ],
