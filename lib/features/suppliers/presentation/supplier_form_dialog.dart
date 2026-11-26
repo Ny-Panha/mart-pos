@@ -7,6 +7,8 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/firestore/models/supplier_model.dart';
+import '../../products/providers/category_provider.dart';
+import '../../products/providers/product_provider.dart';
 import '../providers/supplier_provider.dart';
 
 class SupplierFormDialog extends ConsumerStatefulWidget {
@@ -24,6 +26,7 @@ class SupplierFormDialog extends ConsumerStatefulWidget {
       return showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.transparent,
         builder: (_) => SupplierFormDialog(supplier: supplier),
       );
@@ -40,6 +43,7 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
   late final TextEditingController _noteController;
+  late final Set<String> _selectedProductIds;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -52,6 +56,7 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
     _phoneController = TextEditingController(text: widget.supplier?.phone ?? '');
     _addressController = TextEditingController(text: widget.supplier?.address ?? '');
     _noteController = TextEditingController(text: widget.supplier?.note ?? '');
+    _selectedProductIds = Set<String>.from(widget.supplier?.productIds ?? const []);
   }
 
   @override
@@ -80,6 +85,7 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
           phone: _phoneController.text.trim(),
           address: _addressController.text.trim(),
           note: _noteController.text.trim(),
+          productIds: _selectedProductIds.toList(),
         );
       } else {
         await repo.createSupplier(
@@ -87,6 +93,7 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
           phone: _phoneController.text.trim(),
           address: _addressController.text.trim(),
           note: _noteController.text.trim(),
+          productIds: _selectedProductIds.toList(),
         );
       }
 
@@ -241,6 +248,90 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
           ),
           const SizedBox(height: 16),
 
+          // Supplied Products
+          Text(
+            'ទំនិញដែលផ្គត់ផ្គង់ (Supplied Products)',
+            style: AppTextStyles.bodyBold,
+          ),
+          const SizedBox(height: 6),
+          Consumer(
+            builder: (context, ref, _) {
+              final products = ref.watch(productsStreamProvider).value ?? const [];
+              if (products.isEmpty) {
+                return const Text(
+                  'មិនទាន់មានទំនិញក្នុងប្រព័ន្ធទេ',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                );
+              }
+              final selectedProducts = products.where((p) => _selectedProductIds.contains(p.id)).toList();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    onTap: () => _openProductsPicker(products),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkBg : AppColors.lightBg,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            size: 20,
+                            color: selectedProducts.isNotEmpty
+                                ? AppColors.primary
+                                : (isDark ? AppColors.darkMutedText : AppColors.lightMutedText),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selectedProducts.isEmpty
+                                  ? 'ជ្រើសរើសទំនិញ... (Select Products)'
+                                  : 'បានជ្រើសរើស ${selectedProducts.length} មុខ (${selectedProducts.length} selected)',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: selectedProducts.isEmpty ? FontWeight.normal : FontWeight.w600,
+                                color: selectedProducts.isEmpty
+                                    ? (isDark ? AppColors.darkMutedText : AppColors.lightMutedText)
+                                    : (isDark ? AppColors.darkText : AppColors.lightText),
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.search_rounded, size: 18, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (selectedProducts.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: selectedProducts.map((p) {
+                        return Chip(
+                          label: Text(p.name, style: const TextStyle(fontSize: 11.5)),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          onDeleted: () => setState(() => _selectedProductIds.remove(p.id)),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+
           // Note
           Text(
             'កំណត់ចំណាំ (Note)',
@@ -294,20 +385,224 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
         ),
       );
     } else {
-      return Material(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      return SafeArea(
+        bottom: false,
+        child: Material(
+          color: isDark ? AppColors.darkCard : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.of(context).padding.bottom +
+                  20,
+            ),
+            child: SingleChildScrollView(child: formContent),
           ),
-          child: SingleChildScrollView(child: formContent),
         ),
       );
+    }
+  }
+
+  Future<void> _openProductsPicker(List<dynamic> products) async {
+    final tempSelected = Set<String>.from(_selectedProductIds);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final categories = ref.read(categoriesStreamProvider).value ?? const [];
+    final categoryNames = <String, String>{
+      for (final c in categories) c.id: c.name,
+    };
+    String query = '';
+    String selectedCategoryId = 'all';
+
+    final confirmed = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final q = query.trim().toLowerCase();
+            final filtered = products.where((p) {
+              final catId = (p.categoryId as String?) ?? '';
+              final matchesCategory =
+                  selectedCategoryId == 'all' || catId == selectedCategoryId;
+              if (!matchesCategory) return false;
+              if (q.isEmpty) return true;
+              final name = (p.name as String).toLowerCase();
+              final code = (p.code as String?)?.toLowerCase() ?? '';
+              final barcode = (p.barcode as String?)?.toLowerCase() ?? '';
+              final catName = (categoryNames[catId] ?? '').toLowerCase();
+              return name.contains(q) ||
+                  code.contains(q) ||
+                  barcode.contains(q) ||
+                  catName.contains(q);
+            }).toList();
+
+            return SafeArea(
+              bottom: false,
+              child: Material(
+                color: isDark ? AppColors.darkCard : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  height: MediaQuery.of(ctx).size.height * 0.72,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.inventory_2_outlined, color: AppColors.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'ជ្រើសរើសទំនិញផ្គត់ផ្គង់ (${tempSelected.length})',
+                                style: AppTextStyles.titleLG.copyWith(
+                                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                                ),
+                              ),
+                            ),
+                            if (tempSelected.isNotEmpty)
+                              TextButton(
+                                onPressed: () => setSheetState(() => tempSelected.clear()),
+                                child: const Text('សម្អាត'),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(sheetCtx).pop(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          autofocus: false,
+                          decoration: InputDecoration(
+                            hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
+                            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                            suffixIcon: query.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 18),
+                                    onPressed: () => setSheetState(() => query = ''),
+                                  )
+                                : null,
+                            isDense: true,
+                          ),
+                          onChanged: (v) => setSheetState(() => query = v),
+                        ),
+                      ),
+                      if (categories.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 36,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: const Text('ទាំងអស់ (All)', style: TextStyle(fontSize: 12)),
+                                  selected: selectedCategoryId == 'all',
+                                  onSelected: (_) => setSheetState(() => selectedCategoryId = 'all'),
+                                ),
+                              ),
+                              for (final cat in categories)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(cat.name, style: const TextStyle(fontSize: 12)),
+                                    selected: selectedCategoryId == cat.id,
+                                    onSelected: (_) => setSheetState(() => selectedCategoryId = cat.id),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'រកមិនឃើញទំនិញទេ',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, _) => const Divider(height: 1),
+                                itemBuilder: (_, idx) {
+                                  final p = filtered[idx];
+                                  final checked = tempSelected.contains(p.id);
+                                  final code = (p.code as String?) ?? '';
+                                  final catName = categoryNames[(p.categoryId as String?) ?? ''] ?? '';
+                                  final subtitleText = [
+                                    if (code.isNotEmpty) code,
+                                    if (catName.isNotEmpty) catName,
+                                  ].join(' • ');
+                                  return CheckboxListTile(
+                                    value: checked,
+                                    dense: true,
+                                    activeColor: AppColors.primary,
+                                    title: Text(
+                                      p.name as String,
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                    ),
+                                    subtitle: subtitleText.isNotEmpty
+                                        ? Text(subtitleText, style: const TextStyle(fontSize: 11.5))
+                                        : null,
+                                    onChanged: (val) {
+                                      setSheetState(() {
+                                        if (val == true) {
+                                          tempSelected.add(p.id as String);
+                                        } else {
+                                          tempSelected.remove(p.id as String);
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          8,
+                          16,
+                          MediaQuery.of(ctx).padding.bottom + 12,
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: AppButton(
+                            text: 'រួចរាល់ (Done - ${tempSelected.length})',
+                            icon: Icons.check,
+                            onPressed: () => Navigator.of(sheetCtx).pop(tempSelected),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != null && mounted) {
+      setState(() {
+        _selectedProductIds
+          ..clear()
+          ..addAll(confirmed);
+      });
     }
   }
 }

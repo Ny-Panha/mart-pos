@@ -36,8 +36,10 @@ class AuditLogsScreen extends ConsumerWidget {
     final selectedDate = ref.watch(auditDateFilterProvider);
 
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -144,15 +146,22 @@ class AuditLogsScreen extends ConsumerWidget {
                   const Divider(height: 24),
 
                   // Date range filters
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.calendar_today_rounded, size: 16, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Text(
-                        'កាលបរិច្ឆេទ (Date Filter):',
-                        style: AppTextStyles.bodyBold.copyWith(fontSize: 13),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_rounded, size: 16, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'កាលបរិច្ឆេទ (Date Filter):',
+                              style: AppTextStyles.bodyBold.copyWith(fontSize: 13),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -179,10 +188,14 @@ class AuditLogsScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'បញ្ជីកំណត់ហេតុសកម្មភាព (Audit Log Entries)',
-                        style: AppTextStyles.titleLG.copyWith(fontSize: 16),
+                      Expanded(
+                        child: Text(
+                          'បញ្ជីកំណត់ហេតុសកម្មភាព (Audit Log Entries)',
+                          style: AppTextStyles.titleLG.copyWith(fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
@@ -236,6 +249,7 @@ class AuditLogsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -149,10 +149,12 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0,
-        ),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0,
+          ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -192,14 +194,23 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
                 unselectedLabelColor: isDark
                     ? AppColors.darkMutedText
                     : AppColors.lightMutedText,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
                 tabs: const [
                   Tab(
                     icon: Icon(Icons.people_alt_outlined, size: 18),
-                    text: 'បុគ្គលិក (Staff Accounts)',
+                    child: Text(
+                      'បុគ្គលិក (Staff)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   Tab(
                     icon: Icon(Icons.history_rounded, size: 18),
-                    text: 'ប្រវត្តិវេនលក់ (Shift History)',
+                    child: Text(
+                      'ប្រវត្តិវេន (Shifts)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -219,6 +230,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -311,16 +323,20 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Text(
                                     user.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: AppTextStyles.body.copyWith(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
@@ -362,32 +378,29 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
                         ),
 
                         // Active Status Switch
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  user.active
-                                      ? 'Active (សកម្ម)'
-                                      : 'Inactive (អសកម្ម)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: user.active
-                                        ? AppColors.success
-                                        : Colors.grey,
-                                  ),
+                            if (MediaQuery.sizeOf(context).width >= 600) ...[
+                              Text(
+                                user.active
+                                    ? 'Active (សកម្ម)'
+                                    : 'Inactive (អសកម្ម)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: user.active
+                                      ? AppColors.success
+                                      : Colors.grey,
                                 ),
-                                const SizedBox(width: 6),
-                                Switch(
-                                  value: user.active,
-                                  activeThumbColor: AppColors.success,
-                                  onChanged: (_) =>
-                                      _handleToggleActive(user, allUsers),
-                                ),
-                              ],
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Switch(
+                              value: user.active,
+                              activeThumbColor: AppColors.success,
+                              onChanged: (_) =>
+                                  _handleToggleActive(user, allUsers),
                             ),
                           ],
                         ),
@@ -485,11 +498,14 @@ class _UsersScreenState extends ConsumerState<UsersScreen>
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  'Cashier: $cashierName',
-                                  style: AppTextStyles.body.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
+                                Flexible(
+                                  child: Text(
+                                    'Cashier: $cashierName',
+                                    style: AppTextStyles.body.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
