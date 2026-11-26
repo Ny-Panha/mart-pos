@@ -150,8 +150,11 @@ fvm flutter run
 * **Staff & Shifts (`users_screen.dart`)**: កែ `Row` ឈ្មោះបុគ្គលិក + Role badge ទៅជា `Wrap`, សម្រួល Switch layout លើ mobile, និងការពារការដាច់អក្សរលើ `TabBar`។
 * **Audit Log (`audit_logs_screen.dart`)**: កែ **Date Filter** row ទៅជា `Column` + `Wrap` ដើម្បីកុំឲ្យ overflow លើអេក្រង់ទូរស័ព្ទ។
 
-### 4. 🔌 Run លើទូរស័ព្ទ Android ពិតតាម USB (Local Backend)
+### 4. 🔌 Run លើទូរស័ព្ទ Android ពិតតាម USB vs Emulator / Chrome
+* **Chrome / Windows / Android Emulator**: ប្រើ `fvm flutter run` ធម្មតា (Emulator ស្គាល់ `10.0.2.2:8080` ស្រាប់)។
+* **ទូរស័ព្ទ Android ពិត (តាម USB)**: ត្រូវដាក់ `adb reverse` និង `--dart-define=API_BASE_URL=...` ដើម្បីកុំឲ្យជាប់ error `No route to host` (`10.0.2.2`)៖
 ```bash
 adb reverse tcp:8080 tcp:8080
-flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8080/api
+fvm flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8080/api
 ```
+*(បើគ្មាន `fvm` ក្នុង PATH លើ Windows អាចប្រើ `.\.fvm\flutter_sdk\bin\flutter.bat` ជំនួស `fvm flutter`)*
