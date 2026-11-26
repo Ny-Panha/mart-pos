@@ -6,20 +6,17 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/utils/money.dart';
+import '../../../core/utils/receipt_printer.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/receipt_preview_dialog.dart';
 import '../../../core/widgets/offline_bar.dart';
 import '../../../core/widgets/qty_stepper.dart';
 import '../../../data/firestore/models/product_model.dart';
 
-import 'package:intl/intl.dart';
-
 import '../../../data/firestore/models/daily_close_model.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../customers/providers/customer_provider.dart';
 import '../../products/providers/category_provider.dart';
 import '../../products/providers/product_provider.dart';
-import '../../shifts/presentation/close_shift_dialog.dart';
-import '../../shifts/presentation/open_shift_dialog.dart';
 import '../../shifts/providers/shift_provider.dart';
 import '../providers/pos_cart_provider.dart';
 import 'payment_dialog.dart';
@@ -271,6 +268,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
         paidAmount: paid,
         changeAmount: change,
         paymentMethod: method,
+        cart: cart,
       );
     }
   }
@@ -281,6 +279,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
     required int paidAmount,
     required int changeAmount,
     required String paymentMethod,
+    required PosCartState cart,
   }) {
     showMotionDialog(
       context: context,
@@ -318,273 +317,64 @@ class _PosScreenState extends ConsumerState<PosScreen>
                 color: AppColors.primary,
               ),
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                '✓ បានកត់ត្រា និងកាត់ស្តុកដោយជោគជ័យ (Authoritative Sync)',
-                style: TextStyle(fontSize: 11, color: Colors.green),
-              ),
-            ),
           ],
         ),
         actions: [
-          OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Receipt #$invoiceNum sent to printer')),
-              );
-              Navigator.pop(ctx);
-            },
-            icon: const Icon(Icons.print_outlined, size: 16),
-            label: const Text('បោះពុម្ព (Print)'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('បិទ (Close)'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showCustomerSelectorDialog() async {
-    String filter = '';
-    await showMotionDialog<void>(
-      context: context,
-      builder: (ctx) => Consumer(
-        builder: (context, dialogRef, _) {
-          final customers =
-              dialogRef.watch(customersStreamProvider).value ?? [];
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              final filtered = customers.where((c) {
-                if (filter.isEmpty) return true;
-                return c.name.toLowerCase().contains(filter.toLowerCase()) ||
-                    (c.phone != null && c.phone!.contains(filter));
-              }).toList();
-
-              return AlertDialog(
-                scrollable: true,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.card),
-                ),
-                title: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'ជ្រើសរើសអតិថិជន',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                content: SizedBox(
-                  width: 420,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        decoration: InputDecoration(
-                          hintText: 'ស្វែងរកឈ្មោះ ឬលេខទូរស័ព្ទ...',
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onChanged: (val) {
-                          setDialogState(() => filter = val);
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(
-                            color: AppColors.primary.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        leading: const CircleAvatar(
-                          backgroundColor: AppColors.primary,
-                          child: Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        title: const Text(
-                          'អតិថិជនទូទៅ (Walk-in Customer)',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: const Text('Standard non-member checkout'),
-                        onTap: () {
-                          ref
-                              .read(posCartProvider.notifier)
-                              .setCustomer(null, 'អតិថិជនទូទៅ (Walk-in)');
-                          Navigator.pop(ctx);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      const Divider(height: 1),
-                      const SizedBox(height: 8),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.sizeOf(context).height * .4,
-                        ),
-                        child: filtered.isEmpty
-                            ? Container(
-                                padding: const EdgeInsets.all(16),
-                                child: const Text(
-                                  'មិនទាន់មានអតិថិជនក្នុងបញ្ជី (ចុច + បន្ថែមអតិថិជនថ្មី)',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              )
-                            : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: filtered.length,
-                                itemBuilder: (context, idx) {
-                                  final cust = filtered[idx];
-                                  return ListTile(
-                                    dense: true,
-                                    leading: CircleAvatar(
-                                      backgroundColor: AppColors.primary
-                                          .withValues(alpha: 0.1),
-                                      child: Text(
-                                        cust.name.isNotEmpty
-                                            ? cust.name[0]
-                                            : 'C',
-                                        style: const TextStyle(
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      cust.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    subtitle: Text(cust.phone ?? 'No phone'),
-                                    trailing: Text(
-                                      MoneyUtils.formatRiel(cust.totalSpent),
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    onTap: () {
-                                      ref
-                                          .read(posCartProvider.notifier)
-                                          .setCustomer(cust.id, cust.name);
-                                      Navigator.pop(ctx);
-                                    },
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-                actions: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _showAddCustomerDialog();
-                    },
-                    icon: const Icon(Icons.person_add_alt_1, size: 16),
-                    label: const Text('+ បន្ថែមអតិថិជនថ្មី'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _showAddCustomerDialog() async {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-
-    await showMotionDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        scrollable: true,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-        ),
-        title: const Text('បន្ថែមអតិថិជនថ្មី (New Customer)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'ឈ្មោះ (Name) *',
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'លេខទូរស័ព្ទ (Phone)',
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('បោះបង់'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) return;
-              try {
-                final newCust = await ref
-                    .read(customerRepositoryProvider)
-                    .createCustomer(
-                      name: name,
-                      phone: phoneCtrl.text.trim().isEmpty
-                          ? null
-                          : phoneCtrl.text.trim(),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final receiptData = ReceiptData(
+                      invoiceNumber: invoiceNum,
+                      createdAt: DateTime.now(),
+                      paymentMethod: paymentMethod,
+                      items: cart.items
+                          .map(
+                            (i) => ReceiptItemData(
+                              name: i.product.name,
+                              qty: i.qty,
+                              unitPrice: i.unitPrice,
+                              totalPrice: i.lineTotal,
+                            ),
+                          )
+                          .toList(),
+                      subtotal: cart.subtotal,
+                      discount: cart.discount,
+                      tax: cart.totalTax,
+                      total: totalAmount,
+                      paid: paidAmount,
+                      change: changeAmount,
                     );
-                ref
-                    .read(posCartProvider.notifier)
-                    .setCustomer(newCust.id, newCust.name);
-                if (ctx.mounted) Navigator.pop(ctx);
-              } catch (e) {
-                if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text('Failed to add customer: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('រក្សាទុក (Save)'),
+                    Navigator.pop(ctx);
+                    await ReceiptPreviewDialog.show(context, data: receiptData);
+                  },
+                  icon: const Icon(Icons.print_outlined, size: 16),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('បោះពុម្ព (Print)'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('បិទ (Close)'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
-    );
+    ).then((_) {
+      if (mounted && _mobileTabController.index != 0) {
+        _mobileTabController.animateTo(0);
+      }
+    });
   }
 
   void _syncAdjustments(PosCartState next) {
@@ -717,20 +507,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
-                        if (shift.hasValue)
-                          _buildShiftStatusChip(
-                            context,
-                            shift.value,
-                            Theme.of(context).brightness == Brightness.dark,
-                          )
-                        else
-                          Text(
-                            shift.isLoading
-                                ? 'Checking shift…'
-                                : 'Shift unavailable',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        const SizedBox(width: 4),
                         IconButton(
                           tooltip: 'View cart',
                           onPressed: () => _viewCart(split),
@@ -743,11 +519,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
                         ),
                       ],
                     ),
-                    if (shift.hasValue && shift.value == null)
-                      Text(
-                        'Open a shift to include sales in the shift report.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _scanController,
@@ -1011,18 +782,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
                       ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.lgBorder,
-                  ),
-                  tileColor: theme.scaffoldBackgroundColor,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(cart.customerName),
-                  trailing: const Icon(Icons.expand_more),
-                  onTap: locked ? null : _showCustomerSelectorDialog,
-                ),
                 const SizedBox(height: 16),
                 if (cart.items.isEmpty)
                   const Padding(
@@ -1196,78 +955,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
     }
-  }
-
-  Widget _buildShiftStatusChip(
-    BuildContext context,
-    DailyCloseModel? shift,
-    bool isDark,
-  ) {
-    final isOpen = shift != null;
-    final timeStr = isOpen ? DateFormat('HH:mm').format(shift.openedAt) : '';
-
-    return SpringPressEffect(
-      child: InkWell(
-        onTap: () {
-          if (isOpen) {
-            CloseShiftDialog.show(context, shift);
-          } else {
-            OpenShiftDialog.show(context);
-          }
-        },
-        borderRadius: BorderRadius.circular(AppRadius.button),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 36),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: isOpen
-                ? AppColors.success.withValues(alpha: 0.12)
-                : (isDark ? AppColors.darkBorder : Colors.grey.shade200),
-            borderRadius: BorderRadius.circular(AppRadius.button),
-            border: Border.all(
-              color: isOpen
-                  ? AppColors.success.withValues(alpha: 0.4)
-                  : (isDark ? AppColors.darkBorder : Colors.grey.shade400),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isOpen
-                      ? AppColors.success
-                      : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
-                  boxShadow: isOpen
-                      ? [
-                          BoxShadow(
-                            color: AppColors.success.withValues(alpha: 0.6),
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isOpen ? 'Open · $timeStr' : 'Shift closed',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: isOpen
-                      ? AppColors.success
-                      : (isDark ? AppColors.darkMutedText : Colors.grey.shade700),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

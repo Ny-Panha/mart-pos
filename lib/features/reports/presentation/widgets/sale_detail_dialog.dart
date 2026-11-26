@@ -6,7 +6,9 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/date.dart';
 import '../../../../core/utils/money.dart';
+import '../../../../core/utils/receipt_printer.dart';
 import '../../../../core/widgets/product_thumbnail.dart';
+import '../../../../core/widgets/receipt_preview_dialog.dart';
 import '../../../../data/firestore/models/sale_model.dart';
 import '../../../customers/providers/customer_provider.dart';
 import '../../../products/providers/product_provider.dart';
@@ -328,9 +330,28 @@ class SaleDetailDialog extends ConsumerWidget {
             ),
             const SizedBox(height: 18),
 
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('បិទ (Close)'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ReceiptPreviewDialog.show(
+                        context,
+                        data: ReceiptData.fromSale(sale),
+                      );
+                    },
+                    icon: const Icon(Icons.print_outlined, size: 18),
+                    label: const Text('បោះពុម្ព (Print)'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('បិទ (Close)'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

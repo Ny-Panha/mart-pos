@@ -1,38 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/date.dart';
 import '../../../core/utils/money.dart';
+import '../../../core/utils/receipt_printer.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/receipt_preview_dialog.dart';
 import '../../../data/firestore/models/sale_model.dart';
 
 class CashierInvoiceScreen extends StatelessWidget {
   final SaleModel sale;
   const CashierInvoiceScreen({super.key, required this.sale});
 
-  void _copyInvoice(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: _receiptText()));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invoice copied for printing')),
+  Future<void> _printInvoice(BuildContext context) async {
+    await ReceiptPreviewDialog.show(
+      context,
+      data: ReceiptData.fromSale(sale),
     );
-  }
-
-  String _receiptText() {
-    final lines = <String>[
-      'Invoice ${sale.invoiceNumber}',
-      DateUtilsHelper.formatDateTime(sale.createdAt),
-      '',
-    ];
-    lines.addAll(
-      sale.items.map(
-        (item) =>
-            '${item.name} x${item.qty}  ${MoneyUtils.formatRiel(item.totalPrice)}',
-      ),
-    );
-    lines.add('TOTAL: ${MoneyUtils.formatRiel(sale.total)}');
-    lines.add('Payment: ${sale.paymentMethod.toUpperCase()}');
-    return lines.join('\n');
   }
 
   @override
@@ -42,8 +26,8 @@ class CashierInvoiceScreen extends StatelessWidget {
         title: Text('Invoice ${sale.invoiceNumber}'),
         actions: [
           IconButton(
-            tooltip: 'Reprint',
-            onPressed: () => _copyInvoice(context),
+            tooltip: 'Print',
+            onPressed: () => _printInvoice(context),
             icon: const Icon(Icons.print_outlined),
           ),
         ],
@@ -99,9 +83,9 @@ class CashierInvoiceScreen extends StatelessWidget {
                   _line('Change', sale.changeAmount),
                   const SizedBox(height: 20),
                   OutlinedButton.icon(
-                    onPressed: () => _copyInvoice(context),
+                    onPressed: () => _printInvoice(context),
                     icon: const Icon(Icons.print_outlined),
-                    label: const Text('Copy receipt for printing'),
+                    label: const Text('បោះពុម្ពវិក្កយបត្រ (Print Receipt)'),
                   ),
                 ],
               ),
