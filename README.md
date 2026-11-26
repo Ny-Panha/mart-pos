@@ -106,13 +106,23 @@ php artisan serve --host=0.0.0.0 --port=8080
 ```
 *(Backend REST API នឹងដំណើរការនៅ `http://localhost:8080` ឬតាម Wi-Fi IP ក្នុងបណ្តាញ Local)*
 
-### ជំហានទី ៣៖ ដំណើរការ Flutter Frontend App
+### ជំហានទី ៣៖ ដំឡើង FVM & ដំណើរការ Flutter Frontend App
+គម្រោងនេះប្រើ **FVM (Flutter Version Management)** ជាមួយ Flutter SDK version **`3.47.7`** (ដើម្បីឲ្យ Team ទាំងអស់ប្រើ version ដូចគ្នាពេល `clone` ឬ `pull`)។
+
 បើក Terminal ថ្មីមួយទៀតក្នុង Root Folder នៃគម្រោង៖
 ```bash
-flutter pub get
-flutter run
+# 1. ដំឡើង FVM (ធ្វើតែម្តងដំបូងបើមិនទាន់មាន fvm)
+dart pub global activate fvm
+
+# 2. ទាញយក និងប្រើ Flutter SDK 3.47.7 តាម .fvm/fvm_config.json
+fvm install 3.47.7
+fvm use 3.47.7
+
+# 3. ទាញ packages និង run (ធ្វើរាល់ពេលក្រោយ git clone / git pull)
+fvm flutter pub get
+fvm flutter run
 ```
-*(អាច Run លើទូរស័ព្ទ Android ពិត, Chrome Web, ឬ Desktop)*
+*(បើគ្មាន `fvm` ក្នុង PATH លើ Windows អាចប្រើ `.\.fvm\flutter_sdk\bin\flutter.bat pub get` និង `.\.fvm\flutter_sdk\bin\flutter.bat run` ជំនួសបាន។ អាច Run លើទូរស័ព្ទ Android ពិត, Chrome Web, ឬ Desktop)*
 
 ---
 
