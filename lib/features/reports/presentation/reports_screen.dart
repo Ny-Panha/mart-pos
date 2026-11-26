@@ -165,10 +165,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'បញ្ជីវិក្កយបត្រលក់ (Invoices in Range)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      const Expanded(
+                        child: Text(
+                          'បញ្ជីវិក្កយបត្រលក់ (Invoices in Range)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         '${summary.transactionCount} entries',
                         style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),

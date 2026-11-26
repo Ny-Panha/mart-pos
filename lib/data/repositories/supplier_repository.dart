@@ -43,6 +43,7 @@ class SupplierRepository {
     String? phone,
     String? address,
     String? note,
+    List<String> productIds = const [],
   }) async {
     final cleanName = name.trim();
     if (cleanName.isEmpty) {
@@ -56,6 +57,7 @@ class SupplierRepository {
       phone: phone?.trim().isEmpty ?? true ? null : phone!.trim(),
       address: address?.trim().isEmpty ?? true ? null : address!.trim(),
       note: note?.trim().isEmpty ?? true ? null : note!.trim(),
+      productIds: productIds,
       active: true,
       createdAt: DateTime.now(),
     );
@@ -71,6 +73,7 @@ class SupplierRepository {
     String? phone,
     String? address,
     String? note,
+    List<String>? productIds,
     bool? active,
   }) async {
     final cleanName = name.trim();
@@ -84,6 +87,10 @@ class SupplierRepository {
       'address': address?.trim().isEmpty ?? true ? null : address!.trim(),
       'note': note?.trim().isEmpty ?? true ? null : note!.trim(),
     };
+
+    if (productIds != null) {
+      data['productIds'] = productIds;
+    }
 
     if (active != null) {
       data['active'] = active;

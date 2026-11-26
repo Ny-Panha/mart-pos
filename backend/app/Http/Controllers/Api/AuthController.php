@@ -67,4 +67,16 @@ class AuthController extends Controller
             'message' => 'Logged out successfully',
         ]);
     }
+
+    public function users()
+    {
+        $users = User::select('id', 'name', 'email', 'role', 'status')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $users,
+        ]);
+    }
 }

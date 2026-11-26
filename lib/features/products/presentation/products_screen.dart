@@ -171,38 +171,63 @@ class ProductsScreen extends ConsumerWidget {
     final products = ref.watch(filteredProductsProvider);
     final categories = ref.watch(categoriesStreamProvider).value ?? [];
     final selectedCategory = ref.watch(selectedCategoryProvider);
+    final searchQuery = ref.watch(productSearchQueryProvider);
+
+    void resetAndRefresh() {
+      ref.read(productSearchQueryProvider.notifier).setQuery('');
+      ref.read(selectedCategoryProvider.notifier).setCategory('all');
+      ref.invalidate(productsStreamProvider);
+      ref.invalidate(categoriesStreamProvider);
+    }
 
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Page Header
-            PageHeader(
-              eyebrow: 'Inventory Management',
-              title: 'គ្រប់គ្រងទំនិញ (Products & Categories)',
-              description: 'Create, update, organize categories, and track retail pricing in Riel',
-              actions: [
-                FilledButton.icon(
-                  onPressed: () => ProductFormDialog.show(context),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('+ NEW PRODUCT'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            resetAndRefresh();
+            try {
+              await ref.read(productsStreamProvider.future);
+            } catch (_) {}
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Page Header
+                PageHeader(
+                  eyebrow: 'Inventory Management',
+                  title: 'គ្រប់គ្រងទំនិញ (Products & Categories)',
+                  description: 'Create, update, organize categories, and track retail pricing in Riel',
+                  actions: [
+                    FilledButton.icon(
+                      onPressed: () => ProductFormDialog.show(context),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('NEW PRODUCT'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => CategoryManagerDialog.show(context),
+                      icon: const Icon(Icons.category_outlined, size: 16),
+                      label: const Text('ប្រភេទ (Categories)'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: resetAndRefresh,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Refresh'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                  ],
                 ),
-                OutlinedButton.icon(
-                  onPressed: () => CategoryManagerDialog.show(context),
-                  icon: const Icon(Icons.category_outlined, size: 16),
-                  label: const Text('ប្រភេទ (Categories)'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 16),
 
             // Category Capsule Tabs (Tavola style)
@@ -254,15 +279,30 @@ class ProductsScreen extends ConsumerWidget {
                         return Column(
                           children: [
                             TextField(
+                              controller: TextEditingController(text: searchQuery)
+                                ..selection = TextSelection.collapsed(offset: searchQuery.length),
                               onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
                               decoration: InputDecoration(
                                 isDense: true,
                                 hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
                                 prefixIcon: const Icon(Icons.search, size: 20),
-                                suffixIcon: IconButton(
-                                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
-                                  tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
-                                  onPressed: () => _openScanSearch(context, ref),
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (searchQuery.isNotEmpty)
+                                      IconButton(
+                                        icon: const Icon(Icons.close, size: 18),
+                                        tooltip: 'Clear',
+                                        onPressed: () => ref
+                                            .read(productSearchQueryProvider.notifier)
+                                            .setQuery(''),
+                                      ),
+                                    IconButton(
+                                      icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                                      tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                                      onPressed: () => _openScanSearch(context, ref),
+                                    ),
+                                  ],
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 border: OutlineInputBorder(
@@ -314,15 +354,30 @@ class ProductsScreen extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: TextField(
+                              controller: TextEditingController(text: searchQuery)
+                                ..selection = TextSelection.collapsed(offset: searchQuery.length),
                               onChanged: (v) => ref.read(productSearchQueryProvider.notifier).setQuery(v),
                               decoration: InputDecoration(
                                 isDense: true,
                                 hintText: 'ស្វែងរកឈ្មោះទំនិញ ឬបារកូដ...',
                                 prefixIcon: const Icon(Icons.search, size: 20),
-                                suffixIcon: IconButton(
-                                  icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
-                                  tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
-                                  onPressed: () => _openScanSearch(context, ref),
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (searchQuery.isNotEmpty)
+                                      IconButton(
+                                        icon: const Icon(Icons.close, size: 18),
+                                        tooltip: 'Clear',
+                                        onPressed: () => ref
+                                            .read(productSearchQueryProvider.notifier)
+                                            .setQuery(''),
+                                      ),
+                                    IconButton(
+                                      icon: const Icon(Icons.qr_code_scanner, color: AppColors.primary, size: 20),
+                                      tooltip: 'ស្កេនបារកូដ (Scan Barcode)',
+                                      onPressed: () => _openScanSearch(context, ref),
+                                    ),
+                                  ],
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 border: OutlineInputBorder(
@@ -386,10 +441,20 @@ class ProductsScreen extends ConsumerWidget {
 
             // Responsive Presentation: Desktop Data Table vs Mobile Card List
             if (products.isEmpty)
-              const EmptyState(
-                icon: Icons.inventory_2_outlined,
-                title: 'គ្មានទំនិញទេ (No Products Found)',
-                subtitle: 'សាកល្បងស្វែងរកឈ្មោះផ្សេង ឬចុច "+ NEW PRODUCT" ដើម្បីបញ្ចូលទំនិញថ្មី',
+              Column(
+                children: [
+                  const EmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'គ្មានទំនិញទេ (No Products Found)',
+                    subtitle: 'សាកល្បងស្វែងរកឈ្មោះផ្សេង ឬចុច "+ NEW PRODUCT" ដើម្បីបញ្ចូលទំនិញថ្មី',
+                  ),
+                  if (searchQuery.isNotEmpty || selectedCategory != 'all')
+                    OutlinedButton.icon(
+                      onPressed: resetAndRefresh,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('បង្ហាញទំនិញទាំងអស់ (Reset)'),
+                    ),
+                ],
               )
             else if (isDesktop)
               _buildDesktopTable(context, ref, products, isDark)
@@ -397,6 +462,8 @@ class ProductsScreen extends ConsumerWidget {
               _buildMobileCards(context, ref, products, isDark),
           ],
         ),
+      ),
+      ),
       ),
     );
   }
@@ -531,12 +598,136 @@ class ProductsScreen extends ConsumerWidget {
     );
   }
 
+  void _showProductDetails(
+    BuildContext context,
+    ProductModel p,
+    String categoryName,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                ProductThumbnail(
+                  imageUrl: p.imageUrl,
+                  productId: p.id,
+                  productName: p.name,
+                  barcode: p.barcode,
+                  width: 64,
+                  height: 64,
+                  borderRadius: 12,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.name,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          categoryName,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            _detailRow('លេខកូដ (Code)', p.code),
+            _detailRow('បារកូដ (Barcode)', p.barcode.isNotEmpty ? p.barcode : '-'),
+            _detailRow('SKU', p.sku.isNotEmpty ? p.sku : '-'),
+            _detailRow('ថ្លៃដើម (Cost)', MoneyUtils.formatDual(p.costPrice)),
+            _detailRow('តម្លៃលក់ (Sale)', MoneyUtils.formatDual(p.salePrice)),
+            _detailRow('ស្តុកបច្ចុប្បន្ន (Stock)', '${p.stockQty} ${p.unit}'),
+            _detailRow('កម្រិតស្តុកទាប (Low Alert)', '${p.lowStockThreshold} ${p.unit}'),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('បិទ (Close)'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ProductFormDialog.show(context, product: p);
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('កែប្រែ (Edit)'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMobileCards(
     BuildContext context,
     WidgetRef ref,
     List<ProductModel> products,
     bool isDark,
   ) {
+    final categories = ref.watch(categoriesStreamProvider).value ?? [];
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -544,7 +735,11 @@ class ProductsScreen extends ConsumerWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final p = products[index];
-        return AppCard(
+        final catName = categories.where((c) => c.id == p.categoryId).firstOrNull?.name ?? 'General';
+        return InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          onTap: () => _showProductDetails(context, p, catName),
+          child: AppCard(
           isFrosted: true,
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -619,6 +814,7 @@ class ProductsScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
         );
       },
     );

@@ -224,6 +224,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                             Navigator.pop(ctx);
                             setState(() {
                               _barcodeController.text = scanned;
+                              if (_codeController.text.trim().isEmpty) {
+                                _codeController.text = scanned.toUpperCase();
+                              }
+                              if (_skuController.text.trim().isEmpty) {
+                                _skuController.text = scanned.toUpperCase();
+                              }
                             });
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -880,27 +886,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 10),
-
-                  // Option B: Paste Direct Link
-                  TextFormField(
-                    controller: _imageUrlController,
-                    decoration: InputDecoration(
-                      labelText: 'ឬ បិទភ្ជាប់តំណភ្ជាប់ (Or Paste Image URL)',
-                      hintText: 'https://...',
-                      prefixIcon: const Icon(Icons.link_rounded, size: 20),
-                      suffixIcon: _imageUrlController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () => setState(() => _imageUrlController.clear()),
-                            )
-                          : null,
-                      isDense: true,
-                    ),
-                    onChanged: (_) => setState(() {}),
                   ),
                 ],
               ),

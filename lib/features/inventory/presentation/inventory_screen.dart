@@ -12,6 +12,7 @@ import '../../../data/firestore/models/product_model.dart';
 import '../../../data/firestore/models/stock_movement_model.dart';
 import '../../products/providers/product_provider.dart';
 import '../../purchases/presentation/purchase_form_dialog.dart';
+import '../../users/providers/user_provider.dart';
 import '../../../core/widgets/product_thumbnail.dart';
 import '../providers/inventory_provider.dart';
 import 'stock_action_dialog.dart';
@@ -37,14 +38,18 @@ class InventoryScreen extends ConsumerWidget {
     final movementsAsync = ref.watch(stockMovementsProvider);
     final lowStockProducts = ref.watch(lowStockProductsProvider);
     final allProducts = ref.watch(productsStreamProvider).value ?? [];
+    final allUsers = ref.watch(usersStreamProvider).value ?? [];
     final selectedFilter = ref.watch(inventoryProductFilterProvider);
 
     // Map productId -> ProductModel for fast lookups
     final productMap = {for (var p in allProducts) p.id: p};
+    final userMap = {for (var u in allUsers) u.id: u.name};
 
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -242,7 +247,12 @@ class InventoryScreen extends ConsumerWidget {
                         itemBuilder: (context, index) {
                           final movement = movements[index];
                           final product = productMap[movement.productId];
-                          return _buildMovementRow(movement, product, isDark);
+                          return _buildMovementRow(
+                            movement,
+                            product,
+                            isDark,
+                            userName: userMap[movement.createdBy],
+                          );
                         },
                       );
                     },
@@ -268,6 +278,7 @@ class InventoryScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -403,8 +414,9 @@ class InventoryScreen extends ConsumerWidget {
   Widget _buildMovementRow(
     StockMovementModel movement,
     ProductModel? product,
-    bool isDark,
-  ) {
+    bool isDark, {
+    String? userName,
+  }) {
     // Type styling
     IconData icon;
     Color color;
@@ -435,9 +447,11 @@ class InventoryScreen extends ConsumerWidget {
 
     final unit = product?.unit ?? 'Units';
     final productName = product?.name ?? 'Product #${movement.productId}';
-    final userShort = movement.createdBy.length > 8
-        ? '${movement.createdBy.substring(0, 6)}...'
-        : movement.createdBy;
+    final userShort = (userName != null && userName.isNotEmpty)
+        ? userName
+        : (movement.createdBy.length > 8
+            ? '${movement.createdBy.substring(0, 6)}...'
+            : movement.createdBy);
 
     return Row(
       children: [
@@ -478,9 +492,12 @@ class InventoryScreen extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    productName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Flexible(
+                    child: Text(
+                      productName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Container(
@@ -508,6 +525,7 @@ class InventoryScreen extends ConsumerWidget {
         ),
 
         // Movement Qty
+        const SizedBox(width: 8),
         Text(
           '$sign${movement.qty.abs()} $unit',
           style: TextStyle(

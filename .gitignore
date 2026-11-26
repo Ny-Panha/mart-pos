@@ -49,3 +49,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# FVM local SDK cache
+.fvm/flutter_sdk
+.fvm/versions/
+.fvm/release
+.fvm/version

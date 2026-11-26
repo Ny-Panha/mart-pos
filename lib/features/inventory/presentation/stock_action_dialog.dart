@@ -45,6 +45,7 @@ class StockActionDialog extends ConsumerStatefulWidget {
       return showModalBottomSheet(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.transparent,
         builder: (ctx) => StockActionDialog(
           actionType: actionType,
@@ -229,15 +230,16 @@ class _StockActionDialogState extends ConsumerState<StockActionDialog> {
           children: [
             // Title Header
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_title, style: AppTextStyles.titleLG),
-                    const SizedBox(height: 2),
-                    Text(_subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_title, style: AppTextStyles.titleLG),
+                      const SizedBox(height: 2),
+                      Text(_subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -435,7 +437,11 @@ class _StockActionDialogState extends ConsumerState<StockActionDialog> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    child: const Text('បោះបង់ (Cancel)'),
+                    child: const Text(
+                      'បោះបង់',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),

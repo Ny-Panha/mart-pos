@@ -6,6 +6,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/date.dart';
 import '../../../../core/utils/money.dart';
+import '../../../../core/widgets/product_thumbnail.dart';
 import '../../../../data/firestore/models/sale_model.dart';
 import '../../../customers/providers/customer_provider.dart';
 import '../../../products/providers/product_provider.dart';
@@ -57,24 +58,35 @@ class SaleDetailDialog extends ConsumerWidget {
     }
 
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
       backgroundColor: isDark ? AppColors.darkCard : Colors.white,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 500, maxHeight: 680),
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Header
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('វិក្កយបត្រ (Invoice Details)', style: AppTextStyles.titleLG),
-                    Text(sale.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'វិក្កយបត្រ (Invoice Details)',
+                        style: AppTextStyles.titleLG,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        sale.invoiceNumber,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -94,31 +106,46 @@ class SaleDetailDialog extends ConsumerWidget {
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('កាលបរិច្ឆេទ (Date/Time):', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text(DateUtilsHelper.formatDateTime(sale.createdAt), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('អតិថិជន (Customer):', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text(
-                        customerDisplayName,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          DateUtilsHelper.formatDateTime(sale.createdAt),
+                          textAlign: TextAlign.end,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('អតិថិជន (Customer):', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          customerDisplayName,
+                          textAlign: TextAlign.end,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
                     children: [
                       const Text('បេឡា (Cashier):', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text(
-                        cashierDisplayName,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          cashierDisplayName,
+                          textAlign: TextAlign.end,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ),
@@ -166,6 +193,18 @@ class SaleDetailDialog extends ConsumerWidget {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ProductThumbnail(
+                          imageUrl: product?.imageUrl ?? '',
+                          productId: item.productId,
+                          productName: item.name,
+                          barcode: product?.barcode ?? '',
+                          width: 38,
+                          height: 38,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

@@ -15,18 +15,34 @@ class CashierStockScreen extends ConsumerWidget {
     final stock = ref.watch(cashierStockProvider);
     final products = ref.watch(filteredCashierStockProvider);
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const PageHeader(
-              eyebrow: 'Cashier Operations',
-              title: 'ពិនិត្យស្តុកទំនិញ (Stock Check)',
-              description: 'ស្វែងរកចំនួនស្តុកទំនិញជាក់ស្តែងក្នុងហាង មុនពេលទទួលការកុម្ម៉ង់',
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(cashierStockProvider);
+            try {
+              await ref.read(cashierStockProvider.future);
+            } catch (_) {}
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(
+              MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                PageHeader(
+                  eyebrow: 'Cashier Operations',
+                  title: 'ពិនិត្យស្តុកទំនិញ (Stock Check)',
+                  description: 'ស្វែងរកចំនួនស្តុកទំនិញជាក់ស្តែងក្នុងហាង មុនពេលទទួលការកុម្ម៉ង់',
+                  actions: [
+                    OutlinedButton.icon(
+                      onPressed: () => ref.invalidate(cashierStockProvider),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Refresh'),
+                    ),
+                  ],
+                ),
             TextField(
               onChanged: (value) =>
                   ref.read(cashierSearchProvider.notifier).setQuery(value),
@@ -115,6 +131,8 @@ class CashierStockScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+      ),
       ),
     );
   }

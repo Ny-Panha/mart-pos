@@ -291,25 +291,35 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (s.phone != null && s.phone!.isNotEmpty) ...[
-                        const Icon(Icons.phone_outlined, size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text(s.phone!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        const SizedBox(width: 12),
-                      ],
-                      if (s.address != null && s.address!.isNotEmpty) ...[
-                        const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            s.address!,
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                      if (s.phone != null && s.phone!.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.phone_outlined, size: 12, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(s.phone!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
                         ),
-                      ],
+                      if (s.address != null && s.address!.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                s.address!,
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ],
@@ -322,18 +332,27 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
               children: [
                 IconButton(
                   tooltip: 'View Purchases',
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   icon: const Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
                   onPressed: () => SupplierDetailDialog.show(context, supplier: s),
                 ),
                 IconButton(
                   tooltip: 'Edit Supplier',
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   icon: const Icon(Icons.edit_outlined, size: 20),
                   onPressed: () => SupplierFormDialog.show(context, supplier: s),
                 ),
-                Switch(
-                  value: s.active,
-                  activeThumbColor: AppColors.success,
-                  onChanged: (_) => _handleToggleActive(s),
+                Transform.scale(
+                  scale: 0.85,
+                  child: Switch(
+                    value: s.active,
+                    activeThumbColor: AppColors.success,
+                    onChanged: (_) => _handleToggleActive(s),
+                  ),
                 ),
               ],
             ),

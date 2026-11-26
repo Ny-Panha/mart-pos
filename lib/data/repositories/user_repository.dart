@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../services/api_service.dart';
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/user_model.dart';
 import '../firestore/shop_scope.dart';
@@ -13,11 +14,38 @@ class UserRepository {
   UserRepository({FirebaseFunctions? functions})
     : _functions = functions ?? FirebaseFunctions.instance;
 
-  Stream<List<UserModel>> watchUsers() {
-    return ShopScope.query(FirestoreCollections.users)
+  Future<List<UserModel>> _fetchBackendUsers() async {
+    try {
+      final res = await ApiService.get('/users');
+      if (res['success'] == true && res['data'] is List) {
+        return (res['data'] as List).map((raw) {
+          final m = Map<String, dynamic>.from(raw as Map);
+          return UserModel(
+            id: m['id'].toString(),
+            name: (m['name'] ?? '').toString(),
+            email: m['email']?.toString(),
+            role: (m['role'] ?? 'CASHIER').toString(),
+            active: (m['status'] ?? 'active').toString() == 'active',
+            createdAt: DateTime.now(),
+          );
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('fetchBackendUsers error: $e');
+    }
+    return const [];
+  }
+
+  Stream<List<UserModel>> watchUsers() async* {
+    final backendUsers = await _fetchBackendUsers();
+    if (backendUsers.isNotEmpty) {
+      yield backendUsers;
+    }
+
+    yield* ShopScope.query(FirestoreCollections.users)
         .snapshots()
         .map((snapshot) {
-          final list = snapshot.docs.map((doc) {
+          final firestoreUsers = snapshot.docs.map((doc) {
             final data = doc.data();
             final email = (data.email ?? '').toLowerCase().trim();
             if (email == 'admin@bbu.edu.kh' && data.name != 'ផ្កាយ') {
@@ -27,6 +55,12 @@ class UserRepository {
             }
             return data;
           }).toList();
+
+          final merged = <String, UserModel>{
+            for (final u in firestoreUsers) u.id: u,
+            for (final u in backendUsers) u.id: u,
+          };
+          final list = merged.values.toList();
           list.sort(
             (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
           );
@@ -34,7 +68,7 @@ class UserRepository {
         })
         .handleError((error) {
           debugPrint('watchUsers error: $error');
-          return <UserModel>[];
+          return backendUsers;
         });
   }
 

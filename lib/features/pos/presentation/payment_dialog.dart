@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/money.dart';
@@ -37,6 +41,7 @@ class _PaymentDialogState extends State<PaymentDialog>
   int _receivedAmount = 0;
   double _receivedUsd = 0.0;
   bool _isProcessing = false;
+  Uint8List? _customKhqrBytes;
 
   double get _totalUsd =>
       double.parse((widget.totalAmount / 4100.0).toStringAsFixed(2));
@@ -54,6 +59,15 @@ class _PaymentDialogState extends State<PaymentDialog>
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+    _loadCustomKhqr();
+  }
+
+  Future<void> _loadCustomKhqr() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('mart_pos_khqr_image_base64');
+    if (mounted && saved != null && saved.isNotEmpty) {
+      setState(() => _customKhqrBytes = base64Decode(saved));
+    }
   }
 
   @override
@@ -251,16 +265,44 @@ class _PaymentDialogState extends State<PaymentDialog>
                         if (tab < 2)
                           _cashForm(tab == 1)
                         else
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              Icons.qr_code_rounded,
-                              color: colors.primary,
-                            ),
-                            title: const Text('Bakong KHQR'),
-                            subtitle: const Text(
-                              'ផ្ទៀងផ្ទាត់ប្រាក់ចូលក្នុងគណនីមុនបញ្ជាក់។',
-                            ),
+                          Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: _customKhqrBytes != null
+                                      ? Image.memory(
+                                          _customKhqrBytes!,
+                                          width: 200,
+                                          height: 200,
+                                          fit: BoxFit.contain,
+                                        )
+                                      : Image.asset(
+                                          'assets/qr.png',
+                                          width: 200,
+                                          height: 200,
+                                          fit: BoxFit.contain,
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  Icons.qr_code_rounded,
+                                  color: colors.primary,
+                                ),
+                                title: const Text('Bakong KHQR'),
+                                subtitle: const Text(
+                                  'ផ្ទៀងផ្ទាត់ប្រាក់ចូលក្នុងគណនីមុនបញ្ជាក់។',
+                                ),
+                              ),
+                            ],
                           ),
                       ],
                     ),

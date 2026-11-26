@@ -146,13 +146,16 @@ class InventoryRepository {
     }
 
     // Audit Log
+    final cleanNote = note?.trim() ?? '';
     AuditService.log(
       userId: userId,
       userName: userName ?? 'User $userId',
       action: 'stock.in',
       entityType: 'product',
       entityId: productId,
-      details: '${productName ?? "Product #$productId"} · +$qty',
+      details: cleanNote.isNotEmpty
+          ? '${productName ?? "Product #$productId"} · +$qty · $cleanNote'
+          : '${productName ?? "Product #$productId"} · +$qty',
     );
   }
 
@@ -237,7 +240,7 @@ class InventoryRepository {
       action: 'stock.out',
       entityType: 'product',
       entityId: productId,
-      details: '${productName ?? "Product #$productId"} · -$qty',
+      details: '${productName ?? "Product #$productId"} · -$qty · ${note.trim()}',
     );
   }
 
@@ -319,7 +322,7 @@ class InventoryRepository {
       action: 'stock.adjust',
       entityType: 'product',
       entityId: productId,
-      details: '${productName ?? "Product #$productId"} · $diffSign (to $newQty)',
+      details: '${productName ?? "Product #$productId"} · $diffSign (to $newQty) · ${note.trim()}',
     );
   }
 }

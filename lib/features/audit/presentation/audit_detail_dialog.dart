@@ -1,12 +1,21 @@
 import 'package:mart_pos/core/motion/app_motion.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/money.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/widgets/product_thumbnail.dart';
 import '../../../data/firestore/models/audit_log_model.dart';
+import '../../../data/firestore/models/category_model.dart';
+import '../../../data/firestore/models/product_model.dart';
+import '../../../data/firestore/models/sale_model.dart';
+import '../../products/providers/category_provider.dart';
+import '../../products/providers/product_provider.dart';
+import '../../reports/providers/report_provider.dart';
 
-class AuditDetailDialog extends StatelessWidget {
+class AuditDetailDialog extends ConsumerWidget {
   final AuditLogModel log;
 
   const AuditDetailDialog({super.key, required this.log});
@@ -47,12 +56,51 @@ class AuditDetailDialog extends StatelessWidget {
     return Icons.history_toggle_off_rounded;
   }
 
+  static String _friendlyEntityLabel(String entityType) {
+    switch (entityType.toLowerCase()) {
+      case 'sale':
+        return 'ការលក់ (Sale)';
+      case 'product':
+        return 'ទំនិញ (Product)';
+      case 'stock':
+        return 'ស្តុក (Stock)';
+      case 'purchase':
+        return 'ការទិញចូល (Purchase)';
+      case 'user':
+        return 'បុគ្គលិក (User)';
+      case 'shift':
+        return 'វេនលក់ (Shift)';
+      case 'category':
+        return 'ប្រភេទទំនិញ (Category)';
+      default:
+        return entityType.toUpperCase();
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop = Responsive.isDesktop(context) || Responsive.isTablet(context);
     final color = getActionColor(log.action);
     final icon = getActionIcon(log.action);
+
+    final products = ref.watch(productsStreamProvider).asData?.value ?? const <ProductModel>[];
+    final categories = ref.watch(categoriesStreamProvider).asData?.value ?? const <CategoryModel>[];
+    final sales = ref.watch(allRecentSalesProvider).asData?.value ?? const <SaleModel>[];
+    final productMap = {for (final p in products) p.id: p};
+    final categoryMap = {for (final c in categories) c.id: c.name};
+
+    SaleModel? matchedSale;
+    if (log.entityType.toLowerCase() == 'sale') {
+      for (final s in sales) {
+        if (s.id == log.entityId ||
+            (s.invoiceNumber.isNotEmpty && log.details.contains(s.invoiceNumber))) {
+          matchedSale = s;
+          break;
+        }
+      }
+    }
+    final ProductModel? matchedProduct = productMap[log.entityId];
 
     final dateStr =
         '${log.createdAt.day.toString().padLeft(2, '0')}/${log.createdAt.month.toString().padLeft(2, '0')}/${log.createdAt.year} '
@@ -132,14 +180,14 @@ class AuditDetailDialog extends StatelessWidget {
                 context,
                 icon: Icons.person_outline,
                 label: 'ប្រតិបត្តិការដោយ (Performed By):',
-                value: '${log.userName} (${log.userId})',
+                value: log.userName,
               ),
               const Divider(height: 18),
               _buildDetailItem(
                 context,
                 icon: Icons.category_outlined,
-                label: 'ប្រភេទ & លេខសម្គាល់ (Entity):',
-                value: '${log.entityType.toUpperCase()} #${log.entityId}',
+                label: 'ប្រភេទប្រតិបត្តិការ (Type):',
+                value: _friendlyEntityLabel(log.entityType),
               ),
               const Divider(height: 18),
               _buildDetailItem(
@@ -150,16 +198,130 @@ class AuditDetailDialog extends StatelessWidget {
                 isHighlight: true,
                 color: color,
               ),
-              const Divider(height: 18),
-              _buildDetailItem(
-                context,
-                icon: Icons.fingerprint_rounded,
-                label: 'លេខសម្គាល់ Log (Log ID):',
-                value: log.id,
-              ),
             ],
           ),
         ),
+        if (matchedSale != null && matchedSale.items.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ទំនិញពាក់ព័ន្ធ (Products & Category):',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                ...matchedSale.items.map((item) {
+                  final prod = productMap[item.productId];
+                  final catName = prod != null
+                      ? (categoryMap[prod.categoryId] ?? 'General')
+                      : 'General';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: ProductThumbnail(
+                            imageUrl: prod?.imageUrl ?? '',
+                            productId: item.productId,
+                            productName: item.name,
+                            barcode: prod?.barcode ?? '',
+                            width: 36,
+                            height: 36,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '$catName • ${item.qty} × ${MoneyUtils.formatRiel(item.unitPrice)}',
+                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          MoneyUtils.formatRiel(item.totalPrice),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ] else if (matchedProduct != null) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: ProductThumbnail(
+                    imageUrl: matchedProduct.imageUrl,
+                    productId: matchedProduct.id,
+                    productName: matchedProduct.name,
+                    barcode: matchedProduct.barcode,
+                    width: 40,
+                    height: 40,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        matchedProduct.name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        categoryMap[matchedProduct.categoryId] ?? 'General',
+                        style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
 
         // Actions

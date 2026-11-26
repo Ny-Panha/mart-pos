@@ -78,11 +78,14 @@ class SaleListTile extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        sale.invoiceNumber,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      Flexible(
+                        child: Text(
+                          sale.invoiceNumber,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -108,6 +111,7 @@ class SaleListTile extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 8),
 
             // Amount
             Column(

@@ -35,6 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin & Manager Only: Reports, Product/Category Management, Inventory & Purchases
     Route::middleware('role:ADMIN,ADMIN_MANAGER')->group(function () {
+        // Staff / Users List
+        Route::get('/users', [AuthController::class, 'users']);
+
         // Protected Financial & Sales Reports
         Route::get('/reports/summary', [ReportController::class, 'summary']);
 

@@ -6,6 +6,7 @@ class SupplierModel {
   final String? phone;
   final String? address;
   final String? note;
+  final List<String> productIds;
   final bool active;
   final DateTime createdAt;
 
@@ -15,6 +16,7 @@ class SupplierModel {
     this.phone,
     this.address,
     this.note,
+    this.productIds = const [],
     this.active = true,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -24,12 +26,16 @@ class SupplierModel {
     SnapshotOptions? options,
   ]) {
     final data = snapshot.data();
+    final rawProductIds = data?['productIds'];
     return SupplierModel(
       id: snapshot.id,
       name: data?['name']?.toString() ?? '',
       phone: data?['phone']?.toString(),
       address: data?['address']?.toString(),
       note: data?['note']?.toString(),
+      productIds: rawProductIds is List
+          ? rawProductIds.map((e) => e.toString()).toList()
+          : const [],
       active: data?['active'] ?? true,
       createdAt: (data?['createdAt'] is Timestamp)
           ? (data!['createdAt'] as Timestamp).toDate()
@@ -43,6 +49,7 @@ class SupplierModel {
       if (phone != null && phone!.trim().isNotEmpty) 'phone': phone!.trim(),
       if (address != null && address!.trim().isNotEmpty) 'address': address!.trim(),
       if (note != null && note!.trim().isNotEmpty) 'note': note!.trim(),
+      if (productIds.isNotEmpty) 'productIds': productIds,
       'active': active,
       'createdAt': Timestamp.fromDate(createdAt),
     };
@@ -54,6 +61,7 @@ class SupplierModel {
     String? phone,
     String? address,
     String? note,
+    List<String>? productIds,
     bool? active,
     DateTime? createdAt,
   }) {
@@ -63,6 +71,7 @@ class SupplierModel {
       phone: phone ?? this.phone,
       address: address ?? this.address,
       note: note ?? this.note,
+      productIds: productIds ?? this.productIds,
       active: active ?? this.active,
       createdAt: createdAt ?? this.createdAt,
     );

@@ -68,7 +68,7 @@ class PageHeader extends ConsumerWidget {
         : null;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24.0),
+      padding: EdgeInsets.only(top: isMobile ? 8.0 : 0.0, bottom: 24.0),
       child: isMobile
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
