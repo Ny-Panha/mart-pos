@@ -302,18 +302,12 @@ void main() {
   );
 
   testWidgets(
-    'Cashier can select a customer and edit order adjustments at 320px',
+    'Cashier can edit order adjustments at 320px',
     (tester) async {
       final container = await open(tester, 320);
       await add(tester, first);
       await tester.tap(find.text('View cart'));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('Walk-in'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('សុភា'));
-      await tester.tap(find.text('សុភា'));
-      await tester.pumpAndSettle();
-      expect(container.read(posCartProvider).customerId, 'customer');
       final discount = find.widgetWithText(TextField, 'Discount');
       await tester.ensureVisible(discount);
       await tester.enterText(discount, '500');

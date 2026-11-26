@@ -65,13 +65,6 @@ class MainShell extends ConsumerWidget {
           category: 'Stock',
         ),
         _NavItem(
-          path: '/admin/customers',
-          label: 'Customers',
-          khmerLabel: 'អតិថិជន',
-          icon: Icons.people_alt_rounded,
-          category: 'People',
-        ),
-        _NavItem(
           path: '/admin/users',
           label: 'Staff & Shifts',
           khmerLabel: 'បុគ្គលិក & វេនលក់',
@@ -128,13 +121,6 @@ class MainShell extends ConsumerWidget {
         label: 'Stock Check',
         khmerLabel: 'ពិនិត្យស្តុក',
         icon: Icons.inventory_2_rounded,
-        category: 'កិច្ចការលក់ (CASHIER)',
-      ),
-      _NavItem(
-        path: '/cashier/shift',
-        label: 'My Shift',
-        khmerLabel: 'វេនរបស់ខ្ញុំ',
-        icon: Icons.lock_clock_rounded,
         category: 'កិច្ចការលក់ (CASHIER)',
       ),
     ];

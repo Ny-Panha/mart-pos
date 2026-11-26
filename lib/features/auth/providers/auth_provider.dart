@@ -55,6 +55,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
 
   Future<void> signOut() async {
     final repo = ref.read(authRepositoryProvider);
+    await repo.recordCashierCheckOut(state.value);
     await repo.signOut();
     ShopScope.setUser(null);
     state = const AsyncValue.data(null);

@@ -10,7 +10,6 @@ import '../features/auth/presentation/biometric_lock_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/providers/biometric_provider.dart';
-import '../features/customers/presentation/customers_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/inventory/presentation/inventory_screen.dart';
 import '../features/pos/presentation/pos_screen.dart';
@@ -145,11 +144,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                 motionPage(context, state, const SuppliersScreen()),
           ),
           GoRoute(
-            path: '/admin/customers',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const CustomersScreen()),
-          ),
-          GoRoute(
             path: '/admin/reports',
             pageBuilder: (context, state) =>
                 motionPage(context, state, const ReportsScreen()),
@@ -193,11 +187,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/cashier/stock',
             pageBuilder: (context, state) =>
                 motionPage(context, state, const CashierStockScreen()),
-          ),
-          GoRoute(
-            path: '/cashier/shift',
-            pageBuilder: (context, state) =>
-                motionPage(context, state, const CashierDailyCloseScreen()),
           ),
           GoRoute(
             path: '/cashier/invoice/:id',

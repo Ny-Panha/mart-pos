@@ -10,6 +10,7 @@ import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/ios_theme_toggle.dart';
+import '../../../data/services/api_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/biometric_provider.dart';
 
@@ -71,6 +72,61 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _emailController.text = email;
     _passwordController.text = '12345678';
     setState(() {});
+  }
+
+  Future<void> _showServerUrlDialog() async {
+    final controller = TextEditingController(text: ApiService.baseUrl);
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Server API URL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'សម្រាប់ Wi-Fi (មិនបាច់ USB) ដាក់ IP របស់ PC ដូចជា:\nhttp://10.133.66.35:8080/api',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'API Base URL',
+                hintText: 'http://10.133.66.35:8080/api',
+                isDense: true,
+              ),
+              keyboardType: TextInputType.url,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(ApiService.defaultBaseUrl()),
+            child: const Text('Reset'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved != null && saved.isNotEmpty) {
+      await ApiService.setBaseUrl(saved);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('API Server set to $saved')),
+        );
+      }
+    }
   }
 
   @override
@@ -152,6 +208,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Server API URL',
+                icon: const Icon(Icons.dns_outlined, size: 20),
+                onPressed: _showServerUrlDialog,
               ),
               IosThemeToggle(
                 value: isDark,

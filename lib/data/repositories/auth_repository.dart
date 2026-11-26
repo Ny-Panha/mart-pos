@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../firestore/firestore_collections.dart';
 import '../firestore/models/user_model.dart';
+import '../firestore/shop_scope.dart';
 import '../services/api_service.dart';
 
 class AuthRepository {
@@ -107,7 +109,61 @@ class AuthRepository {
       debugPrint('Firebase secondary auth notice: $e');
     }
 
+    if (laravelUser.isCashier) {
+      await _recordCashierCheckIn(laravelUser);
+    }
+
     return laravelUser;
+  }
+
+  String _todayAttendanceDocId(String userId, DateTime now) {
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '${userId}_${now.year}-$m-$d';
+  }
+
+  Future<void> _recordCashierCheckIn(UserModel user) async {
+    try {
+      final now = DateTime.now();
+      final docRef = FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(_todayAttendanceDocId(user.id, now));
+      final existing = await docRef.get();
+      if (!existing.exists) {
+        await docRef.set({
+          'userId': user.id,
+          'userName': user.name,
+          'shopId': user.shopId ?? ShopScope.shopId ?? UserModel.defaultShopId,
+          'status': 'present',
+          'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
+          'checkIn': Timestamp.fromDate(now),
+          'checkOut': null,
+          'createdAt': Timestamp.fromDate(now),
+        });
+      }
+    } catch (e) {
+      debugPrint('Attendance check-in notice: $e');
+    }
+  }
+
+  Future<void> recordCashierCheckOut(UserModel? user) async {
+    if (user == null || !user.isCashier) return;
+    try {
+      final now = DateTime.now();
+      final docRef = FirebaseFirestore.instance
+          .collection('attendance')
+          .doc(_todayAttendanceDocId(user.id, now));
+      await docRef.set({
+        'userId': user.id,
+        'userName': user.name,
+        'shopId': user.shopId ?? ShopScope.shopId ?? UserModel.defaultShopId,
+        'status': 'present',
+        'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
+        'checkOut': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Attendance check-out notice: $e');
+    }
   }
 
   /// Completes the one-time manager bootstrap for the UID allowlisted by the

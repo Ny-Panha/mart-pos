@@ -59,7 +59,6 @@ void main() {
         'Stock Movements',
         'Purchases',
         'Suppliers',
-        'Customers',
         'Staff & Shifts',
         'Attendance',
         'Reports & Analytics',
@@ -85,7 +84,6 @@ void main() {
         'Stock Movements',
         'Purchases',
         'Suppliers',
-        'Customers',
         'Staff & Shifts',
         'Attendance',
         'Reports & Analytics',
@@ -104,7 +102,7 @@ void main() {
         role: UserModel.cashierRole,
         shopId: 'shop-a',
       ),
-      ['POS', 'Sales History', 'Stock Check', 'My Shift'],
+      ['POS', 'Sales History', 'Stock Check'],
     );
   });
 }

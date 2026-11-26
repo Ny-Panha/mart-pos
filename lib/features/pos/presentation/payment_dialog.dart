@@ -50,11 +50,11 @@ class _PaymentDialogState extends State<PaymentDialog>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _receivedAmount = widget.totalAmount;
-    _cashController.text = '$_receivedAmount';
+    _receivedAmount = 0;
+    _cashController.text = '';
 
-    _receivedUsd = _totalUsd;
-    _usdController.text = _totalUsd.toStringAsFixed(2);
+    _receivedUsd = 0.0;
+    _usdController.text = '';
 
     _tabController.addListener(() {
       if (mounted) setState(() {});
@@ -88,13 +88,6 @@ class _PaymentDialogState extends State<PaymentDialog>
     setState(() {
       _receivedAmount = amount;
       _cashController.text = '$amount';
-    });
-  }
-
-  void _addCash(int add) {
-    setState(() {
-      _receivedAmount += add;
-      _cashController.text = '$_receivedAmount';
     });
   }
 
@@ -358,7 +351,27 @@ class _PaymentDialogState extends State<PaymentDialog>
           }),
           decoration: InputDecoration(
             labelText: usd ? 'ប្រាក់ទទួល (USD)' : 'ប្រាក់ទទួល (KHR)',
+            hintText: usd
+                ? _totalUsd.toStringAsFixed(2)
+                : '${widget.totalAmount}',
             suffixText: usd ? r'$' : '៛',
+            suffixIcon: IconButton(
+              tooltip: 'Clear',
+              icon: const Icon(Icons.clear, size: 18),
+              onPressed: _isProcessing
+                  ? null
+                  : () {
+                      setState(() {
+                        if (usd) {
+                          _receivedUsd = 0;
+                          _usdController.clear();
+                        } else {
+                          _receivedAmount = 0;
+                          _cashController.clear();
+                        }
+                      });
+                    },
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -376,8 +389,8 @@ class _PaymentDialogState extends State<PaymentDialog>
             else
               for (final amount in [5000, 10000, 20000, 50000, 100000])
                 _quickCash(
-                  '+${MoneyUtils.formatRiel(amount)}',
-                  () => _addCash(amount),
+                  MoneyUtils.formatRiel(amount),
+                  () => _setCash(amount),
                 ),
           ],
         ),
@@ -395,9 +408,11 @@ class _PaymentDialogState extends State<PaymentDialog>
                 change,
                 textAlign: TextAlign.end,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: valid
-                      ? theme.colorScheme.onSurface
-                      : theme.colorScheme.error,
+                  color: !valid
+                      ? theme.colorScheme.error
+                      : (usd ? _changeUsd > 0 : _changeAmount > 0)
+                      ? AppColors.success
+                      : theme.colorScheme.onSurface,
                   fontWeight: FontWeight.bold,
                 ),
               ),
