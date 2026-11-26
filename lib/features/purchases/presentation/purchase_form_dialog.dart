@@ -42,6 +42,8 @@ class PurchaseFormDialog extends ConsumerStatefulWidget {
 
 class _ItemDraft {
   ProductModel? product;
+  final TextEditingController productSearchController;
+  final FocusNode productFocusNode;
   final TextEditingController qtyController;
   final TextEditingController costController;
 
@@ -49,7 +51,11 @@ class _ItemDraft {
     this.product,
     int qty = 10,
     int? costPrice,
-  })  : qtyController = TextEditingController(text: qty.toString()),
+  })  : productSearchController = TextEditingController(
+          text: product != null ? '${product.name} (ស្តុក: ${product.stockQty})' : '',
+        ),
+        productFocusNode = FocusNode(),
+        qtyController = TextEditingController(text: qty.toString()),
         costController = TextEditingController(text: (costPrice ?? product?.costPrice ?? 0).toString());
 
   int get qty => int.tryParse(qtyController.text) ?? 0;
@@ -57,6 +63,8 @@ class _ItemDraft {
   int get subtotal => qty * costPrice;
 
   void dispose() {
+    productSearchController.dispose();
+    productFocusNode.dispose();
     qtyController.dispose();
     costController.dispose();
   }
@@ -337,34 +345,107 @@ class _PurchaseFormDialogState extends ConsumerState<PurchaseFormDialog> {
                   children: [
                     Row(
                       children: [
-                        // Product Picker Dropdown
+                        // Searchable Product Picker
                         Expanded(
                           flex: 5,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: draft.product?.id,
-                            isExpanded: true,
-                            hint: const Text('ជ្រើសរើសទំនិញ...', style: TextStyle(fontSize: 12)),
-                            decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              isDense: true,
-                            ),
-                            items: allProducts.map((p) {
-                              return DropdownMenuItem<String>(
-                                value: p.id,
-                                child: Text(
-                                  '${p.name} (ស្តុក: ${p.stockQty})',
-                                  style: const TextStyle(fontSize: 12),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return RawAutocomplete<ProductModel>(
+                                textEditingController: draft.productSearchController,
+                                focusNode: draft.productFocusNode,
+                                displayStringForOption: (p) =>
+                                    '${p.name} (ស្តុក: ${p.stockQty})',
+                                optionsBuilder: (textEditingValue) {
+                                  final q = textEditingValue.text.trim().toLowerCase();
+                                  if (q.isEmpty) return allProducts;
+                                  return allProducts.where(
+                                    (p) =>
+                                        p.name.toLowerCase().contains(q) ||
+                                        p.code.toLowerCase().contains(q) ||
+                                        p.barcode.toLowerCase().contains(q),
+                                  );
+                                },
+                                onSelected: (prod) {
+                                  setState(() {
+                                    draft.product = prod;
+                                    draft.costController.text =
+                                        prod.costPrice.toString();
+                                  });
+                                },
+                                fieldViewBuilder: (
+                                  context,
+                                  controller,
+                                  focusNode,
+                                  onFieldSubmitted,
+                                ) {
+                                  return TextFormField(
+                                    controller: controller,
+                                    focusNode: focusNode,
+                                    style: const TextStyle(fontSize: 12),
+                                    decoration: InputDecoration(
+                                      hintText: 'ស្វែងរក ឬជ្រើសរើសទំនិញ...',
+                                      hintStyle: const TextStyle(fontSize: 12),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      isDense: true,
+                                      suffixIcon: controller.text.isNotEmpty
+                                          ? IconButton(
+                                              icon: const Icon(Icons.clear, size: 16),
+                                              onPressed: () {
+                                                setState(() {
+                                                  draft.product = null;
+                                                });
+                                                controller.clear();
+                                                focusNode.requestFocus();
+                                              },
+                                            )
+                                          : const Icon(Icons.arrow_drop_down, size: 20),
+                                    ),
+                                  );
+                                },
+                                optionsViewBuilder: (context, onSelected, options) {
+                                  final opts = options.toList();
+                                  if (opts.isEmpty) return const SizedBox.shrink();
+                                  return Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 6,
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: constraints.maxWidth,
+                                          maxHeight: 220,
+                                        ),
+                                        child: ListView.builder(
+                                          padding: const EdgeInsets.symmetric(vertical: 4),
+                                          shrinkWrap: true,
+                                          itemCount: opts.length,
+                                          itemBuilder: (context, idx) {
+                                            final p = opts[idx];
+                                            return InkWell(
+                                              onTap: () => onSelected(p),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 10,
+                                                ),
+                                                child: Text(
+                                                  '${p.name} (ស្តុក: ${p.stockQty})',
+                                                  style: const TextStyle(fontSize: 12),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
-                            }).toList(),
-                            onChanged: (selectedId) {
-                              if (selectedId == null) return;
-                              final prod = allProducts.firstWhere((p) => p.id == selectedId);
-                              setState(() {
-                                draft.product = prod;
-                                draft.costController.text = prod.costPrice.toString();
-                              });
                             },
                           ),
                         ),
