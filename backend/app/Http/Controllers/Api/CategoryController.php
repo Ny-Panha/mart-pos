@@ -40,6 +40,18 @@ class CategoryController extends Controller
             'icon' => 'nullable|string|max:50',
         ]);
 
+        $normalizedName = trim($validated['name']);
+        $existing = Category::where('status', 'active')
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($normalizedName)])
+            ->first();
+        if ($existing) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Category already exists',
+                'data' => $existing,
+            ], 200);
+        }
+
         $slug = !empty($validated['slug']) ? Str::slug($validated['slug']) : Str::slug($validated['name']);
         if (empty($slug)) {
             $slug = 'cat-' . Str::random(6);

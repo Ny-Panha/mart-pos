@@ -400,28 +400,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
   }
 
   Future<void> _handleSubmit() async {
+    if (_isLoading) return;
     setState(() => _codeError = null);
 
     if (!_formKey.currentState!.validate()) return;
-    final categories = ref.read(categoriesStreamProvider).value ?? [];
-    final inputCategoryName = _categoryController.text.trim();
-    String categoryIdToUse;
-    final matchedCategory = categories.where(
-      (c) => c.name.trim().toLowerCase() == inputCategoryName.toLowerCase(),
-    );
-    if (matchedCategory.isNotEmpty) {
-      categoryIdToUse = matchedCategory.first.id;
-    } else {
-      try {
-        final created = await ref
-            .read(categoryRepositoryProvider)
-            .createCategory(name: inputCategoryName);
-        categoryIdToUse = created.id;
-      } catch (_) {
-        categoryIdToUse = _selectedCategoryId ??
-            (categories.isNotEmpty ? categories.first.id : inputCategoryName);
-      }
-    }
 
     final code = _codeController.text.trim().toUpperCase();
     final repo = ref.read(productRepositoryProvider);
@@ -429,7 +411,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Check code uniqueness
+      // 1. Check code uniqueness before creating any new category
       final isTaken = await repo.isProductCodeTaken(
         code,
         excludeProductId: widget.product?.id,
@@ -441,6 +423,27 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog> {
           _isLoading = false;
         });
         return;
+      }
+
+      // 2. Resolve or create category
+      final categories = ref.read(categoriesStreamProvider).value ?? [];
+      final inputCategoryName = _categoryController.text.trim();
+      String categoryIdToUse;
+      final matchedCategory = categories.where(
+        (c) => c.name.trim().toLowerCase() == inputCategoryName.toLowerCase(),
+      );
+      if (matchedCategory.isNotEmpty) {
+        categoryIdToUse = matchedCategory.first.id;
+      } else {
+        try {
+          final created = await ref
+              .read(categoryRepositoryProvider)
+              .createCategory(name: inputCategoryName);
+          categoryIdToUse = created.id;
+        } catch (_) {
+          categoryIdToUse = _selectedCategoryId ??
+              (categories.isNotEmpty ? categories.first.id : inputCategoryName);
+        }
       }
 
       // 2. Parse numbers
