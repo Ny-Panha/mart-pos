@@ -122,3 +122,26 @@ flutter run
 |---|---|---|
 | **Admin Manager** | `admin@martpos.com` | `password123` |
 | **Cashier (អ្នកគិតលុយ)** | `cashier@martpos.com` | `password123` |
+
+---
+
+## 🛠️ ការកែលម្អ និងជួសជុលថ្មីៗ (Recent Fixes & Updates)
+
+### 1. 🔐 Biometric Unlock (`local_auth` + `flutter_secure_storage`)
+* **Cold-Start Biometric Lock Gate (`BiometricLockScreen`)**: ការពារការបើក app ឡើងវិញដោយស្កេនម្រាមដៃ ឬផ្ទៃមុខ (រារាំង Android Back button តាម `PopScope` និង block deep-link ទៅ `/admin` ឬ `/pos` រហូតដល់ផ្ទៀងផ្ទាត់រួច)។
+* **One-Time Enable Offer**: បង្ហាញ dialog `"Enable biometric unlock?"` ម្តងគត់លើ `MainShell` ក្រោយ login ដោយ password ជោគជ័យ។
+* **Login Screen Quick Scan**: បន្ថែមប៊ូតុង `"Log in with Fingerprint / Face"` នៅក្រោម `SIGN IN` ពេលមាន session និងឧបករណ៍ support biometrics (មិនរក្សាទុក password ឡើយ)។
+* **Settings Toggle**: អាចបិទ/បើក Biometric Unlock ក្នុង **Shop Settings → Appearance** (Admin) និង **My Shift → Security** (Cashier)។
+
+### 2. 🏷️ Supplier Product Picker Category Filter
+* បន្ថែម Category filter chips (`ទាំងអស់ (All)` និងគ្រប់ Category) ក្នុងផ្ទាំង **ជ្រើសរើសទំនិញផ្គត់ផ្គង់** (`supplier_form_dialog.dart`) ព្រមទាំងអាចស្វែងរកតាមឈ្មោះ Category និងបង្ហាញ `Code • Category`។
+
+### 3. 📱 Mobile Responsive & Overflow Fixes
+* **Staff & Shifts (`users_screen.dart`)**: កែ `Row` ឈ្មោះបុគ្គលិក + Role badge ទៅជា `Wrap`, សម្រួល Switch layout លើ mobile, និងការពារការដាច់អក្សរលើ `TabBar`។
+* **Audit Log (`audit_logs_screen.dart`)**: កែ **Date Filter** row ទៅជា `Column` + `Wrap` ដើម្បីកុំឲ្យ overflow លើអេក្រង់ទូរស័ព្ទ។
+
+### 4. 🔌 Run លើទូរស័ព្ទ Android ពិតតាម USB (Local Backend)
+```bash
+adb reverse tcp:8080 tcp:8080
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8080/api
+```
